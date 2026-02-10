@@ -394,6 +394,24 @@ class GameEngine {
                 this.playerFrame = (this.playerFrame + 1) % 4;
                 this.playerFrameTimer = 0;
             }
+            // Check if player walked into an exit hotspot at its walk-to position
+            const room = this.rooms[this.currentRoomId];
+            if (room && room.hotspots) {
+                for (let i = room.hotspots.length - 1; i >= 0; i--) {
+                    const hs = room.hotspots[i];
+                    if (!hs.isExit || hs.hidden) continue;
+                    const exitX = hs.walkToX !== undefined ? hs.walkToX : (hs.x + hs.w / 2);
+                    const exitY = hs.walkToY !== undefined ? hs.walkToY : this.playerY;
+                    // Check if player is close enough to the exit walk-to point
+                    if (Math.abs(this.playerX - exitX) < 15 && Math.abs(this.playerY - exitY) < 10) {
+                        if (hs.onExit) {
+                            this.playerWalking = false;
+                            hs.onExit(this);
+                        }
+                        break;
+                    }
+                }
+            }
         }
         // Click-target walking
         else if (this.playerWalking && (this.playerTargetX !== null || this.playerTargetY !== null)) {
@@ -624,7 +642,7 @@ class GameEngine {
         const walking = this.playerWalking;
         const frame = this.playerFrame;
         // Perspective scale: smaller when further away (low Y)
-        const s = 1.6 + (y - 280) / 90 * 0.6;
+        const s = 1.85 + (y - 280) / 90 * 0.3;
 
         // Shadow
         ctx.fillStyle = 'rgba(0,0,0,0.3)';

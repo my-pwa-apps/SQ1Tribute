@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'pulsar_ray', name: 'Pulsar Ray', description: 'A compact Mark IV energy sidearm. Small but packs a punch.' },
         { id: 'drink', name: 'Keronian Ale', description: 'A glass of potent alien ale. The liquid shimmers an unsettling shade of green.' },
         { id: 'nav_chip', name: 'Nav Chip', description: 'A navigation chip containing hyperspace coordinates to the Draknoid flagship location.' },
+        { id: 'mop_handle', name: 'Mop Handle', description: 'A sturdy titanium alloy mop handle. Not much of a weapon, but great for prying things open.' },
     ].forEach(item => engine.registerItem(item));
 
     // ========== DRAWING HELPERS ==========
@@ -969,8 +970,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 use: (e) => {
                     if (e.getFlag('closet_door_open')) {
                         e.showMessage('The door is already open.');
-                    } else if (e.getFlag('has_mop_handle')) {
+                    } else if (e.hasItem('mop_handle')) {
                         e.showMessage('You jam the mop handle into the gap and heave! With a metallic screech, the door grinds open just enough to squeeze through. Your janitor muscles came through!');
+                        e.removeFromInventory('mop_handle');
                         e.setFlag('closet_door_open');
                         e.addScore(5);
                     } else {
@@ -980,6 +982,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 useItem: (e, itemId) => {
                     if (e.getFlag('closet_door_open')) {
                         e.showMessage('The door is already open.');
+                    } else if (itemId === 'mop_handle') {
+                        e.showMessage('You jam the mop handle into the gap and heave! With a metallic screech, the door grinds open just enough to squeeze through. Your janitor muscles came through!');
+                        e.removeFromInventory('mop_handle');
+                        e.setFlag('closet_door_open');
+                        e.addScore(5);
                     } else {
                         e.showMessage('That won\'t help with this door.');
                     }
@@ -1009,6 +1016,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         e.showMessage('You grab the mop and snap off the handle with a satisfying crack. The soggy mop head flops to the floor. "Sorry, old friend. I need this more than the floor does." You now have a sturdy titanium mop handle!');
                         e.setFlag('has_mop_handle');
+                        e.addToInventory('mop_handle');
                         e.addScore(5);
                     }
                 },
