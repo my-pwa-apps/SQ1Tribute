@@ -28,7 +28,9 @@ class GameEngine {
         this.playerX = 320;
         this.playerY = 310;
         this.playerTargetX = null;
+        this.playerTargetY = null;
         this.playerDir = 1;
+        this.playerFacing = 'toward'; // 'left','right','toward','away'
         this.playerWalking = false;
         this.playerFrame = 0;
         this.playerFrameTimer = 0;
@@ -154,6 +156,8 @@ class GameEngine {
         if (py !== undefined) this.playerY = py;
         this.playerWalking = false;
         this.playerTargetX = null;
+        this.playerTargetY = null;
+        this.playerFacing = 'toward';
         this.pendingAction = null;
         if (room.onEnter) room.onEnter(this);
         this.showMessage(room.description);
@@ -267,6 +271,8 @@ class GameEngine {
         this.cutscene = null;
         this.roomTransition = 0;
         this.playerVisible = true;
+        this.playerFacing = 'toward';
+        this.playerTargetY = null;
         this.setAction('walk');
         document.getElementById('score-display').textContent = 'Score: 0 / 215';
         this.updateInventoryUI();
@@ -282,12 +288,14 @@ class GameEngine {
         if (this.currentAction === 'walk') {
             if (hotspot && hotspot.isExit) {
                 this.playerTargetX = hotspot.walkToX !== undefined ? hotspot.walkToX : (hotspot.x + hotspot.w / 2);
+                this.playerTargetY = hotspot.walkToY !== undefined ? hotspot.walkToY : null;
                 this.playerWalking = true;
                 this.pendingAction = () => { if (hotspot.onExit) hotspot.onExit(this); };
             } else if (hotspot && hotspot.walk) {
                 hotspot.walk(this);
             } else if (y > 240) {
                 this.playerTargetX = Math.max(30, Math.min(610, x));
+                this.playerTargetY = Math.max(280, Math.min(370, y));
                 this.playerWalking = true;
                 this.pendingAction = null;
             } else if (hotspot) {
@@ -357,17 +365,29 @@ class GameEngine {
         // Arrow key walking
         const arrowLeft = this.keysDown['ArrowLeft'];
         const arrowRight = this.keysDown['ArrowRight'];
-        if (arrowLeft || arrowRight) {
+        const arrowUp = this.keysDown['ArrowUp'];
+        const arrowDown = this.keysDown['ArrowDown'];
+        if (arrowLeft || arrowRight || arrowUp || arrowDown) {
             // Cancel any click-walk
             this.playerTargetX = null;
+            this.playerTargetY = null;
             this.pendingAction = null;
             this.playerWalking = true;
-            this.playerDir = arrowRight ? 1 : -1;
-            const newX = Math.max(30, Math.min(610, this.playerX + this.playerSpeed * this.playerDir));
-            if (newX === this.playerX) {
-                this.playerWalking = false;
-            } else {
-                this.playerX = newX;
+            // Determine facing
+            if (arrowLeft) { this.playerFacing = 'left'; this.playerDir = -1; }
+            else if (arrowRight) { this.playerFacing = 'right'; this.playerDir = 1; }
+            else if (arrowUp) { this.playerFacing = 'away'; }
+            else if (arrowDown) { this.playerFacing = 'toward'; }
+            // Move X
+            if (arrowLeft || arrowRight) {
+                const newX = Math.max(30, Math.min(610, this.playerX + this.playerSpeed * this.playerDir));
+                if (newX !== this.playerX) this.playerX = newX;
+            }
+            // Move Y
+            if (arrowUp || arrowDown) {
+                const yDir = arrowUp ? -1 : 1;
+                const newY = Math.max(280, Math.min(370, this.playerY + this.playerSpeed * yDir));
+                if (newY !== this.playerY) this.playerY = newY;
             }
             this.playerFrameTimer += dt;
             if (this.playerFrameTimer > 140) {
@@ -376,20 +396,38 @@ class GameEngine {
             }
         }
         // Click-target walking
-        else if (this.playerWalking && this.playerTargetX !== null) {
-            const dx = this.playerTargetX - this.playerX;
-            if (Math.abs(dx) < this.playerSpeed + 1) {
-                this.playerX = this.playerTargetX;
+        else if (this.playerWalking && (this.playerTargetX !== null || this.playerTargetY !== null)) {
+            const dx = this.playerTargetX !== null ? this.playerTargetX - this.playerX : 0;
+            const dy = this.playerTargetY !== null ? this.playerTargetY - this.playerY : 0;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < this.playerSpeed + 1) {
+                if (this.playerTargetX !== null) this.playerX = this.playerTargetX;
+                if (this.playerTargetY !== null) this.playerY = this.playerTargetY;
                 this.playerWalking = false;
                 this.playerTargetX = null;
+                this.playerTargetY = null;
+                this.playerFacing = 'toward';
                 if (this.pendingAction) {
                     const act = this.pendingAction;
                     this.pendingAction = null;
                     act();
                 }
             } else {
-                this.playerDir = dx > 0 ? 1 : -1;
-                this.playerX += this.playerSpeed * this.playerDir;
+                // Determine primary direction for facing
+                if (Math.abs(dx) >= Math.abs(dy)) {
+                    this.playerDir = dx > 0 ? 1 : -1;
+                    this.playerFacing = dx > 0 ? 'right' : 'left';
+                } else {
+                    this.playerFacing = dy < 0 ? 'away' : 'toward';
+                }
+                // Move proportionally
+                const mx = (dx / dist) * this.playerSpeed;
+                const my = (dy / dist) * this.playerSpeed;
+                this.playerX += mx;
+                this.playerY += my;
+                // Clamp
+                this.playerX = Math.max(30, Math.min(610, this.playerX));
+                this.playerY = Math.max(280, Math.min(370, this.playerY));
                 this.playerFrameTimer += dt;
                 if (this.playerFrameTimer > 140) {
                     this.playerFrame = (this.playerFrame + 1) % 4;
@@ -582,9 +620,11 @@ class GameEngine {
         const x = Math.round(this.playerX);
         const y = Math.round(this.playerY);
         const dir = this.playerDir;
+        const facing = this.playerFacing;
         const walking = this.playerWalking;
         const frame = this.playerFrame;
-        const s = 2;
+        // Perspective scale: smaller when further away (low Y)
+        const s = 1.6 + (y - 280) / 90 * 0.6;
 
         // Shadow
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -592,213 +632,353 @@ class GameEngine {
         ctx.ellipse(x, y + 20 * s, 8 * s, 2.5 * s, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Legs with trouser crease
+        // Leg animation
         const ls = walking ? Math.sin(frame * Math.PI / 2) * 3 * s : 0;
-        ctx.fillStyle = '#2828AA';
-        ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + ls);
-        ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s - ls);
-        // Trouser crease highlight
-        ctx.fillStyle = '#3535BB';
-        ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + ls);
-        ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s - ls);
-        // Knee shading
-        ctx.fillStyle = '#2020AA';
-        ctx.fillRect(x - 4 * s, y + 5 * s + Math.max(ls, 0), 3 * s, 1 * s);
-        ctx.fillRect(x + 1 * s, y + 5 * s - Math.min(ls, 0), 3 * s, 1 * s);
-
-        // Boots with soles and laces
-        ctx.fillStyle = '#222222';
-        ctx.fillRect(x - 5 * s, y + 9 * s + ls, 4 * s, 3 * s);
-        ctx.fillRect(x + 0 * s, y + 9 * s - ls, 4 * s, 3 * s);
-        // Boot soles
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(x - 5 * s, y + 11 * s + ls, 5 * s, 1 * s);
-        ctx.fillRect(x + 0 * s, y + 11 * s - ls, 5 * s, 1 * s);
-        // Boot lace detail
-        ctx.fillStyle = '#444444';
-        ctx.fillRect(x - 4 * s, y + 9 * s + ls, 2 * s, 1 * s);
-        ctx.fillRect(x + 1 * s, y + 9 * s - ls, 2 * s, 1 * s);
-        // Boot highlight
-        ctx.fillStyle = '#333333';
-        ctx.fillRect(x - 4 * s, y + 10 * s + ls, 1 * s, 1 * s);
-        ctx.fillRect(x + 1 * s, y + 10 * s - ls, 1 * s, 1 * s);
-
-        // Body - uniform torso
-        ctx.fillStyle = '#4444DD';
-        ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
-        // Uniform shading (sides darker)
-        ctx.fillStyle = '#3838CC';
-        ctx.fillRect(x - 5 * s, y - 10 * s, 1 * s, 11 * s);
-        ctx.fillRect(x + 4 * s, y - 10 * s, 1 * s, 11 * s);
-        // Uniform highlight center
-        ctx.fillStyle = '#5050EE';
-        ctx.fillRect(x - 1 * s, y - 8 * s, 2 * s, 6 * s);
-
-        // Collar with V-neck detail
-        ctx.fillStyle = '#5555EE';
-        ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 2 * s);
-        // Gold collar trim
-        ctx.fillStyle = '#CCAA44';
-        ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
-        // V-neck opening showing undershirt
-        ctx.fillStyle = '#EEDDCC';
-        ctx.fillRect(x - 1 * s, y - 10 * s, 2 * s, 2 * s);
-
-        // Shoulder patches (mission emblem)
-        ctx.fillStyle = '#CC2222';
-        ctx.fillRect(x - 5 * s, y - 9 * s, 2 * s, 2 * s);
-        ctx.fillRect(x + 3 * s, y - 9 * s, 2 * s, 2 * s);
-        // Tiny star on patches
-        ctx.fillStyle = '#FFDD44';
-        ctx.fillRect(x - 4.5 * s, y - 8.5 * s, 1 * s, 1 * s);
-        ctx.fillRect(x + 3.5 * s, y - 8.5 * s, 1 * s, 1 * s);
-
-        // Chest pocket
-        ctx.fillStyle = '#3838CC';
-        ctx.fillRect(x + 1 * s, y - 7 * s, 3 * s, 3 * s);
-        ctx.fillStyle = '#4040DD';
-        ctx.fillRect(x + 1 * s, y - 7 * s, 3 * s, 1 * s);
-        // Pen in pocket
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(x + 3 * s, y - 8 * s, 0.5 * s, 2 * s);
-
-        // Name tag
-        ctx.fillStyle = '#EEEEEE';
-        ctx.fillRect(x - 4 * s, y - 6 * s, 4 * s, 2 * s);
-        ctx.fillStyle = '#3333AA';
-        ctx.font = `${Math.max(4, s * 1.5)}px "Courier New"`;
-        ctx.fillText('WILKINS', x - 4 * s, y - 4.5 * s);
-
-        // Belt with utility pouches
-        ctx.fillStyle = '#666666';
-        ctx.fillRect(x - 5 * s, y - 0 * s, 10 * s, 2 * s);
-        // Belt buckle
-        ctx.fillStyle = '#DDCC22';
-        ctx.fillRect(x - 1.5 * s, y - 0.5 * s, 3 * s, 2.5 * s);
-        ctx.fillStyle = '#CCBB11';
-        ctx.fillRect(x - 1 * s, y + 0 * s, 2 * s, 1.5 * s);
-        // Belt pouches
-        ctx.fillStyle = '#555555';
-        ctx.fillRect(x - 5 * s, y - 0 * s, 2 * s, 3 * s);
-        ctx.fillRect(x + 3 * s, y - 0 * s, 2 * s, 3 * s);
-
-        // Arms with sleeve detail
         const as = walking ? Math.cos(frame * Math.PI / 2) * 2 * s : 0;
-        ctx.fillStyle = '#4444DD';
-        ctx.fillRect(x - 7 * s, y - 8 * s + as, 2 * s, 7 * s);
-        ctx.fillRect(x + 5 * s, y - 8 * s - as, 2 * s, 7 * s);
-        // Sleeve cuff
-        ctx.fillStyle = '#CCAA44';
-        ctx.fillRect(x - 7 * s, y - 2 * s + as, 2 * s, 1 * s);
-        ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
-        // Arm shading
-        ctx.fillStyle = '#3838CC';
-        ctx.fillRect(x - 7 * s, y - 5 * s + as, 1 * s, 4 * s);
-        ctx.fillRect(x + 6 * s, y - 5 * s - as, 1 * s, 4 * s);
-        // Hands with fingers
-        ctx.fillStyle = '#FFCC88';
-        ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
-        ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
-        // Finger lines
-        ctx.fillStyle = '#EEBB77';
-        ctx.fillRect(x - 7 * s, y + 0.5 * s + as, 2 * s, 0.5 * s);
-        ctx.fillRect(x + 5 * s, y + 0.5 * s - as, 2 * s, 0.5 * s);
 
-        // Head
-        ctx.fillStyle = '#FFCC88';
-        ctx.fillRect(x - 4 * s, y - 18 * s, 8 * s, 8 * s);
-        // Skin shading (jaw/chin)
-        ctx.fillStyle = '#EEBB77';
-        ctx.fillRect(x - 4 * s, y - 11 * s, 8 * s, 1 * s);
-        // Cheek blush
-        ctx.fillStyle = 'rgba(255,150,120,0.25)';
-        if (dir > 0) {
-            ctx.fillRect(x + 2 * s, y - 13 * s, 2 * s, 2 * s);
-        } else {
+        if (facing === 'toward') {
+            // ---- FRONT VIEW (facing camera) ----
+            // Legs
+            ctx.fillStyle = '#2828AA';
+            ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + ls);
+            ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s - ls);
+            ctx.fillStyle = '#3535BB';
+            ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + ls);
+            ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s - ls);
+            // Boots
+            ctx.fillStyle = '#222222';
+            ctx.fillRect(x - 5 * s, y + 9 * s + ls, 4 * s, 3 * s);
+            ctx.fillRect(x + 0 * s, y + 9 * s - ls, 4 * s, 3 * s);
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(x - 5 * s, y + 11 * s + ls, 5 * s, 1 * s);
+            ctx.fillRect(x + 0 * s, y + 11 * s - ls, 5 * s, 1 * s);
+            // Body
+            ctx.fillStyle = '#4444DD';
+            ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
+            ctx.fillStyle = '#3838CC';
+            ctx.fillRect(x - 5 * s, y - 10 * s, 1 * s, 11 * s);
+            ctx.fillRect(x + 4 * s, y - 10 * s, 1 * s, 11 * s);
+            ctx.fillStyle = '#5050EE';
+            ctx.fillRect(x - 1 * s, y - 6 * s, 2 * s, 4 * s);
+            // Gold collar
+            ctx.fillStyle = '#CCAA44';
+            ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
+            // V-neck
+            ctx.fillStyle = '#EEDDCC';
+            ctx.fillRect(x - 1 * s, y - 10 * s, 2 * s, 2 * s);
+            // Shoulder patches
+            ctx.fillStyle = '#CC2222';
+            ctx.fillRect(x - 5 * s, y - 9 * s, 2 * s, 2 * s);
+            ctx.fillRect(x + 3 * s, y - 9 * s, 2 * s, 2 * s);
+            ctx.fillStyle = '#FFDD44';
+            ctx.fillRect(x - 4.5 * s, y - 8.5 * s, 1 * s, 1 * s);
+            ctx.fillRect(x + 3.5 * s, y - 8.5 * s, 1 * s, 1 * s);
+            // Name tag
+            ctx.fillStyle = '#EEEEEE';
+            ctx.fillRect(x - 4 * s, y - 6 * s, 4 * s, 2 * s);
+            ctx.fillStyle = '#3333AA';
+            ctx.font = `${Math.max(4, s * 1.5)}px "Courier New"`;
+            ctx.fillText('WILKINS', x - 4 * s, y - 4.5 * s);
+            // Chest pocket
+            ctx.fillStyle = '#3838CC';
+            ctx.fillRect(x + 1 * s, y - 7 * s, 3 * s, 3 * s);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(x + 3 * s, y - 8 * s, 0.5 * s, 2 * s);
+            // Belt
+            ctx.fillStyle = '#666666';
+            ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
+            ctx.fillStyle = '#DDCC22';
+            ctx.fillRect(x - 1.5 * s, y - 0.5 * s, 3 * s, 2.5 * s);
+            // Arms
+            ctx.fillStyle = '#4444DD';
+            ctx.fillRect(x - 7 * s, y - 8 * s + as, 2 * s, 7 * s);
+            ctx.fillRect(x + 5 * s, y - 8 * s - as, 2 * s, 7 * s);
+            ctx.fillStyle = '#CCAA44';
+            ctx.fillRect(x - 7 * s, y - 2 * s + as, 2 * s, 1 * s);
+            ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
+            // Hands
+            ctx.fillStyle = '#FFCC88';
+            ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
+            ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
+            // Head
+            ctx.fillStyle = '#FFCC88';
+            ctx.fillRect(x - 4 * s, y - 18 * s, 8 * s, 8 * s);
+            ctx.fillStyle = '#EEBB77';
+            ctx.fillRect(x - 4 * s, y - 11 * s, 8 * s, 1 * s);
+            // Cheek blush (both sides visible)
+            ctx.fillStyle = 'rgba(255,150,120,0.25)';
             ctx.fillRect(x - 4 * s, y - 13 * s, 2 * s, 2 * s);
-        }
-
-        // Ear (visible side)
-        ctx.fillStyle = '#EEBB77';
-        if (dir > 0) {
+            ctx.fillRect(x + 2 * s, y - 13 * s, 2 * s, 2 * s);
+            // Ears (both visible)
+            ctx.fillStyle = '#EEBB77';
             ctx.fillRect(x - 5 * s, y - 15 * s, 1 * s, 3 * s);
-        } else {
             ctx.fillRect(x + 4 * s, y - 15 * s, 1 * s, 3 * s);
-        }
-
-        // Hair with texture
-        ctx.fillStyle = '#BB7733';
-        ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 4 * s);
-        // Hair highlight
-        ctx.fillStyle = '#CC8844';
-        ctx.fillRect(x - 2 * s, y - 19 * s, 3 * s, 1 * s);
-        // Side hair/sideburns
-        if (dir > 0) {
+            // Hair
             ctx.fillStyle = '#BB7733';
-            ctx.fillRect(x - 5 * s, y - 19 * s, 2 * s, 6 * s);
-            // Sideburn
-            ctx.fillStyle = '#AA6622';
-            ctx.fillRect(x - 5 * s, y - 14 * s, 1 * s, 2 * s);
-        } else {
+            ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 4 * s);
+            ctx.fillStyle = '#CC8844';
+            ctx.fillRect(x - 2 * s, y - 19 * s, 4 * s, 1 * s);
+            // Sideburns (both)
             ctx.fillStyle = '#BB7733';
-            ctx.fillRect(x + 3 * s, y - 19 * s, 2 * s, 6 * s);
-            // Sideburn
+            ctx.fillRect(x - 5 * s, y - 19 * s, 1 * s, 5 * s);
+            ctx.fillRect(x + 4 * s, y - 19 * s, 1 * s, 5 * s);
             ctx.fillStyle = '#AA6622';
-            ctx.fillRect(x + 4 * s, y - 14 * s, 1 * s, 2 * s);
-        }
-        // Hair back detail
-        ctx.fillStyle = '#AA6622';
-        ctx.fillRect(x - 3 * s, y - 18 * s, 6 * s, 1 * s);
-
-        // Eyebrows
-        ctx.fillStyle = '#996622';
-        if (dir > 0) {
-            ctx.fillRect(x + 0 * s, y - 16 * s, 3 * s, 1 * s);
-        } else {
-            ctx.fillRect(x - 3 * s, y - 16 * s, 3 * s, 1 * s);
-        }
-
-        // Eyes with whites + iris + pupil
-        if (dir > 0) {
-            // Eye white
+            ctx.fillRect(x - 5 * s, y - 14 * s, 1 * s, 1 * s);
+            ctx.fillRect(x + 4 * s, y - 14 * s, 1 * s, 1 * s);
+            // Eyebrows (both)
+            ctx.fillStyle = '#996622';
+            ctx.fillRect(x - 3 * s, y - 16 * s, 2 * s, 1 * s);
+            ctx.fillRect(x + 1 * s, y - 16 * s, 2 * s, 1 * s);
+            // Eyes (both visible!) — the key feature
+            // Left eye
             ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x + 0 * s, y - 15 * s, 3 * s, 2 * s);
-            // Iris (blue)
+            ctx.fillRect(x - 3 * s, y - 15 * s, 2.5 * s, 2 * s);
             ctx.fillStyle = '#4477CC';
-            ctx.fillRect(x + 1 * s, y - 15 * s, 2 * s, 2 * s);
-            // Pupil
+            ctx.fillRect(x - 2.5 * s, y - 15 * s, 1.5 * s, 2 * s);
             ctx.fillStyle = '#111133';
-            ctx.fillRect(x + 2 * s, y - 14.5 * s, 1 * s, 1 * s);
-        } else {
+            ctx.fillRect(x - 2 * s, y - 14.5 * s, 1 * s, 1 * s);
+            // Right eye
             ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x - 3 * s, y - 15 * s, 3 * s, 2 * s);
+            ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
             ctx.fillStyle = '#4477CC';
-            ctx.fillRect(x - 3 * s, y - 15 * s, 2 * s, 2 * s);
+            ctx.fillRect(x + 1 * s, y - 15 * s, 1.5 * s, 2 * s);
             ctx.fillStyle = '#111133';
-            ctx.fillRect(x - 3 * s, y - 14.5 * s, 1 * s, 1 * s);
-        }
+            ctx.fillRect(x + 1 * s, y - 14.5 * s, 1 * s, 1 * s);
+            // Nose (centered, small)
+            ctx.fillStyle = '#EEBB77';
+            ctx.fillRect(x - 0.5 * s, y - 14 * s, 1 * s, 2 * s);
+            // Mouth (centered smile)
+            ctx.fillStyle = '#CC8866';
+            ctx.fillRect(x - 1.5 * s, y - 12 * s, 3 * s, 1 * s);
+            // Smile corners
+            ctx.fillRect(x - 2 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
+            ctx.fillRect(x + 1.5 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
 
-        // Nose
-        ctx.fillStyle = '#EEBB77';
-        if (dir > 0) {
-            ctx.fillRect(x + 3 * s, y - 14 * s, 1 * s, 2 * s);
-        } else {
-            ctx.fillRect(x - 4 * s, y - 14 * s, 1 * s, 2 * s);
-        }
+        } else if (facing === 'away') {
+            // ---- BACK VIEW (facing away from camera) ----
+            // Legs
+            ctx.fillStyle = '#2828AA';
+            ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + ls);
+            ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s - ls);
+            ctx.fillStyle = '#2020AA';
+            ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + ls);
+            ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s - ls);
+            // Boots
+            ctx.fillStyle = '#222222';
+            ctx.fillRect(x - 5 * s, y + 9 * s + ls, 4 * s, 3 * s);
+            ctx.fillRect(x + 0 * s, y + 9 * s - ls, 4 * s, 3 * s);
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(x - 5 * s, y + 11 * s + ls, 5 * s, 1 * s);
+            ctx.fillRect(x + 0 * s, y + 11 * s - ls, 5 * s, 1 * s);
+            // Body (back of uniform, darker)
+            ctx.fillStyle = '#3838CC';
+            ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
+            ctx.fillStyle = '#3030BB';
+            ctx.fillRect(x - 5 * s, y - 10 * s, 1 * s, 11 * s);
+            ctx.fillRect(x + 4 * s, y - 10 * s, 1 * s, 11 * s);
+            // Back seam
+            ctx.fillStyle = '#2828AA';
+            ctx.fillRect(x - 0.5 * s, y - 9 * s, 1 * s, 10 * s);
+            // Gold collar (back)
+            ctx.fillStyle = '#CCAA44';
+            ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
+            // Shoulder patches (back view)
+            ctx.fillStyle = '#CC2222';
+            ctx.fillRect(x - 5 * s, y - 9 * s, 2 * s, 2 * s);
+            ctx.fillRect(x + 3 * s, y - 9 * s, 2 * s, 2 * s);
+            // Belt
+            ctx.fillStyle = '#666666';
+            ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
+            // Arms
+            ctx.fillStyle = '#3838CC';
+            ctx.fillRect(x - 7 * s, y - 8 * s + as, 2 * s, 7 * s);
+            ctx.fillRect(x + 5 * s, y - 8 * s - as, 2 * s, 7 * s);
+            ctx.fillStyle = '#CCAA44';
+            ctx.fillRect(x - 7 * s, y - 2 * s + as, 2 * s, 1 * s);
+            ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
+            // Hands
+            ctx.fillStyle = '#FFCC88';
+            ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2 * s);
+            ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2 * s);
+            // Head (back of head, all hair)
+            ctx.fillStyle = '#BB7733';
+            ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 9 * s);
+            // Hair texture lines
+            ctx.fillStyle = '#AA6622';
+            ctx.fillRect(x - 3 * s, y - 18 * s, 1 * s, 7 * s);
+            ctx.fillRect(x + 0 * s, y - 17 * s, 1 * s, 6 * s);
+            ctx.fillRect(x + 2 * s, y - 18 * s, 1 * s, 7 * s);
+            // Hair highlight
+            ctx.fillStyle = '#CC8844';
+            ctx.fillRect(x - 1 * s, y - 19 * s, 3 * s, 1 * s);
+            // Ears peeking out
+            ctx.fillStyle = '#EEBB77';
+            ctx.fillRect(x - 5 * s, y - 15 * s, 1 * s, 2 * s);
+            ctx.fillRect(x + 4 * s, y - 15 * s, 1 * s, 2 * s);
+            // Neck
+            ctx.fillStyle = '#FFCC88';
+            ctx.fillRect(x - 2 * s, y - 10.5 * s, 4 * s, 1 * s);
 
-        // Mouth with slight smile
-        ctx.fillStyle = '#CC8866';
-        ctx.fillRect(x - 1 * s, y - 12 * s, 3 * s, 1 * s);
-        // Smile upturn
-        ctx.fillStyle = '#CC8866';
-        if (dir > 0) {
-            ctx.fillRect(x + 2 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
         } else {
-            ctx.fillRect(x - 1.5 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
+            // ---- SIDE VIEW (left or right) ---- [existing sprite]
+            // Legs
+            ctx.fillStyle = '#2828AA';
+            ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + ls);
+            ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s - ls);
+            ctx.fillStyle = '#3535BB';
+            ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + ls);
+            ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s - ls);
+            ctx.fillStyle = '#2020AA';
+            ctx.fillRect(x - 4 * s, y + 5 * s + Math.max(ls, 0), 3 * s, 1 * s);
+            ctx.fillRect(x + 1 * s, y + 5 * s - Math.min(ls, 0), 3 * s, 1 * s);
+            // Boots
+            ctx.fillStyle = '#222222';
+            ctx.fillRect(x - 5 * s, y + 9 * s + ls, 4 * s, 3 * s);
+            ctx.fillRect(x + 0 * s, y + 9 * s - ls, 4 * s, 3 * s);
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(x - 5 * s, y + 11 * s + ls, 5 * s, 1 * s);
+            ctx.fillRect(x + 0 * s, y + 11 * s - ls, 5 * s, 1 * s);
+            ctx.fillStyle = '#444444';
+            ctx.fillRect(x - 4 * s, y + 9 * s + ls, 2 * s, 1 * s);
+            ctx.fillRect(x + 1 * s, y + 9 * s - ls, 2 * s, 1 * s);
+            // Body
+            ctx.fillStyle = '#4444DD';
+            ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
+            ctx.fillStyle = '#3838CC';
+            ctx.fillRect(x - 5 * s, y - 10 * s, 1 * s, 11 * s);
+            ctx.fillRect(x + 4 * s, y - 10 * s, 1 * s, 11 * s);
+            ctx.fillStyle = '#5050EE';
+            ctx.fillRect(x - 1 * s, y - 8 * s, 2 * s, 6 * s);
+            // Collar
+            ctx.fillStyle = '#5555EE';
+            ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 2 * s);
+            ctx.fillStyle = '#CCAA44';
+            ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
+            ctx.fillStyle = '#EEDDCC';
+            ctx.fillRect(x - 1 * s, y - 10 * s, 2 * s, 2 * s);
+            // Patches
+            ctx.fillStyle = '#CC2222';
+            ctx.fillRect(x - 5 * s, y - 9 * s, 2 * s, 2 * s);
+            ctx.fillRect(x + 3 * s, y - 9 * s, 2 * s, 2 * s);
+            ctx.fillStyle = '#FFDD44';
+            ctx.fillRect(x - 4.5 * s, y - 8.5 * s, 1 * s, 1 * s);
+            ctx.fillRect(x + 3.5 * s, y - 8.5 * s, 1 * s, 1 * s);
+            // Pocket
+            ctx.fillStyle = '#3838CC';
+            ctx.fillRect(x + 1 * s, y - 7 * s, 3 * s, 3 * s);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(x + 3 * s, y - 8 * s, 0.5 * s, 2 * s);
+            // Name tag
+            ctx.fillStyle = '#EEEEEE';
+            ctx.fillRect(x - 4 * s, y - 6 * s, 4 * s, 2 * s);
+            ctx.fillStyle = '#3333AA';
+            ctx.font = `${Math.max(4, s * 1.5)}px "Courier New"`;
+            ctx.fillText('WILKINS', x - 4 * s, y - 4.5 * s);
+            // Belt
+            ctx.fillStyle = '#666666';
+            ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
+            ctx.fillStyle = '#DDCC22';
+            ctx.fillRect(x - 1.5 * s, y - 0.5 * s, 3 * s, 2.5 * s);
+            ctx.fillStyle = '#CCBB11';
+            ctx.fillRect(x - 1 * s, y, 2 * s, 1.5 * s);
+            ctx.fillStyle = '#555555';
+            ctx.fillRect(x - 5 * s, y, 2 * s, 3 * s);
+            ctx.fillRect(x + 3 * s, y, 2 * s, 3 * s);
+            // Arms
+            ctx.fillStyle = '#4444DD';
+            ctx.fillRect(x - 7 * s, y - 8 * s + as, 2 * s, 7 * s);
+            ctx.fillRect(x + 5 * s, y - 8 * s - as, 2 * s, 7 * s);
+            ctx.fillStyle = '#CCAA44';
+            ctx.fillRect(x - 7 * s, y - 2 * s + as, 2 * s, 1 * s);
+            ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
+            ctx.fillStyle = '#3838CC';
+            ctx.fillRect(x - 7 * s, y - 5 * s + as, 1 * s, 4 * s);
+            ctx.fillRect(x + 6 * s, y - 5 * s - as, 1 * s, 4 * s);
+            // Hands
+            ctx.fillStyle = '#FFCC88';
+            ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
+            ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
+            ctx.fillStyle = '#EEBB77';
+            ctx.fillRect(x - 7 * s, y + 0.5 * s + as, 2 * s, 0.5 * s);
+            ctx.fillRect(x + 5 * s, y + 0.5 * s - as, 2 * s, 0.5 * s);
+            // Head
+            ctx.fillStyle = '#FFCC88';
+            ctx.fillRect(x - 4 * s, y - 18 * s, 8 * s, 8 * s);
+            ctx.fillStyle = '#EEBB77';
+            ctx.fillRect(x - 4 * s, y - 11 * s, 8 * s, 1 * s);
+            // Cheek blush
+            ctx.fillStyle = 'rgba(255,150,120,0.25)';
+            if (dir > 0) {
+                ctx.fillRect(x + 2 * s, y - 13 * s, 2 * s, 2 * s);
+            } else {
+                ctx.fillRect(x - 4 * s, y - 13 * s, 2 * s, 2 * s);
+            }
+            // Ear
+            ctx.fillStyle = '#EEBB77';
+            if (dir > 0) {
+                ctx.fillRect(x - 5 * s, y - 15 * s, 1 * s, 3 * s);
+            } else {
+                ctx.fillRect(x + 4 * s, y - 15 * s, 1 * s, 3 * s);
+            }
+            // Hair
+            ctx.fillStyle = '#BB7733';
+            ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 4 * s);
+            ctx.fillStyle = '#CC8844';
+            ctx.fillRect(x - 2 * s, y - 19 * s, 3 * s, 1 * s);
+            if (dir > 0) {
+                ctx.fillStyle = '#BB7733';
+                ctx.fillRect(x - 5 * s, y - 19 * s, 2 * s, 6 * s);
+                ctx.fillStyle = '#AA6622';
+                ctx.fillRect(x - 5 * s, y - 14 * s, 1 * s, 2 * s);
+            } else {
+                ctx.fillStyle = '#BB7733';
+                ctx.fillRect(x + 3 * s, y - 19 * s, 2 * s, 6 * s);
+                ctx.fillStyle = '#AA6622';
+                ctx.fillRect(x + 4 * s, y - 14 * s, 1 * s, 2 * s);
+            }
+            ctx.fillStyle = '#AA6622';
+            ctx.fillRect(x - 3 * s, y - 18 * s, 6 * s, 1 * s);
+            // Eyebrow
+            ctx.fillStyle = '#996622';
+            if (dir > 0) {
+                ctx.fillRect(x + 0 * s, y - 16 * s, 3 * s, 1 * s);
+            } else {
+                ctx.fillRect(x - 3 * s, y - 16 * s, 3 * s, 1 * s);
+            }
+            // Eye
+            if (dir > 0) {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(x + 0 * s, y - 15 * s, 3 * s, 2 * s);
+                ctx.fillStyle = '#4477CC';
+                ctx.fillRect(x + 1 * s, y - 15 * s, 2 * s, 2 * s);
+                ctx.fillStyle = '#111133';
+                ctx.fillRect(x + 2 * s, y - 14.5 * s, 1 * s, 1 * s);
+            } else {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(x - 3 * s, y - 15 * s, 3 * s, 2 * s);
+                ctx.fillStyle = '#4477CC';
+                ctx.fillRect(x - 3 * s, y - 15 * s, 2 * s, 2 * s);
+                ctx.fillStyle = '#111133';
+                ctx.fillRect(x - 3 * s, y - 14.5 * s, 1 * s, 1 * s);
+            }
+            // Nose
+            ctx.fillStyle = '#EEBB77';
+            if (dir > 0) {
+                ctx.fillRect(x + 3 * s, y - 14 * s, 1 * s, 2 * s);
+            } else {
+                ctx.fillRect(x - 4 * s, y - 14 * s, 1 * s, 2 * s);
+            }
+            // Mouth
+            ctx.fillStyle = '#CC8866';
+            ctx.fillRect(x - 1 * s, y - 12 * s, 3 * s, 1 * s);
+            if (dir > 0) {
+                ctx.fillRect(x + 2 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
+            } else {
+                ctx.fillRect(x - 1.5 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
+            }
+            ctx.fillStyle = '#EEBB77';
+            ctx.fillRect(x - 1 * s, y - 11.5 * s, 3 * s, 0.5 * s);
         }
-        // Lower lip shadow
-        ctx.fillStyle = '#EEBB77';
-        ctx.fillRect(x - 1 * s, y - 11.5 * s, 3 * s, 0.5 * s);
     }
 
     // ---- Hotspot Label ----
@@ -947,6 +1127,7 @@ class GameEngine {
             playerX: this.playerX,
             playerY: this.playerY,
             playerDir: this.playerDir,
+            playerFacing: this.playerFacing,
             inventory: [...this.inventory],
             score: this.score,
             flags: JSON.parse(JSON.stringify(this.flags)),
@@ -985,8 +1166,10 @@ class GameEngine {
             this.playerVisible = true;
             this.playerWalking = false;
             this.playerTargetX = null;
+            this.playerTargetY = null;
             this.pendingAction = null;
             this.playerDir = data.playerDir || 1;
+            this.playerFacing = data.playerFacing || 'toward';
             // Restore modified item names/descriptions
             if (data.itemNames) {
                 for (const [id, info] of Object.entries(data.itemNames)) {

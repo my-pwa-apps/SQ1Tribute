@@ -814,32 +814,80 @@ document.addEventListener('DOMContentLoaded', () => {
             // Bucket rim
             ctx.fillStyle = '#404855';
             ctx.fillRect(474, 255, 46, 3);
-            // Mop
-            ctx.fillStyle = '#AA8844';
-            ctx.fillRect(503, 130, 4, 145);
-            ctx.fillStyle = '#CCCCAA';
-            ctx.fillRect(494, 268, 22, 10);
-            ctx.fillStyle = '#BBBB99';
-            for (let i = 0; i < 5; i++) ctx.fillRect(496 + i * 4, 275, 2, 6);
+            if (!eng.getFlag('has_mop_handle')) {
+                // Full mop with handle
+                ctx.fillStyle = '#AA8844';
+                ctx.fillRect(503, 130, 4, 145);
+                ctx.fillStyle = '#CCCCAA';
+                ctx.fillRect(494, 268, 22, 10);
+                ctx.fillStyle = '#BBBB99';
+                for (let i = 0; i < 5; i++) ctx.fillRect(496 + i * 4, 275, 2, 6);
+            } else {
+                // Mop head flopped on floor, handle taken
+                ctx.fillStyle = '#CCCCAA';
+                ctx.fillRect(485, 278, 26, 6);
+                ctx.fillStyle = '#BBBB99';
+                for (let i = 0; i < 6; i++) ctx.fillRect(486 + i * 4, 284, 2, 4);
+                // Broken stub where handle was
+                ctx.fillStyle = '#886633';
+                ctx.fillRect(496, 270, 4, 8);
+            }
 
             // Door (center)
-            ctx.fillStyle = '#4e5e72';
-            ctx.fillRect(270, 42, 100, 233);
-            ctx.fillStyle = '#5a6e84';
-            ctx.fillRect(276, 48, 88, 221);
-            ctx.fillStyle = '#3e4e62';
-            ctx.fillRect(318, 48, 4, 221);
-            // Handle
-            ctx.fillStyle = '#CCAA22';
-            ctx.fillRect(346, 155, 12, 12);
-            ctx.fillStyle = '#DDBB33';
-            ctx.fillRect(348, 157, 8, 8);
-            // Label
-            ctx.font = '10px "Courier New"';
-            ctx.fillStyle = '#8899AA';
-            ctx.fillText('SUPPLY', 283, 118);
-            ctx.fillText('CLOSET', 283, 130);
-            ctx.fillText('J-6', 297, 148);
+            if (eng.getFlag('closet_door_open')) {
+                // Door forced open - corridor visible through gap
+                ctx.fillStyle = '#2a1a1a';
+                ctx.fillRect(270, 42, 100, 233);
+                // Red emergency glow from corridor
+                ctx.fillStyle = 'rgba(180,40,40,0.25)';
+                ctx.fillRect(275, 48, 90, 221);
+                // Corridor floor visible
+                ctx.fillStyle = '#3a3a50';
+                ctx.fillRect(275, 230, 90, 39);
+                // Door panels shoved aside
+                ctx.fillStyle = '#4e5e72';
+                ctx.fillRect(263, 42, 14, 233);
+                ctx.fillStyle = '#4e5e72';
+                ctx.fillRect(363, 42, 14, 233);
+                // Bent frame
+                ctx.fillStyle = '#3e4e62';
+                ctx.fillRect(270, 42, 100, 4);
+                ctx.fillRect(270, 271, 100, 4);
+                // Mop handle wedged in gap
+                ctx.fillStyle = '#AA8844';
+                ctx.fillRect(274, 120, 4, 100);
+                ctx.save();
+                ctx.translate(276, 120);
+                ctx.rotate(-0.15);
+                ctx.fillRect(-2, 0, 4, 30);
+                ctx.restore();
+            } else {
+                // Door closed/jammed
+                ctx.fillStyle = '#4e5e72';
+                ctx.fillRect(270, 42, 100, 233);
+                ctx.fillStyle = '#5a6e84';
+                ctx.fillRect(276, 48, 88, 221);
+                ctx.fillStyle = '#3e4e62';
+                ctx.fillRect(318, 48, 4, 221);
+                // Handle
+                ctx.fillStyle = '#CCAA22';
+                ctx.fillRect(346, 155, 12, 12);
+                ctx.fillStyle = '#DDBB33';
+                ctx.fillRect(348, 157, 8, 8);
+                // Damage/warping indicators
+                ctx.fillStyle = '#3a4a5e';
+                ctx.fillRect(270, 100, 3, 40);
+                ctx.fillRect(367, 180, 3, 30);
+                // Small gap showing jam
+                ctx.fillStyle = '#1a1a2a';
+                ctx.fillRect(270, 140, 2, 20);
+                // Label on closed door
+                ctx.font = '10px "Courier New"';
+                ctx.fillStyle = '#8899AA';
+                ctx.fillText('SUPPLY', 283, 118);
+                ctx.fillText('CLOSET', 283, 130);
+                ctx.fillText('J-6', 297, 148);
+            }
 
             // Alarm
             alarmLight(ctx, 305, 18);
@@ -902,10 +950,40 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         hotspots: [
             {
-                name: 'Door', x: 270, y: 42, w: 100, h: 233, isExit: true, walkToX: 320,
+                name: 'Door', x: 270, y: 42, w: 100, h: 233, isExit: true, walkToX: 320, walkToY: 280,
                 description: 'A heavy sliding door leads to the corridor.',
-                look: (e) => e.showMessage('A reinforced sliding door leading to the main corridor. Through the gap you hear alarms blaring and see red emergency lights strobing. It doesn\'t sound good out there.'),
-                onExit: (e) => e.goToRoom('corridor', 320, 310)
+                look: (e) => {
+                    if (e.getFlag('closet_door_open')) {
+                        e.showMessage('The door is wedged open now. The corridor beyond glows with emergency red lighting.');
+                    } else {
+                        e.showMessage('A reinforced sliding door. It looks jammed — the attack must have warped the frame. You\'ll need something sturdy to pry it open.');
+                    }
+                },
+                onExit: (e) => {
+                    if (e.getFlag('closet_door_open')) {
+                        e.goToRoom('corridor', 320, 310);
+                    } else {
+                        e.showMessage('The door is jammed shut! The frame is warped from the attack. You need to find something to pry it open.');
+                    }
+                },
+                use: (e) => {
+                    if (e.getFlag('closet_door_open')) {
+                        e.showMessage('The door is already open.');
+                    } else if (e.getFlag('has_mop_handle')) {
+                        e.showMessage('You jam the mop handle into the gap and heave! With a metallic screech, the door grinds open just enough to squeeze through. Your janitor muscles came through!');
+                        e.setFlag('closet_door_open');
+                        e.addScore(5);
+                    } else {
+                        e.showMessage('You tug on the door with your bare hands. It won\'t budge. You need something to lever it open.');
+                    }
+                },
+                useItem: (e, itemId) => {
+                    if (e.getFlag('closet_door_open')) {
+                        e.showMessage('The door is already open.');
+                    } else {
+                        e.showMessage('That won\'t help with this door.');
+                    }
+                }
             },
             {
                 name: 'Shelves', x: 25, y: 55, w: 195, h: 115,
@@ -918,9 +996,29 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Mop & Bucket', x: 465, y: 125, w: 65, h: 165,
                 description: 'Your trusty mop and bucket — faithful companions.',
-                look: (e) => e.showMessage('Your trusty mop and bucket. You\'ve spent thousands of hours with these faithful companions. The mop head is overdue for replacement by about three years. The bucket water has achieved a shade of gray not found in nature.'),
-                get: (e) => e.showMessage('As much as you love your mop, hauling it around isn\'t going to help against whatever destroyed the ship. Time to upgrade from "Sanitation Engineer" to "Unlikely Hero."'),
-                use: (e) => e.showMessage('You give the floor a half-hearted mop stroke. Old habits die hard. But somehow you don\'t think mopping is going to fix THIS mess.'),
+                look: (e) => {
+                    if (e.getFlag('has_mop_handle')) {
+                        e.showMessage('The bucket sits alone, mourning its partner. The mop handle has been... repurposed. The soggy mop head lies discarded on the floor like a sad gray octopus.');
+                    } else {
+                        e.showMessage('Your trusty mop and bucket. You\'ve spent thousands of hours with these faithful companions. The mop head is overdue for replacement by about three years. The handle looks solid though — good sturdy titanium alloy.');
+                    }
+                },
+                get: (e) => {
+                    if (e.getFlag('has_mop_handle')) {
+                        e.showMessage('You already took the mop handle. The bucket gives you a look of betrayal.');
+                    } else {
+                        e.showMessage('You grab the mop and snap off the handle with a satisfying crack. The soggy mop head flops to the floor. "Sorry, old friend. I need this more than the floor does." You now have a sturdy titanium mop handle!');
+                        e.setFlag('has_mop_handle');
+                        e.addScore(5);
+                    }
+                },
+                use: (e) => {
+                    if (e.getFlag('has_mop_handle')) {
+                        e.showMessage('You\'ve already taken what you need from it. The bucket looks lonely.');
+                    } else {
+                        e.showMessage('You give the floor a half-hearted mop stroke. Old habits die hard. But somehow you don\'t think mopping is going to fix THIS mess. Maybe the handle would be useful, though...');
+                    }
+                },
                 talk: (e) => e.showMessage('"Goodbye, old friend. If I don\'t make it back... tell the squeegee I always respected her." The mop says nothing, but you sense its pride.')
             },
             {
@@ -1133,55 +1231,39 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#CC9977';
             ctx.fillRect(318, 335, 6, 4);
 
-            // KEYCARD on floor near body — only visible before pickup
+            // KEYCARD on body — only visible before pickup
             if (!eng.getFlag('got_keycard_corridor')) {
-                const kcx = 300, kcy = 348;
-                // Card body (white plastic with slight tilt)
+                const kcx = 338, kcy = 330;
+                // Card body (small badge clipped to coat)
                 ctx.fillStyle = '#DDDDCC';
-                ctx.fillRect(kcx, kcy, 36, 22);
+                ctx.fillRect(kcx, kcy, 20, 12);
                 // Card border
                 ctx.strokeStyle = '#888877';
                 ctx.lineWidth = 1;
-                ctx.strokeRect(kcx, kcy, 36, 22);
+                ctx.strokeRect(kcx, kcy, 20, 12);
                 // Blue header stripe
                 ctx.fillStyle = '#3344AA';
-                ctx.fillRect(kcx + 1, kcy + 1, 34, 5);
-                // "ISS CONSTELLATION" text on stripe
+                ctx.fillRect(kcx + 1, kcy + 1, 18, 3);
+                // Tiny text
                 ctx.fillStyle = '#CCCCEE';
-                ctx.font = '3px "Courier New"';
-                ctx.fillText('ISS CONSTELLATION', kcx + 2, kcy + 5);
-                // Tiny photo (pixel portrait of Dr. Chen)
-                ctx.fillStyle = '#CC9977'; // skin
-                ctx.fillRect(kcx + 2, kcy + 8, 8, 10);
-                ctx.fillStyle = '#222233'; // hair
-                ctx.fillRect(kcx + 2, kcy + 8, 8, 3);
-                ctx.fillRect(kcx + 9, kcy + 8, 1, 7);
-                ctx.fillStyle = '#111122'; // eyes
-                ctx.fillRect(kcx + 4, kcy + 12, 1, 1);
-                ctx.fillRect(kcx + 7, kcy + 12, 1, 1);
-                ctx.fillStyle = '#CC8866'; // mouth
-                ctx.fillRect(kcx + 5, kcy + 15, 2, 1);
-                // Name text
+                ctx.font = '2px "Courier New"';
+                ctx.fillText('ISS', kcx + 2, kcy + 3);
+                // Tiny photo
+                ctx.fillStyle = '#CC9977';
+                ctx.fillRect(kcx + 2, kcy + 5, 4, 5);
+                ctx.fillStyle = '#222233';
+                ctx.fillRect(kcx + 2, kcy + 5, 4, 2);
+                // Name
                 ctx.fillStyle = '#222222';
-                ctx.font = '4px "Courier New"';
-                ctx.fillText('DR. CHEN', kcx + 12, kcy + 13);
+                ctx.font = '3px "Courier New"';
+                ctx.fillText('CHEN', kcx + 8, kcy + 8);
                 // Level text
                 ctx.fillStyle = '#CC2222';
-                ctx.font = '3px "Courier New"';
-                ctx.fillText('LEVEL 3', kcx + 12, kcy + 17);
-                // Barcode stripe at bottom
-                ctx.fillStyle = '#111111';
-                for (let bx = 0; bx < 30; bx += 2) {
-                    if ((bx * 7 + 3) % 3 !== 0) {
-                        ctx.fillRect(kcx + 3 + bx, kcy + 19, 1, 2);
-                    }
-                }
-                // Department stripe
-                ctx.fillStyle = '#DD8822';
-                ctx.fillRect(kcx + 12, kcy + 7, 22, 2);
-                ctx.fillStyle = '#664411';
-                ctx.font = '3px "Courier New"';
-                ctx.fillText('XENOPHYSICS', kcx + 13, kcy + 8.5);
+                ctx.font = '2px "Courier New"';
+                ctx.fillText('LV.3', kcx + 8, kcy + 11);
+                // Clip at top (attaching to uniform)
+                ctx.fillStyle = '#888888';
+                ctx.fillRect(kcx + 8, kcy - 2, 4, 3);
             }
 
             // Closed eyes (she's gone)
@@ -1199,13 +1281,13 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         hotspots: [
             {
-                name: 'Science Lab', x: 15, y: 60, w: 95, h: 205, isExit: true, walkToX: 110,
+                name: 'Science Lab', x: 15, y: 60, w: 95, h: 205, isExit: true, walkToX: 110, walkToY: 285,
                 description: 'Door to the Science Lab.',
                 look: (e) => e.showMessage('A door labeled "SCIENCE LAB". The emergency has knocked the security locks offline — it\'s unlocked.'),
                 onExit: (e) => e.goToRoom('science_lab', 560, 310)
             },
             {
-                name: 'Escape Pod Bay', x: 530, y: 60, w: 95, h: 205, isExit: true, walkToX: 540,
+                name: 'Escape Pod Bay', x: 530, y: 60, w: 95, h: 205, isExit: true, walkToX: 540, walkToY: 285,
                 description: 'Door to the Escape Pod Bay.',
                 look: (e) => {
                     if (eng.hasItem('keycard')) {
@@ -1224,7 +1306,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             {
-                name: 'Supply Closet', x: 240, y: 230, w: 160, h: 30, isExit: true, walkToX: 320,
+                name: 'Supply Closet', x: 240, y: 230, w: 160, h: 30, isExit: true, walkToX: 320, walkToY: 280,
                 description: 'Back toward the supply closet.',
                 look: (e) => e.showMessage('The supply closet door \u2014 your former napping quarters. Through the open doorway you can see your old mop leaning faithfully against the wall.'),
                 onExit: (e) => e.goToRoom('broom_closet', 320, 310)
@@ -1659,7 +1741,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         hotspots: [
             {
-                name: 'Escape Pod', x: 500, y: 40, w: 120, h: 200, isExit: true, walkToX: 510,
+                name: 'Escape Pod', x: 500, y: 40, w: 120, h: 200, isExit: true, walkToX: 510, walkToY: 285,
                 description: 'The last remaining escape pod.',
                 look: (e) => {
                     if (e.getFlag('pod_launched')) {
@@ -1938,7 +2020,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 use: (e) => e.showMessage('The pod is beyond repair. Time to find another way off this rock.')
             },
             {
-                name: 'Rock Formation', x: 365, y: 150, w: 110, h: 75, isExit: true, walkToX: 420,
+                name: 'Rock Formation', x: 365, y: 150, w: 110, h: 75, isExit: true, walkToX: 420, walkToY: 285,
                 description: 'A rocky outcropping in the distance. Is that an opening?',
                 look: (e) => e.showMessage('A cluster of large rocks to the north. There seems to be a dark opening between them — a cave, perhaps? Shelter from the suns would be very welcome.'),
                 onExit: (e) => {
@@ -2440,13 +2522,13 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         hotspots: [
             {
-                name: 'Cantina', x: 25, y: 95, w: 170, h: 200, isExit: true, walkToX: 95,
+                name: 'Cantina', x: 25, y: 95, w: 170, h: 200, isExit: true, walkToX: 95, walkToY: 285,
                 description: 'The local cantina. Looks lively inside.',
                 look: (e) => e.showMessage('A dimly lit cantina — the social hub of this frontier outpost. Warm light spills from the windows and you can hear alien music. A neon sign flickers "CANTINA" above the door.'),
                 onExit: (e) => e.goToRoom('cantina', 320, 310)
             },
             {
-                name: 'Trading Post', x: 225, y: 115, w: 160, h: 180, isExit: true, walkToX: 305,
+                name: 'Trading Post', x: 225, y: 115, w: 160, h: 180, isExit: true, walkToX: 305, walkToY: 285,
                 description: 'An alien trading post.',
                 look: (e) => e.showMessage('A general trading post. The display window shows various goods — weapons, ship parts, survival gear. The sign promises "BUY • SELL • TRADE". You might find something useful here.'),
                 onExit: (e) => e.goToRoom('shop', 320, 310)
