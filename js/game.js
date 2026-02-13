@@ -54,15 +54,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function alarmGlow(ctx, w, h) {
-        if (Math.floor(Date.now() / 500) % 2) {
+    function alarmGlow(ctx, w, h, eng) {
+        if (Math.floor(eng.animTimer / 500) % 2) {
             ctx.fillStyle = 'rgba(255,30,0,0.06)';
             ctx.fillRect(0, 0, w, h);
         }
     }
 
-    function alarmLight(ctx, x, y) {
-        const on = Math.floor(Date.now() / 500) % 2;
+    function alarmLight(ctx, x, y, eng) {
+        const on = Math.floor(eng.animTimer / 500) % 2;
         ctx.fillStyle = on ? '#FF2200' : '#551100';
         ctx.fillRect(x, y, 22, 10);
         ctx.fillStyle = on ? '#FF4400' : '#331100';
@@ -302,6 +302,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // Phase 4: Crash landing on desert
             const p = (progress - 0.8) / 0.2;
+            ctx.save();
+            if (p > 0.65 && p < 0.9) {
+                const shake = Math.sin(elapsed * 0.05) * 3 * (1 - (p - 0.65) / 0.25);
+                ctx.translate(shake, shake * 0.5);
+            }
             // Desert terrain
             gradientRect(ctx, 0, 0, w, h * 0.55, '#c08030', '#a06820');
             gradientRect(ctx, 0, h * 0.55, w, h * 0.45, '#d4a048', '#c09038');
@@ -330,11 +335,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.beginPath(); ctx.arc(dx, dy, dr, 0, Math.PI * 2); ctx.fill();
                 }
             }
-            // Screen shake
-            if (p > 0.65 && p < 0.9) {
-                const shake = Math.sin(elapsed * 0.05) * 3 * (1 - (p - 0.65) / 0.25);
-                ctx.translate(shake, shake * 0.5);
-            }
             // Text
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 16px "Courier New"';
@@ -343,6 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillText('CRASH LANDING!', w / 2, 30);
             }
             ctx.textAlign = 'left';
+            ctx.restore();
         }
     }
 
@@ -891,8 +892,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Alarm
-            alarmLight(ctx, 305, 18);
-            alarmGlow(ctx, w, h);
+            alarmLight(ctx, 305, 18, eng);
+            alarmGlow(ctx, w, h, eng);
 
             // Floor details - grating pattern
             ctx.fillStyle = '#3e3e55';
@@ -971,6 +972,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.getFlag('closet_door_open')) {
                         e.showMessage('The door is already open.');
                     } else if (e.hasItem('mop_handle')) {
+                        engine.sound.metalScrape();
                         e.showMessage('You jam the mop handle into the gap and heave! With a metallic screech, the door grinds open just enough to squeeze through. Your janitor muscles came through!');
                         e.removeFromInventory('mop_handle');
                         e.setFlag('closet_door_open');
@@ -983,6 +985,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.getFlag('closet_door_open')) {
                         e.showMessage('The door is already open.');
                     } else if (itemId === 'mop_handle') {
+                        engine.sound.metalScrape();
                         e.showMessage('You jam the mop handle into the gap and heave! With a metallic screech, the door grinds open just enough to squeeze through. Your janitor muscles came through!');
                         e.removeFromInventory('mop_handle');
                         e.setFlag('closet_door_open');
@@ -1170,7 +1173,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.lineTo(292, 115);
             ctx.stroke();
             // Sparks from wiring
-            if (Math.floor(Date.now() / 200) % 5 === 0) {
+            if (Math.floor(eng.animTimer / 200) % 5 === 0) {
                 ctx.fillStyle = '#FFFF55';
                 ctx.fillRect(290 + Math.random() * 6, 112 + Math.random() * 6, 2, 2);
                 ctx.fillRect(286 + Math.random() * 4, 108 + Math.random() * 4, 1, 1);
@@ -1282,10 +1285,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Emergency lights
-            alarmLight(ctx, 140, 6);
-            alarmLight(ctx, 480, 6);
-            alarmLight(ctx, 295, 57);
-            alarmGlow(ctx, w, h);
+            alarmLight(ctx, 140, 6, eng);
+            alarmLight(ctx, 480, 6, eng);
+            alarmLight(ctx, 295, 57, eng);
+            alarmGlow(ctx, w, h, eng);
         },
         hotspots: [
             {
@@ -1384,7 +1387,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#222240';
             ctx.fillRect(0, 0, w, 12);
             // Flickering light
-            const lightOn = Math.floor(Date.now() / 300) % 3 !== 0;
+            const lightOn = Math.floor(eng.animTimer / 300) % 3 !== 0;
             ctx.fillStyle = lightOn ? '#aabbcc' : '#334455';
             ctx.fillRect(200, 4, 240, 5);
 
@@ -1511,8 +1514,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.font = '7px "Courier New"';
             ctx.fillText('⚠ BIOHAZARD', 492, 218);
 
-            alarmLight(ctx, 310, 5);
-            alarmGlow(ctx, w, h);
+            alarmLight(ctx, 310, 5, eng);
+            alarmGlow(ctx, w, h, eng);
         },
         hotspots: [
             {
@@ -1744,8 +1747,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.arc(350, 55, 18, -0.5, 0.8);
             ctx.fill();
 
-            alarmLight(ctx, 310, 2);
-            alarmGlow(ctx, w, h);
+            alarmLight(ctx, 310, 2, eng);
+            alarmGlow(ctx, w, h, eng);
         },
         hotspots: [
             {
@@ -1763,6 +1766,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.showMessage('The pod is already gone.');
                         return;
                     }
+                    engine.sound.pod();
                     e.showMessage('You climb into the escape pod, strap in, and slam the launch button. The pod rockets away from the dying Constellation toward the desert planet below...');
                     e.setFlag('pod_launched');
                     e.addScore(25);
@@ -1916,7 +1920,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(140, 298, 80, 8);
             ctx.fillRect(120, 302, 100, 4);
             // Smoke
-            const smokeTime = Date.now() / 800;
+            const smokeTime = eng.animTimer / 800;
             ctx.fillStyle = 'rgba(100,100,100,0.3)';
             ctx.beginPath();
             ctx.arc(150 + Math.sin(smokeTime) * 5, 248 - Math.sin(smokeTime * 0.7) * 8, 8, 0, Math.PI * 2);
@@ -1980,7 +1984,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(360, 300, 6, 8);
 
             // Wind-blown sand particles
-            const windT = Date.now() / 100;
+            const windT = eng.animTimer / 100;
             ctx.fillStyle = 'rgba(200,170,100,0.2)';
             for (let p = 0; p < 5; p++) {
                 const px = (windT * 2 + p * 130) % 660 - 10;
@@ -2001,7 +2005,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath(); ctx.arc(480, 60, 90, 0, Math.PI * 2); ctx.fill();
 
             // Heat shimmer effect
-            if (Math.floor(Date.now() / 200) % 2) {
+            if (Math.floor(eng.animTimer / 200) % 2) {
                 ctx.fillStyle = 'rgba(255,200,100,0.03)';
                 ctx.fillRect(0, 180, w, 30);
             }
@@ -2131,7 +2135,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Crystal formation (center) - the valuable one
             if (!eng.getFlag('got_crystal')) {
-                const crystTime = Date.now() / 600;
+                const crystTime = eng.animTimer / 600;
                 const glow = 0.5 + Math.sin(crystTime) * 0.3;
 
                 // Crystal glow
@@ -2169,7 +2173,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(580, 125, 6, 18);
 
             // Glowing mushrooms along cave floor
-            const mushGlow = 0.5 + Math.sin(Date.now() / 900) * 0.3;
+            const mushGlow = 0.5 + Math.sin(eng.animTimer / 900) * 0.3;
             ctx.fillStyle = `rgba(180,100,220,${mushGlow * 0.7})`;
             // Mushroom 1
             ctx.fillRect(170, 315, 3, 8);
@@ -2207,7 +2211,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(45, 172, 2, 2);
 
             // Dripping water (stalactite drip)
-            const dripY = (Date.now() / 15) % 80;
+            const dripY = (eng.animTimer / 15) % 80;
             ctx.fillStyle = 'rgba(100,180,200,0.5)';
             ctx.fillRect(290, 70 + dripY, 2, 3);
 
@@ -2223,7 +2227,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.ellipse(130, 340, 70, 15, 0, 0, Math.PI * 2);
             ctx.fill();
             // Pool reflection
-            ctx.fillStyle = `rgba(50,150,180,${0.2 + Math.sin(Date.now() / 1000) * 0.08})`;
+            ctx.fillStyle = `rgba(50,150,180,${0.2 + Math.sin(eng.animTimer / 1000) * 0.08})`;
             ctx.beginPath();
             ctx.ellipse(130, 340, 65, 12, 0, 0, Math.PI * 2);
             ctx.fill();
@@ -2264,6 +2268,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 get: (e) => {
                     if (!e.getFlag('got_crystal')) {
+                        engine.sound.crystalHum();
                         e.showMessage('You carefully break off one of the larger crystals. It thrums with energy in your hand. This must be worth a fortune!');
                         e.addToInventory('crystal');
                         e.setFlag('got_crystal');
@@ -2386,7 +2391,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.font = 'bold 12px "Courier New"';
             ctx.fillText('CANTINA', 55, 186);
             // Neon effect
-            const neonBlink = Math.floor(Date.now() / 400) % 3;
+            const neonBlink = Math.floor(eng.animTimer / 400) % 3;
             if (neonBlink !== 2) {
                 ctx.fillStyle = 'rgba(255,60,60,0.15)';
                 ctx.fillRect(48, 172, 95, 20);
@@ -2494,7 +2499,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#666666';
             ctx.fillRect(393, 152, 18, 6);
             // Lamp glow
-            const lampGlow = 0.6 + Math.sin(Date.now() / 800) * 0.2;
+            const lampGlow = 0.6 + Math.sin(eng.animTimer / 800) * 0.2;
             ctx.fillStyle = `rgba(255,200,100,${lampGlow})`;
             ctx.fillRect(396, 148, 12, 5);
             ctx.fillStyle = `rgba(255,200,100,${lampGlow * 0.08})`;
@@ -2555,6 +2560,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.getFlag('flew_away')) {
                         e.showMessage('The ship is gone.');
                     } else if (e.hasItem('nav_chip')) {
+                        engine.sound.hyperspace();
                         e.showMessage('You load the nav chip into the shuttle\'s computer. Coordinates to the Draknoid flagship locked in! The engines roar to life and you blast off into space...');
                         e.setFlag('flew_away');
                         e.addScore(15);
@@ -2574,6 +2580,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                     if (itemId === 'nav_chip') {
+                        engine.sound.hyperspace();
                         e.showMessage('You insert the nav chip into the shuttle\'s navigation computer. Coordinates locked — destination: Draknoid Flagship! You strap in and blast off!');
                         e.setFlag('flew_away');
                         e.addScore(15);
@@ -2854,15 +2861,15 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(560, 266, 6, 40);
 
             // Ambiance - neon sign on wall
-            const glow = Math.sin(Date.now() / 500) * 0.3 + 0.7;
+            const glow = Math.sin(eng.animTimer / 500) * 0.3 + 0.7;
             ctx.fillStyle = `rgba(255,100,50,${glow * 0.6})`;
             ctx.font = '14px "Courier New"';
             ctx.fillText('LIVE MUSIC', 400, 50);
             // Music notes
             ctx.fillStyle = `rgba(255,200,50,${glow * 0.4})`;
             ctx.font = '16px serif';
-            ctx.fillText('♪', 380 + Math.sin(Date.now() / 700) * 10, 55);
-            ctx.fillText('♫', 530 + Math.sin(Date.now() / 900) * 8, 45);
+            ctx.fillText('♪', 380 + Math.sin(eng.animTimer / 700) * 10, 55);
+            ctx.fillText('♫', 530 + Math.sin(eng.animTimer / 900) * 8, 45);
 
             // Exit door
             ctx.fillStyle = '#3a2030';
@@ -2879,7 +2886,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(0, 40, w, 80);
 
             // Ceiling fan
-            const fanAngle = Date.now() / 100;
+            const fanAngle = eng.animTimer / 100;
             ctx.save();
             ctx.translate(350, 25);
             ctx.fillStyle = '#555555';
@@ -2918,7 +2925,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#664466';
             ctx.fillRect(564, 124, 32, 30);
             // Jukebox lights
-            const jbGlow = Math.sin(Date.now() / 300);
+            const jbGlow = Math.sin(eng.animTimer / 300);
             ctx.fillStyle = `rgba(255,100,100,${0.5 + jbGlow * 0.3})`;
             ctx.fillRect(568, 128, 6, 6);
             ctx.fillStyle = `rgba(100,100,255,${0.5 - jbGlow * 0.3})`;
@@ -2949,6 +2956,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (itemId === 'credits') {
                         const cr = e.getFlag('credits_amount') || 0;
                         if (cr >= 10 && !e.hasItem('drink')) {
+                            engine.sound.sell();
                             e.showMessage('You slap 10 buckazoids on the bar. The bartender pours you a shimmering green Keronian Ale. "Here ya go, smoothskin. Don\'t drink it all at once."');
                             e.setFlag('credits_amount', cr - 10);
                             e.items['credits'].name = `Buckazoids (${cr - 10})`;
@@ -2991,6 +2999,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                     if (itemId === 'drink') {
+                        engine.sound.drink();
                         e.showMessage('"For me?! You\'re a saint!" Zorthak grabs the ale and downs half of it in one gulp. His eyes light up. "Alright, alright, I promised info and Zorthak keeps his word..."');
                         e.removeFromInventory('drink');
                         e.setFlag('pilot_has_drink');
@@ -3175,7 +3184,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#BBAA66';
             ctx.fillRect(376, 105, 12, 6);
             // Energy indicator
-            const shieldGlow = Math.sin(Date.now() / 500) * 0.3 + 0.7;
+            const shieldGlow = Math.sin(eng.animTimer / 500) * 0.3 + 0.7;
             ctx.fillStyle = `rgba(100,200,255,${shieldGlow * 0.6})`;
             ctx.fillRect(379, 106, 6, 4);
             ctx.fillStyle = '#FFFF88';
@@ -3370,6 +3379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 useItem: (e, itemId) => {
                     if (itemId === 'crystal') {
+                        engine.sound.sell();
                         e.showMessage('"A XENON CRYSTAL! These are incredibly rare! I\'ll give you... 50 buckazoids for it. Deal?" The merchant\'s eyes go even wider than usual. He hands you a credit chip.');
                         e.removeFromInventory('crystal');
                         e.addToInventory('credits');
@@ -3407,6 +3417,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.getFlag('bought_ray')) {
                         e.showMessage('Already purchased.');
                     } else if (cr >= 30) {
+                        engine.sound.sell();
                         e.showMessage('"30 buckazoids — SOLD!" The merchant wraps up the Pulsar Ray. "Fine weapon. Point the glowy end away from yourself." He winks one of his huge eyes.');
                         e.setFlag('bought_ray');
                         e.setFlag('credits_amount', cr - 30);
@@ -3428,6 +3439,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (e.getFlag('bought_ray')) {
                             e.showMessage('You already bought the Pulsar Ray.');
                         } else if (cr >= 30) {
+                            engine.sound.sell();
                             e.showMessage('"SOLD! One Mark IV Pulsar Ray, coming right up!" Tiny carefully hands you the weapon. "Remember: safety first. Point away from face."');
                             e.setFlag('bought_ray');
                             e.setFlag('credits_amount', cr - 30);
@@ -3489,7 +3501,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#115511';
             ctx.fillRect(100, 8, 180, 4);
             ctx.fillRect(360, 8, 180, 4);
-            const stripGlow = Math.sin(Date.now() / 700) * 0.3 + 0.5;
+            const stripGlow = Math.sin(eng.animTimer / 700) * 0.3 + 0.5;
             ctx.fillStyle = `rgba(30,200,30,${stripGlow * 0.15})`;
             ctx.fillRect(100, 0, 180, 20);
             ctx.fillRect(360, 0, 180, 20);
@@ -3528,7 +3540,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#556677';
             ctx.fillRect(290, 165, 60, 75);
             // Core
-            const coreGlow = Math.sin(Date.now() / 300) * 0.3 + 0.7;
+            const coreGlow = Math.sin(eng.animTimer / 300) * 0.3 + 0.7;
             ctx.fillStyle = `rgba(100,200,255,${coreGlow})`;
             ctx.fillRect(305, 185, 30, 30);
             ctx.fillStyle = `rgba(150,220,255,${coreGlow * 0.7})`;
@@ -3541,7 +3553,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Force field
             if (!eng.getFlag('field_down')) {
-                const ffAlpha = 0.2 + Math.sin(Date.now() / 400) * 0.1;
+                const ffAlpha = 0.2 + Math.sin(eng.animTimer / 400) * 0.1;
                 ctx.fillStyle = `rgba(50,255,50,${ffAlpha})`;
                 ctx.fillRect(260, 100, 120, 180);
                 // Field lines
@@ -3597,7 +3609,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Draknoid Guard - with in-room Monty Python style defeat animation
             const guardShootStart = eng.getFlag('guard_shoot_start');
-            const guardT = guardShootStart ? Date.now() - guardShootStart : -1;
+            const guardT = guardShootStart ? eng.animTimer - guardShootStart : -1;
             const guardAnimActive = guardT >= 0 && guardT < 7500;
             const gx = 120; // guard center x
 
@@ -4028,7 +4040,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillRect(100, 118, 40, 18);
                 ctx.fillStyle = '#225522';
                 ctx.fillRect(115, 112, 10, 8);
-                const visorGlow = 0.7 + Math.sin(Date.now() / 600) * 0.3;
+                const visorGlow = 0.7 + Math.sin(eng.animTimer / 600) * 0.3;
                 ctx.fillStyle = `rgba(255,34,34,${visorGlow})`;
                 ctx.fillRect(108, 138, 25, 6);
                 ctx.fillStyle = `rgba(255,80,80,${visorGlow * 0.8})`;
@@ -4057,7 +4069,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillRect(146, 158, 14, 10);
                 ctx.fillStyle = '#555566';
                 ctx.fillRect(150, 155, 6, 8);
-                const wepGlow = 0.5 + Math.sin(Date.now() / 400) * 0.3;
+                const wepGlow = 0.5 + Math.sin(eng.animTimer / 400) * 0.3;
                 ctx.fillStyle = `rgba(80,255,80,${wepGlow * 0.4})`;
                 ctx.fillRect(149, 155, 8, 4);
                 ctx.fillStyle = '#2a2a3a';
@@ -4100,21 +4112,21 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(350, 12, 8, 9);
             ctx.fillRect(500, 12, 8, 9);
             // Steam/gas leak from pipe
-            const steamAlpha = 0.3 + Math.sin(Date.now() / 500) * 0.15;
+            const steamAlpha = 0.3 + Math.sin(eng.animTimer / 500) * 0.15;
             ctx.fillStyle = `rgba(30,100,30,${steamAlpha * 0.3})`;
             ctx.fillRect(345, 19, 18, 15);
 
             // Wall screens (left wall)
             ctx.fillStyle = '#0a2a0a';
             ctx.fillRect(5, 50, 14, 20);
-            const wallScreenGlow = Math.sin(Date.now() / 800) * 0.3 + 0.5;
+            const wallScreenGlow = Math.sin(eng.animTimer / 800) * 0.3 + 0.5;
             ctx.fillStyle = `rgba(30,150,30,${wallScreenGlow * 0.4})`;
             ctx.fillRect(6, 51, 12, 18);
             // Scrolling alien text on wall screen
             ctx.fillStyle = `rgba(50,200,50,${wallScreenGlow * 0.6})`;
             ctx.font = '4px "Courier New"';
             const alienChars = '⌂◊∆≡≈∞';
-            const scrollOffset = Math.floor(Date.now() / 300) % alienChars.length;
+            const scrollOffset = Math.floor(eng.animTimer / 300) % alienChars.length;
             ctx.fillText(alienChars.substring(scrollOffset, scrollOffset + 3), 7, 62);
 
             // Draknoid war trophies on right wall
@@ -4141,7 +4153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.lineWidth = 1;
 
             // Ambient green particle effects
-            const partTime = Date.now() / 500;
+            const partTime = eng.animTimer / 500;
             ctx.fillStyle = 'rgba(50,200,50,0.15)';
             for (let p = 0; p < 4; p++) {
                 const px = 100 + (p * 150) + Math.sin(partTime + p * 2) * 10;
@@ -4174,9 +4186,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 use: (e) => {
                     if (!e.getFlag('guard_defeated') && e.hasItem('pulsar_ray')) {
+                        engine.sound.laser();
                         e.showMessage('You quick-draw the Pulsar Ray and fire! ZZAP! Direct hit to the chest armor! Wait... is his arm supposed to do that?');
                         e.setFlag('guard_defeated');
-                        e.setFlag('guard_shoot_start', Date.now());
+                        e.setFlag('guard_shoot_start', engine.animTimer);
                         e.setFlag('guard_shoot_px', e.playerX);
                         e.addScore(25);
                     } else if (e.getFlag('guard_defeated')) {
@@ -4187,9 +4200,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 useItem: (e, itemId) => {
                     if (itemId === 'pulsar_ray' && !e.getFlag('guard_defeated')) {
+                        engine.sound.laser();
                         e.showMessage('You quick-draw the Pulsar Ray and fire! ZZAP! Direct hit! The guard looks down at the smoking hole in his armor, then back at you. This should be entertaining...');
                         e.setFlag('guard_defeated');
-                        e.setFlag('guard_shoot_start', Date.now());
+                        e.setFlag('guard_shoot_start', engine.animTimer);
                         e.setFlag('guard_shoot_px', e.playerX);
                         e.addScore(25);
                     } else if (e.getFlag('guard_defeated')) {

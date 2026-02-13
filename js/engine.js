@@ -11,6 +11,19 @@ class GameEngine {
         this.HEIGHT = 400;
         this.canvas.width = this.WIDTH;
         this.canvas.height = this.HEIGHT;
+        this.dom = {
+            scoreDisplay: document.getElementById('score-display'),
+            messageText: document.getElementById('message-text'),
+            inventoryItems: document.getElementById('inventory-items'),
+            saveModal: document.getElementById('save-modal'),
+            modalTitle: document.getElementById('modal-title'),
+            slotList: document.getElementById('slot-list'),
+            saveModalClose: document.getElementById('save-modal-close'),
+            btnSave: document.getElementById('btn-save'),
+            btnLoad: document.getElementById('btn-load'),
+            btnMute: document.getElementById('btn-mute')
+        };
+        this.actionButtons = Array.from(document.querySelectorAll('.action-btn'));
 
         // Game state
         this.rooms = {};
@@ -62,44 +75,53 @@ class GameEngine {
         // Room transition fade
         this.roomTransition = 0;
 
+        this.sound = new SoundEngine();
+
         this.setupInput();
     }
 
     // ---- Input ----
+    getCanvasCoords(event) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.WIDTH / rect.width;
+        const scaleY = this.HEIGHT / rect.height;
+        return {
+            x: (event.clientX - rect.left) * scaleX,
+            y: (event.clientY - rect.top) * scaleY
+        };
+    }
+
     setupInput() {
         this.canvas.addEventListener('click', (e) => {
+            this.sound.init();
             if (this.cutscene) {
                 this.skipCutscene();
                 return;
             }
             if (this.titleScreen) {
                 this.titleScreen = false;
+                this.sound.gameStart();
                 this.goToRoom('broom_closet', 320, 310);
                 return;
             }
             if (this.dead || this.won) return;
-            const rect = this.canvas.getBoundingClientRect();
-            const scaleX = this.WIDTH / rect.width;
-            const scaleY = this.HEIGHT / rect.height;
-            const x = (e.clientX - rect.left) * scaleX;
-            const y = (e.clientY - rect.top) * scaleY;
-            this.handleClick(x, y);
+            const coords = this.getCanvasCoords(e);
+            this.handleClick(coords.x, coords.y);
         });
 
         this.canvas.addEventListener('mousemove', (e) => {
-            const rect = this.canvas.getBoundingClientRect();
-            const scaleX = this.WIDTH / rect.width;
-            const scaleY = this.HEIGHT / rect.height;
-            this.mouseX = (e.clientX - rect.left) * scaleX;
-            this.mouseY = (e.clientY - rect.top) * scaleY;
+            const coords = this.getCanvasCoords(e);
+            this.mouseX = coords.x;
+            this.mouseY = coords.y;
         });
 
-        document.querySelectorAll('.action-btn').forEach(btn => {
+        this.actionButtons.forEach(btn => {
             btn.addEventListener('click', () => this.setAction(btn.dataset.action));
         });
 
         document.addEventListener('keydown', (e) => {
             this.keysDown[e.key] = true;
+            this.sound.init();
             if (this.cutscene) {
                 if (e.key === ' ' || e.key === 'Escape' || e.key === 'Enter') {
                     this.skipCutscene();
@@ -120,25 +142,39 @@ class GameEngine {
             if (e.key === 'u') this.setAction('use');
             if (e.key === 't') this.setAction('talk');
             if (e.key === 'w') this.setAction('walk');
+            if (e.key === 'm' || e.key === 'M') {
+                if (!this.dead && !this.won && !this.titleScreen) {
+                    const muted = this.sound.toggleMute();
+                    if (this.dom.btnMute) this.dom.btnMute.textContent = muted ? 'Sound: OFF' : 'Sound: ON';
+                }
+            }
         });
 
         document.addEventListener('keyup', (e) => {
             delete this.keysDown[e.key];
         });
 
-        document.getElementById('btn-save').addEventListener('click', () => this.openSaveModal('save'));
-        document.getElementById('btn-load').addEventListener('click', () => this.openSaveModal('load'));
-        document.getElementById('save-modal-close').addEventListener('click', () => this.closeSaveModal());
-        document.getElementById('save-modal').addEventListener('click', (e) => {
-            if (e.target === document.getElementById('save-modal')) this.closeSaveModal();
+        this.dom.btnSave.addEventListener('click', () => this.openSaveModal('save'));
+        this.dom.btnLoad.addEventListener('click', () => this.openSaveModal('load'));
+        if (this.dom.btnMute) {
+            this.dom.btnMute.addEventListener('click', () => {
+                this.sound.init();
+                const muted = this.sound.toggleMute();
+                this.dom.btnMute.textContent = muted ? 'Sound: OFF' : 'Sound: ON';
+            });
+        }
+        this.dom.saveModalClose.addEventListener('click', () => this.closeSaveModal());
+        this.dom.saveModal.addEventListener('click', (e) => {
+            if (e.target === this.dom.saveModal) this.closeSaveModal();
         });
     }
 
     setAction(action) {
         this.currentAction = action;
+        this.sound.uiClick();
         this.selectedItem = null;
-        document.querySelectorAll('.action-btn').forEach(b => b.classList.remove('active'));
-        const btn = document.querySelector(`[data-action="${action}"]`);
+        this.actionButtons.forEach(b => b.classList.remove('active'));
+        const btn = this.actionButtons.find((button) => button.dataset.action === action);
         if (btn) btn.classList.add('active');
         this.updateInventoryUI();
     }
@@ -151,6 +187,7 @@ class GameEngine {
         const room = this.rooms[roomId];
         if (!room) { console.error('Room not found:', roomId); return; }
         this.roomTransition = 1.0; // Start fade-in
+        this.sound.roomTransition();
         this.currentRoomId = roomId;
         if (px !== undefined) this.playerX = px;
         if (py !== undefined) this.playerY = py;
@@ -167,6 +204,7 @@ class GameEngine {
     addToInventory(itemId) {
         if (!this.inventory.includes(itemId)) {
             this.inventory.push(itemId);
+            this.sound.pickup();
             this.updateInventoryUI();
         }
     }
@@ -180,7 +218,7 @@ class GameEngine {
     hasItem(id) { return this.inventory.includes(id); }
 
     updateInventoryUI() {
-        const container = document.getElementById('inventory-items');
+        const container = this.dom.inventoryItems;
         container.innerHTML = '';
         this.inventory.forEach(itemId => {
             const item = this.items[itemId];
@@ -213,7 +251,8 @@ class GameEngine {
     // ---- Score & Flags ----
     addScore(pts) {
         this.score = Math.min(this.score + pts, this.maxScore);
-        document.getElementById('score-display').textContent = `Score: ${this.score} / ${this.maxScore}`;
+        this.dom.scoreDisplay.textContent = `Score: ${this.score} / ${this.maxScore}`;
+        this.sound.scoreUp();
     }
 
     setFlag(f, v) { this.flags[f] = (v === undefined) ? true : v; }
@@ -222,7 +261,7 @@ class GameEngine {
     // ---- Messages ----
     showMessage(text) {
         this.message = text;
-        const el = document.getElementById('message-text');
+        const el = this.dom.messageText;
         el.textContent = text;
         el.parentElement.scrollTop = el.parentElement.scrollHeight;
     }
@@ -252,11 +291,13 @@ class GameEngine {
     // ---- Death & Victory ----
     die(msg) {
         this.dead = true;
-        this.showMessage(msg + ' — Press R to restart.');
+        this.sound.death();
+        this.showMessage(msg + ' \u2014 Press R to restart.');
     }
 
     victory(msg) {
         this.won = true;
+        this.sound.victory();
         this.showMessage(msg);
     }
 
@@ -274,7 +315,7 @@ class GameEngine {
         this.playerFacing = 'toward';
         this.playerTargetY = null;
         this.setAction('walk');
-        document.getElementById('score-display').textContent = 'Score: 0 / 215';
+        this.dom.scoreDisplay.textContent = `Score: ${this.score} / ${this.maxScore}`;
         this.updateInventoryUI();
         this.goToRoom('broom_closet', 320, 310);
     }
@@ -305,6 +346,7 @@ class GameEngine {
             if (hotspot) {
                 this.performAction(hotspot);
             } else {
+                this.sound.error();
                 this.showMessage("Nothing interesting there.");
             }
         }
@@ -326,6 +368,7 @@ class GameEngine {
             if (hotspot.useItem) {
                 hotspot.useItem(this, this.selectedItem);
             } else {
+                this.sound.error();
                 this.showMessage("That doesn't seem to work.");
             }
             return;
@@ -340,6 +383,7 @@ class GameEngine {
                 use: "You can't use that right now.",
                 talk: "It doesn't seem very talkative."
             };
+            this.sound.error();
             this.showMessage(fallback[action] || "Nothing happens.");
         }
     }
@@ -393,6 +437,7 @@ class GameEngine {
             if (this.playerFrameTimer > 140) {
                 this.playerFrame = (this.playerFrame + 1) % 4;
                 this.playerFrameTimer = 0;
+                if (this.playerFrame % 2 === 0) this.sound.footstep();
             }
             // Check if player walked into an exit hotspot at its walk-to position
             const room = this.rooms[this.currentRoomId];
@@ -450,6 +495,7 @@ class GameEngine {
                 if (this.playerFrameTimer > 140) {
                     this.playerFrame = (this.playerFrame + 1) % 4;
                     this.playerFrameTimer = 0;
+                    if (this.playerFrame % 2 === 0) this.sound.footstep();
                 }
             }
         } else {
@@ -1002,7 +1048,8 @@ class GameEngine {
     // ---- Hotspot Label ----
     drawHotspotLabel(ctx, room) {
         if (!room || !room.hotspots) return;
-        for (const hs of room.hotspots) {
+        for (let i = room.hotspots.length - 1; i >= 0; i--) {
+            const hs = room.hotspots[i];
             if (hs.hidden) continue;
             if (this.mouseX >= hs.x && this.mouseX <= hs.x + hs.w &&
                 this.mouseY >= hs.y && this.mouseY <= hs.y + hs.h) {
@@ -1161,6 +1208,7 @@ class GameEngine {
         try {
             const data = this.getSaveData();
             localStorage.setItem(this.getSaveKey(slot), JSON.stringify(data));
+            this.sound.save();
             this.showMessage(`Game saved to Slot ${slot + 1}.`);
         } catch (err) {
             this.showMessage('Save failed: ' + err.message);
@@ -1197,10 +1245,11 @@ class GameEngine {
                     }
                 }
             }
-            document.getElementById('score-display').textContent = `Score: ${this.score} / ${this.maxScore}`;
+            this.dom.scoreDisplay.textContent = `Score: ${this.score} / ${this.maxScore}`;
             this.setAction('walk');
             this.updateInventoryUI();
             this.goToRoom(data.currentRoomId, data.playerX, data.playerY);
+            this.sound.save();
             this.showMessage(`Game loaded from Slot ${slot + 1}.`);
         } catch (err) {
             this.showMessage('Load failed: ' + err.message);
@@ -1228,9 +1277,9 @@ class GameEngine {
 
     openSaveModal(mode) {
         this.saveModalMode = mode;
-        const modal = document.getElementById('save-modal');
-        document.getElementById('modal-title').textContent = mode === 'save' ? 'Save Game' : 'Load Game';
-        const list = document.getElementById('slot-list');
+        const modal = this.dom.saveModal;
+        this.dom.modalTitle.textContent = mode === 'save' ? 'Save Game' : 'Load Game';
+        const list = this.dom.slotList;
         list.innerHTML = '';
         for (let i = 0; i < 5; i++) {
             const info = this.getSlotInfo(i);
@@ -1275,7 +1324,7 @@ class GameEngine {
     }
 
     closeSaveModal() {
-        document.getElementById('save-modal').classList.remove('open');
+        this.dom.saveModal.classList.remove('open');
     }
 
     // ---- Game Loop ----
