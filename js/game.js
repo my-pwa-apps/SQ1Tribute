@@ -733,17 +733,38 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#8050c0';
             ctx.fillRect(133, 88, 3, 6);
             ctx.fillRect(132, 93, 4, 3);
-            // Purple drip down wall
-            ctx.fillStyle = 'rgba(120,60,180,0.6)';
-            ctx.fillRect(133, 94, 2, 55);
-            ctx.fillRect(132, 148, 3, 8);
+            // Purple drips down wall (slow intermittent drops, not a line)
+            ctx.fillStyle = 'rgba(120,60,180,0.7)';
+            // Stationary drip blobs clinging to wall at intervals
+            ctx.beginPath(); ctx.ellipse(134, 105, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(133, 122, 1.5, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(120,60,180,0.5)';
+            ctx.beginPath(); ctx.ellipse(134, 138, 2, 2, 0, 0, Math.PI * 2); ctx.fill();
+            // Animated drip falling between shelf and lower shelf
+            const wallDrip = (eng.animTimer % 3200) / 3200;
+            if (wallDrip < 0.6) {
+                const wd = wallDrip / 0.6;
+                ctx.fillStyle = `rgba(120,60,180,${0.5 + wd * 0.2})`;
+                ctx.beginPath(); ctx.ellipse(134, 96 + wd * 55, 1.5 + wd * 0.5, 2 + wd, 0, 0, Math.PI * 2); ctx.fill();
+            }
             // Purple puddle on lower shelf
             ctx.fillStyle = 'rgba(110,50,170,0.5)';
             ctx.beginPath(); ctx.ellipse(134, 155, 10, 3, 0, 0, Math.PI * 2); ctx.fill();
-            // Purple drip to floor
-            ctx.fillStyle = 'rgba(120,60,180,0.4)';
-            ctx.fillRect(133, 158, 2, 60);
-            ctx.fillRect(132, 218, 3, 57);
+            // Purple drips from lower shelf to floor (intermittent blobs)
+            ctx.fillStyle = 'rgba(120,60,180,0.45)';
+            ctx.beginPath(); ctx.ellipse(134, 175, 1.5, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(120,60,180,0.35)';
+            ctx.beginPath(); ctx.ellipse(133, 200, 2, 2, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(134, 228, 1.5, 3, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(120,60,180,0.25)';
+            ctx.beginPath(); ctx.ellipse(133, 252, 2, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+            // Animated drip falling from lower shelf to floor
+            const floorDrip = (eng.animTimer % 2800) / 2800;
+            if (floorDrip < 0.7) {
+                const fd = floorDrip / 0.7;
+                ctx.fillStyle = `rgba(120,60,180,${0.4 + fd * 0.2})`;
+                ctx.beginPath(); ctx.ellipse(134, 160 + fd * 110, 1.5 + fd * 0.5, 2 + fd, 0, 0, Math.PI * 2); ctx.fill();
+            }
             // Animated falling droplet
             const dripCycle = (eng.animTimer % 2400) / 2400; // 2.4s cycle
             if (dripCycle < 0.7) {
@@ -1026,6 +1047,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 get: (e) => e.showMessage('You rummage through the cleaning supplies. Some detergent, old rags, and a coupon for "Monolith Burger" that expired two years ago. Nothing helpful.'),
                 use: (e) => e.showMessage('What are you going to do, clean up? The ship is under attack! Though you do feel a professional twinge of guilt about that purple stain...'),
                 talk: (e) => e.showMessage('"Hello, cleaning supplies. It\'s me, your old friend." They do not respond. Probably for the best.')
+            },
+            {
+                name: 'Astro-Shine Bottle', x: 45, y: 62, w: 20, h: 28,
+                description: 'A spray bottle of Astro-Shine polish.',
+                look: (e) => e.showMessage('"Astro-Shine All-Surface Polish — Makes Any Metal Gleam Like New!" You\'ve gone through about fifty of these. This one\'s nearly empty.'),
+                get: (e) => e.showMessage('You grab the Astro-Shine bottle and give it a shake. Almost empty. Not worth the inventory space.'),
+                use: (e) => e.showMessage('You instinctively point the nozzle at the nearest surface and give it a spritz. Old habits. The ship shudders from another explosion. Right. Not the time.')
+            },
+            {
+                name: 'Zero-G Dust Cloths', x: 76, y: 70, w: 36, h: 20,
+                description: 'A box of Zero-G dust cloths.',
+                look: (e) => e.showMessage('"Zero-G Dust Cloths — For When Dust Doesn\'t Settle!" Specially designed for cleaning in artificial gravity environments. The box is half empty.'),
+                get: (e) => e.showMessage('You pull out a dust cloth. It\'s just a cloth. You put it back.'),
+                use: (e) => e.showMessage('You wipe down the nearest surface with a cloth. Habit. The ship lurches violently. Okay, enough cleaning.')
+            },
+            {
+                name: 'Purple Bottle', x: 126, y: 58, w: 16, h: 32,
+                description: 'A tall bottle of mysterious purple liquid.',
+                look: (e) => e.showMessage('A tall bottle with no proper label — just "???" scrawled in yellow marker. The cap is loose and purple liquid has been slowly leaking down the shelf for months. The liquid seems to glow faintly. You\'ve filed three maintenance reports about this. All ignored.'),
+                get: (e) => e.showMessage('You reach for the bottle and your fingers tingle on contact. It\'s warm. Unnervingly warm. You decide to leave it where it is. Some mysteries are better left unsolved.'),
+                use: (e) => e.showMessage('You tighten the cap. Purple liquid immediately begins seeping through the threads. This bottle does not respect the laws of fluid dynamics.')
+            },
+            {
+                name: 'Air Freshener', x: 168, y: 66, w: 18, h: 24,
+                description: 'A can of industrial air freshener.',
+                look: (e) => e.showMessage('"FreshAir Industrial Odor Neutralizer — Starship Strength." You need this stuff. A ship full of crew who think deodorant is optional. The can feels light — almost empty, like your will to live.'),
+                get: (e) => e.showMessage('You pick it up and shake it. Barely a rattle. Even at full capacity it couldn\'t mask what\'s happening to this ship right now.'),
+                use: (e) => e.showMessage('Psssht! A tiny burst of "Ocean Breeze" scent fills the closet. For one brief moment, you forget you\'re on an exploding spaceship. Then you remember.')
+            },
+            {
+                name: 'Detergent Jug', x: 40, y: 130, w: 22, h: 26,
+                description: 'A jug of industrial detergent.',
+                look: (e) => e.showMessage('"SoapMaster 3000 — Cuts Through Grease and Alien Residue!" About a quarter full. The label claims it\'s lemon-scented but it smells more like a chemical plant on fire.'),
+                get: (e) => e.showMessage('It\'s heavy and sloshy. You\'d rather not lug a jug of detergent around while fleeing for your life.'),
+                use: (e) => e.showMessage('You consider pouring some on the purple puddle. Then again, mixing unknown chemicals with mysterious alien goo seems like a bad idea. Even for you.')
+            },
+            {
+                name: 'Stack of Rags', x: 76, y: 135, w: 34, h: 22,
+                description: 'A pile of worn cleaning rags.',
+                look: (e) => e.showMessage('A stack of well-used cleaning rags in various states of decay. Some are stiff with dried polish, others are suspiciously stained. A coupon for Monolith Burger is sticking out — expired two years ago.'),
+                get: (e) => e.showMessage('You grab a rag, then put it back. What are you going to do, wipe your way to safety?'),
+                use: (e) => e.showMessage('You absentmindedly fold the top rag. Neat edges. There. At least SOMETHING on this ship is in order.')
+            },
+            {
+                name: 'Polish Tin', x: 163, y: 138, w: 22, h: 18,
+                description: 'A tin of metal polish.',
+                look: (e) => e.showMessage('An old tin of "Star-Brite Metal Polish." The lid is rusted shut, which is ironic for a product that\'s supposed to prevent rust. It\'s been here since before you started this job.'),
+                get: (e) => e.showMessage('The tin is stuck to the shelf. Literally. Something has glued it in place. Probably that purple stuff.'),
+                use: (e) => e.showMessage('You try to open the lid. It\'s welded shut by time and neglect. Just like your career prospects.')
             },
             {
                 name: 'Mop & Bucket', x: 465, y: 125, w: 65, h: 165,

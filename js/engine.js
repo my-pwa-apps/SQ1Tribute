@@ -783,12 +783,6 @@ class GameEngine {
         // Perspective scale: smaller when further away (low Y)
         const s = 1.85 + (y - 280) / 90 * 0.3;
 
-        // Shadow
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.beginPath();
-        ctx.ellipse(x, y + 12 * s, 8 * s, 2.5 * s, 0, 0, Math.PI * 2);
-        ctx.fill();
-
         // Leg animation
         const ls = walking ? Math.sin(frame * Math.PI / 2) * 3 * s : 0;
         const as = walking ? Math.cos(frame * Math.PI / 2) * 2 * s : 0;
