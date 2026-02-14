@@ -12,7 +12,6 @@ class GameEngine {
         this.canvas.width = this.WIDTH;
         this.canvas.height = this.HEIGHT;
         this.dom = {
-            scoreDisplay: document.getElementById('score-display'),
             messageText: document.getElementById('message-text'),
             inventoryItems: document.getElementById('inventory-items'),
             saveModal: document.getElementById('save-modal'),
@@ -31,7 +30,7 @@ class GameEngine {
         this.currentRoomId = null;
         this.inventory = [];
         this.score = 0;
-        this.maxScore = 215;
+        this.maxScore = 260;
         this.flags = {};
         this.dead = false;
         this.won = false;
@@ -178,6 +177,57 @@ class GameEngine {
         this.dom.saveModal.addEventListener('click', (e) => {
             if (e.target === this.dom.saveModal) this.closeSaveModal();
         });
+
+        // Touch support for canvas
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.sound.init();
+            const touch = e.touches[0];
+            const rect = this.canvas.getBoundingClientRect();
+            const scaleX = this.WIDTH / rect.width;
+            const scaleY = this.HEIGHT / rect.height;
+            const cx = (touch.clientX - rect.left) * scaleX;
+            const cy = (touch.clientY - rect.top) * scaleY;
+            this.mouseX = cx;
+            this.mouseY = cy;
+            if (this.cutscene) { this.skipCutscene(); return; }
+            if (this.titleScreen) {
+                this.titleScreen = false;
+                this.sound.gameStart();
+                this.goToRoom('broom_closet', 320, 310);
+                return;
+            }
+            if (this.dead || this.won) return;
+            this.handleClick(cx, cy);
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = this.canvas.getBoundingClientRect();
+            const scaleX = this.WIDTH / rect.width;
+            const scaleY = this.HEIGHT / rect.height;
+            this.mouseX = (touch.clientX - rect.left) * scaleX;
+            this.mouseY = (touch.clientY - rect.top) * scaleY;
+        }, { passive: false });
+
+        // D-pad touch controls
+        const dpadBtns = {
+            'dpad-up': 'ArrowUp', 'dpad-down': 'ArrowDown',
+            'dpad-left': 'ArrowLeft', 'dpad-right': 'ArrowRight'
+        };
+        for (const [id, key] of Object.entries(dpadBtns)) {
+            const btn = document.getElementById(id);
+            if (!btn) continue;
+            const press = (ev) => { ev.preventDefault(); this.keysDown[key] = true; };
+            const release = (ev) => { ev.preventDefault(); delete this.keysDown[key]; };
+            btn.addEventListener('touchstart', press, { passive: false });
+            btn.addEventListener('touchend', release, { passive: false });
+            btn.addEventListener('touchcancel', release, { passive: false });
+            btn.addEventListener('mousedown', press);
+            btn.addEventListener('mouseup', release);
+            btn.addEventListener('mouseleave', release);
+        }
     }
 
     setAction(action) {
@@ -263,7 +313,6 @@ class GameEngine {
     // ---- Score & Flags ----
     addScore(pts) {
         this.score = Math.min(this.score + pts, this.maxScore);
-        this.dom.scoreDisplay.textContent = `Score: ${this.score} / ${this.maxScore}`;
         this.sound.scoreUp();
     }
 
@@ -327,7 +376,6 @@ class GameEngine {
         this.playerFacing = 'toward';
         this.playerTargetY = null;
         this.setAction('walk');
-        this.dom.scoreDisplay.textContent = `Score: ${this.score} / ${this.maxScore}`;
         this.updateInventoryUI();
         this.goToRoom('broom_closet', 320, 310);
     }
@@ -1203,10 +1251,10 @@ class GameEngine {
 
         // Score rating
         let rating = 'Space Janitor';
-        if (this.score >= this.maxScore) rating = 'Galactic Legend';
-        else if (this.score >= 180) rating = 'Space Hero';
-        else if (this.score >= 150) rating = 'Star Captain';
-        else if (this.score >= 100) rating = 'Cadet';
+        if (this.score >= 250) rating = 'Galactic Legend';
+        else if (this.score >= 220) rating = 'Space Hero';
+        else if (this.score >= 180) rating = 'Star Captain';
+        else if (this.score >= 120) rating = 'Cadet';
         ctx.font = '14px "Courier New"';
         ctx.fillStyle = '#FFFF55';
         ctx.fillText(`Rank: ${rating}`, this.WIDTH / 2, by + 160);
@@ -1288,7 +1336,6 @@ class GameEngine {
                     }
                 }
             }
-            this.dom.scoreDisplay.textContent = `Score: ${this.score} / ${this.maxScore}`;
             this.setAction('walk');
             this.updateInventoryUI();
             this.goToRoom(data.currentRoomId, data.playerX, data.playerY);

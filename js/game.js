@@ -1059,7 +1059,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Purple Puddle', x: 110, y: 270, w: 55, h: 25,
                 description: 'A puddle of mysterious purple fluid.',
-                look: (e) => e.showMessage('A slowly expanding puddle of purple liquid, dripping from a bottle on the shelf above. You\'ve been meaning to clean that up for six months. It\'s developed a faint glow. That\'s... probably fine.'),
+                look: (e) => { if (!engine.getFlag('looked_puddle')) { engine.setFlag('looked_puddle'); e.addScore(2); } e.showMessage('A slowly expanding puddle of purple liquid, dripping from a bottle on the shelf above. You\'ve been meaning to clean that up for six months. It\'s developed a faint glow. That\'s... probably fine.'); },
                 get: (e) => e.showMessage('You cup your hands and try to scoop up the purple goo. It slips through your fingers and leaves them tingling. And slightly purple. That\'ll wash out. Probably.'),
                 use: (e) => e.showMessage('You consider mopping it up but then remember: the ship is exploding. Priorities, Wilkins. Priorities.'),
                 talk: (e) => e.showMessage('"What ARE you?" you ask the puddle. It bubbles. You decide not to ask again.')
@@ -1067,7 +1067,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Safety Poster', x: 540, y: 100, w: 50, h: 60,
                 description: 'A safety awareness poster.',
-                look: (e) => e.showMessage('"SAFETY FIRST!" declares the poster, featuring a cheerful stick figure. Below it reads "0 DAYS WITHOUT AN INCIDENT." Someone has written "THANKS, WILKINS" underneath in marker.'),
+                look: (e) => { if (!engine.getFlag('looked_poster')) { engine.setFlag('looked_poster'); e.addScore(3); } e.showMessage('"SAFETY FIRST!" declares the poster, featuring a cheerful stick figure. Below it reads "0 DAYS WITHOUT AN INCIDENT." Someone has written "THANKS, WILKINS" underneath in marker.'); },
                 get: (e) => e.showMessage('You consider taking the poster as a souvenir. Then you notice it\'s bolted to the wall. Someone clearly anticipated this.'),
                 use: (e) => e.showMessage('You update the counter to read "0 DAYS WITHOUT AN INCIDENT." Although technically an alien attack might be more than just an "incident."'),
                 talk: (e) => e.showMessage('"I\'m sorry, little stick figure," you whisper. "I tried my best." The stick figure stares back with its empty circle head, judging you.')
@@ -1327,7 +1327,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: 'Escape Pod Bay', x: 530, y: 60, w: 95, h: 205, isExit: true, walkToX: 540, walkToY: 285,
                 description: 'Door to the Escape Pod Bay.',
                 look: (e) => {
-                    if (eng.hasItem('keycard')) {
+                    if (e.hasItem('keycard')) {
                         e.showMessage('The Escape Pod Bay door. Your keycard should work on the reader.');
                     } else {
                         e.showMessage('The Escape Pod Bay door. A keycard reader blinks red beside it. You\'ll need a Level 3 keycard to get through.');
@@ -1372,7 +1372,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Blast Marks', x: 245, y: 85, w: 50, h: 40,
                 description: 'Scorch marks from energy weapons.',
-                look: (e) => e.showMessage('Heavy blast marks from military-grade energy weapons. The attackers were well-armed and precise. This was no random pirate raid — this was a surgical strike.'),
+                look: (e) => { if (!engine.getFlag('looked_blast_marks')) { engine.setFlag('looked_blast_marks'); e.addScore(3); } e.showMessage('Heavy blast marks from military-grade energy weapons. The attackers were well-armed and precise. This was no random pirate raid — this was a surgical strike.'); },
                 get: (e) => e.showMessage('You try to scrape some carbon residue off the wall. Your janitor instincts are strong, but this isn\'t the time for spot-cleaning.'),
                 talk: (e) => e.showMessage('"If these walls could talk..." Actually, given the state of the ship, you\'re glad they can\'t.')
             },
@@ -1585,7 +1585,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Specimen Cases', x: 480, y: 45, w: 135, h: 210,
                 description: 'Broken specimen display cases.',
-                look: (e) => e.showMessage('Glass specimen cases, all smashed open. Whatever xenobiological samples were stored here are now splattered across the floor. You try not to think about it.'),
+                look: (e) => { if (!engine.getFlag('looked_specimens')) { engine.setFlag('looked_specimens'); e.addScore(3); } e.showMessage('Glass specimen cases, all smashed open. Whatever xenobiological samples were stored here are now splattered across the floor. You try not to think about it.'); },
                 get: (e) => e.showMessage('You gingerly poke through the shattered glass. Nothing intact. Though you\'re not sure you\'d want to pick up an alien specimen anyway.'),
                 use: (e) => e.showMessage('The cases are utterly destroyed. Whatever was in them is now free-range. Great.'),
                 talk: (e) => e.showMessage('"Is... is anything in here still alive?" you whisper. Something squelches. You decide not to investigate further.')
@@ -1850,7 +1850,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Space Window', x: 220, y: 15, w: 200, h: 70,
                 description: 'A viewport showing space outside.',
-                look: (e) => e.showMessage('Through the viewport you can see a desert planet looming close. The Constellation is in a decaying orbit — it won\'t last much longer. You also spot a large alien warship departing. The attackers got what they came for... or did they?')
+                look: (e) => { if (!engine.getFlag('looked_window')) { engine.setFlag('looked_window'); e.addScore(3); } e.showMessage('Through the viewport you can see a desert planet looming close. The Constellation is in a decaying orbit — it won\'t last much longer. You also spot a large alien warship departing. The attackers got what they came for... or did they?'); }
             },
             {
                 name: 'Launch Controls', x: 435, y: 275, w: 110, h: 50,
@@ -2067,7 +2067,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Crashed Pod', x: 75, y: 250, w: 145, h: 60,
                 description: 'The wreckage of your escape pod.',
-                look: (e) => e.showMessage('Your escape pod is totaled — half-buried in the sand and smoking. It\'s not going anywhere. You\'re stranded on this desert world.'),
+                look: (e) => { if (!engine.getFlag('looked_crashed_pod')) { engine.setFlag('looked_crashed_pod'); e.addScore(3); } e.showMessage('Your escape pod is totaled — half-buried in the sand and smoking. It\'s not going anywhere. You\'re stranded on this desert world.'); },
                 get: (e) => e.showMessage('The pod is completely wrecked. Nothing salvageable remains.'),
                 use: (e) => e.showMessage('The pod is beyond repair. Time to find another way off this rock.')
             },
@@ -2108,7 +2108,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Alien Bones', x: 240, y: 330, w: 40, h: 20,
                 description: 'Bleached bones half-buried in sand.',
-                look: (e) => e.showMessage('The bleached skeleton of some alien creature, half-buried in sand. It has too many ribs and what appears to be a second skull. This planet is NOT friendly.'),
+                look: (e) => { if (!engine.getFlag('looked_bones')) { engine.setFlag('looked_bones'); e.addScore(2); } e.showMessage('The bleached skeleton of some alien creature, half-buried in sand. It has too many ribs and what appears to be a second skull. This planet is NOT friendly.'); },
                 get: (e) => e.showMessage('You pick up a bone. It crumbles to dust in your hand. Whatever died here did so a VERY long time ago. Comforting.'),
                 talk: (e) => e.showMessage('"So... how long did YOU last out here?" The skeleton does not answer. Its empty eye sockets stare accusingly.')
             },
@@ -2347,7 +2347,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Glowing Mushrooms', x: 65, y: 315, w: 50, h: 25,
                 description: 'Clusters of softly glowing mushrooms.',
-                look: (e) => e.showMessage('Bioluminescent mushrooms cluster near the pool, casting a soft blue-green glow. They pulse gently, almost like breathing. Pretty, but you wouldn\'t eat them — your xenobiology training (which consists of zero hours) says "don\'t eat glowing things."'),
+                look: (e) => { if (!engine.getFlag('looked_mushrooms')) { engine.setFlag('looked_mushrooms'); e.addScore(2); } e.showMessage('Bioluminescent mushrooms cluster near the pool, casting a soft blue-green glow. They pulse gently, almost like breathing. Pretty, but you wouldn\'t eat them — your xenobiology training (which consists of zero hours) says "don\'t eat glowing things."'); },
                 get: (e) => e.showMessage('You pluck a mushroom. It immediately stops glowing and goes limp in your hand. Now you feel guilty. You put it back.'),
                 use: (e) => e.showMessage('You consider eating one. Then you imagine the headline: "Janitor Killed by Space Mushroom." You put it down.'),
                 talk: (e) => e.showMessage('"Glow, little buddies, glow." They pulse a bit brighter. Coincidence? Probably. But you smile anyway.')
@@ -2355,7 +2355,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Cave Paintings', x: 20, y: 160, w: 50, h: 45,
                 description: 'Primitive paintings on the cave wall.',
-                look: (e) => e.showMessage('Crude but striking pictographs painted on the cave wall in rusty pigment. They depict stick figures hunting a large creature under twin suns. There\'s also what might be a spaceship. Someone — or someTHING — was here before you.'),
+                look: (e) => { if (!engine.getFlag('looked_paintings')) { engine.setFlag('looked_paintings'); e.addScore(3); } e.showMessage('Crude but striking pictographs painted on the cave wall in rusty pigment. They depict stick figures hunting a large creature under twin suns. There\'s also what might be a spaceship. Someone — or someTHING — was here before you.'); },
                 get: (e) => e.showMessage('These paintings are thousands of years old. You\'re a janitor who respects the sanctity of historical surfaces. Well, except for that graffiti on Deck 3.'),
                 use: (e) => e.showMessage('You trace a finger along the ancient lines. The paint is long-dried. You wonder what happened to the artists. Given the skeleton outside, maybe don\'t wonder too hard.'),
                 talk: (e) => e.showMessage('"What were you trying to tell us?" you muse at the paintings. The stick figures stare back with their blank dot heads, keeping their secrets.')
@@ -2664,7 +2664,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Wanted Poster', x: 150, y: 128, w: 26, h: 32,
                 description: 'A wanted poster on the cantina wall.',
-                look: (e) => e.showMessage('"WANTED: ZQRX THE DEFACER — Crimes Against Public Property." The sketch looks like a blob with arms. Reward: 5 buckazoids. Not exactly a high-priority criminal.'),
+                look: (e) => { if (!engine.getFlag('looked_wanted_poster')) { engine.setFlag('looked_wanted_poster'); e.addScore(3); } e.showMessage('"WANTED: ZQRX THE DEFACER — Crimes Against Public Property." The sketch looks like a blob with arms. Reward: 5 buckazoids. Not exactly a high-priority criminal.'); },
                 get: (e) => e.showMessage('You peel the poster off the wall. It tears. You stick it back. Hide the evidence. Act natural.'),
                 talk: (e) => e.showMessage('"ZQRX, if you\'re out there — the graffiti isn\'t that bad. I\'ve seen worse." You have seen worse. YOU\'VE done worse.')
             },
@@ -3079,7 +3079,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Dartboard', x: 492, y: 67, w: 36, h: 36,
                 description: 'A dartboard on the wall.',
-                look: (e) => e.showMessage('An alien dartboard — it has twelve sections instead of the usual twenty. There\'s a dart embedded in the wall a good two feet from the board. Someone has terrible aim.'),
+                look: (e) => { if (!engine.getFlag('looked_dartboard')) { engine.setFlag('looked_dartboard'); e.addScore(2); } e.showMessage('An alien dartboard — it has twelve sections instead of the usual twenty. There\'s a dart embedded in the wall a good two feet from the board. Someone has terrible aim.'); },
                 get: (e) => e.showMessage('You yank the dart out of the wall. A chunk of plaster comes with it. You stick it back in. Nope, never happened.'),
                 use: (e) => e.showMessage('You mime throwing a dart. Without an actual dart, you just look like you\'re having some kind of episode. The bartender eyes you warily.')
             },
@@ -3525,7 +3525,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'No Refunds Sign', x: 50, y: 230, w: 85, h: 14,
                 description: 'A sign on the counter.',
-                look: (e) => e.showMessage('"NO REFUNDS • NO RETURNS • NO COMPLAINING • NO EXCEPTIONS • NO KIDDING." The sign has been updated multiple times with increasingly aggressive additions.'),
+                look: (e) => { if (!engine.getFlag('looked_norefunds')) { engine.setFlag('looked_norefunds'); e.addScore(3); } e.showMessage('"NO REFUNDS • NO RETURNS • NO COMPLAINING • NO EXCEPTIONS • NO KIDDING." The sign has been updated multiple times with increasingly aggressive additions.'); },
                 get: (e) => e.showMessage('Tiny\'s eyes track your hand. "That sign stays WHERE IT IS." He\'s had people try before, apparently.'),
                 talk: (e) => e.showMessage('"What about exchanges—" you begin. "READ THE SIGN," Tiny snarls. You read it again. Fair enough.')
             },
@@ -4394,7 +4394,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Draknoid Insignia', x: 285, y: 305, w: 70, h: 65,
                 description: 'A large emblem set into the floor.',
-                look: (e) => e.showMessage('The Draknoid military insignia is set into the deck floor in dark metal - a fanged serpent coiling around a planet. Very menacing. Very dramatic. Someone really liked their graphic design budget.'),
+                look: (e) => { if (!engine.getFlag('looked_insignia')) { engine.setFlag('looked_insignia'); e.addScore(3); } e.showMessage('The Draknoid military insignia is set into the deck floor in dark metal - a fanged serpent coiling around a planet. Very menacing. Very dramatic. Someone really liked their graphic design budget.'); },
                 get: (e) => e.showMessage('It\'s embedded in the deck plating. You\'d need a plasma torch and about three hours. You have neither.'),
                 use: (e) => e.showMessage('You step on it defiantly. Take THAT, Draknoid Empire. They\'ll probably just buff out the footprint.')
             }
