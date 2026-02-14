@@ -648,126 +648,213 @@ class GameEngine {
 
     // ---- Title Screen ----
     drawTitleScreen(ctx) {
-        // Starfield (EGA-style black background)
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
-        let rng = 99;
-        for (let i = 0; i < 150; i++) {
-            rng = (rng * 16807) % 2147483647;
-            const sx = (rng % this.WIDTH);
-            rng = (rng * 16807) % 2147483647;
-            const sy = (rng % this.HEIGHT);
-            rng = (rng * 16807) % 2147483647;
-            const bright = 120 + (rng % 135);
-            const twinkle = Math.sin(this.animTimer / 300 + i) * 30;
-            ctx.fillStyle = `rgb(${bright + twinkle},${bright + twinkle},${bright + twinkle + 20})`;
-            ctx.fillRect(sx, sy, (rng % 3 === 0) ? 2 : 1, 1);
+        const W = this.WIDTH, H = this.HEIGHT;
+        const t = this.animTimer;
+
+        // ---- Deep space background ----
+        ctx.fillStyle = '#000008';
+        ctx.fillRect(0, 0, W, H);
+
+        // Distant star layers (parallax feel via different seed densities)
+        let rng = 54321;
+        const nx = () => { rng = (rng * 16807) % 2147483647; return (rng & 0xFFFF) / 0xFFFF; };
+        // Dim far stars
+        for (let i = 0; i < 120; i++) {
+            const sx = nx() * W, sy = nx() * H;
+            const b = 60 + Math.floor(nx() * 50);
+            const tw = Math.sin(t / 800 + i * 0.7) * 15;
+            ctx.fillStyle = `rgb(${b + tw},${b + tw},${b + tw + 8})`;
+            ctx.fillRect(sx, sy, 1, 1);
+        }
+        // Brighter near stars
+        rng = 98765;
+        for (let i = 0; i < 60; i++) {
+            const sx = nx() * W, sy = nx() * H;
+            const b = 140 + Math.floor(nx() * 115);
+            const tw = Math.sin(t / 400 + i * 1.3) * 25;
+            ctx.fillStyle = `rgb(${b + tw},${b + tw},${b + tw + 15})`;
+            const size = nx() > 0.85 ? 2 : 1;
+            ctx.fillRect(sx, sy, size, 1);
         }
 
-        // Slow-moving nebula background
-        const nebulaX = 400 + Math.sin(this.animTimer / 8000) * 50;
-        const nebulaY = 80 + Math.cos(this.animTimer / 6000) * 20;
-        const ng = ctx.createRadialGradient(nebulaX, nebulaY, 10, nebulaX, nebulaY, 120);
-        ng.addColorStop(0, 'rgba(85,85,255,0.08)');
-        ng.addColorStop(0.5, 'rgba(85,85,255,0.04)');
+        // ---- Nebula glow (purple/blue, Space Quest style) ----
+        const nebX = 480 + Math.sin(t / 12000) * 30;
+        const nebY = 120 + Math.cos(t / 9000) * 15;
+        const ng = ctx.createRadialGradient(nebX, nebY, 5, nebX, nebY, 180);
+        ng.addColorStop(0, 'rgba(80,40,140,0.12)');
+        ng.addColorStop(0.3, 'rgba(40,30,120,0.07)');
+        ng.addColorStop(0.7, 'rgba(20,20,80,0.03)');
         ng.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = ng;
-        ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
+        ctx.fillRect(0, 0, W, H);
 
-        // Sierra-style bordered title box
-        const bx = 80, by = 30, bw = 480, bh = 250;
-        ctx.fillStyle = '#0000AA';
-        ctx.fillRect(bx, by, bw, bh);
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(bx + 2, by + 2, bw - 4, bh - 4);
-        ctx.strokeStyle = '#5555FF';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(bx + 6, by + 6, bw - 12, bh - 12);
+        // Second nebula patch (reddish)
+        const neb2X = 140 + Math.sin(t / 15000) * 20;
+        const neb2Y = 280 + Math.cos(t / 11000) * 10;
+        const ng2 = ctx.createRadialGradient(neb2X, neb2Y, 5, neb2X, neb2Y, 100);
+        ng2.addColorStop(0, 'rgba(120,40,40,0.06)');
+        ng2.addColorStop(0.5, 'rgba(80,20,40,0.03)');
+        ng2.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = ng2;
+        ctx.fillRect(0, 0, W, H);
 
-        // Title text
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 36px "Courier New"';
-        const glow = Math.sin(this.animTimer / 500) * 0.3 + 0.7;
-        ctx.fillStyle = `rgba(255,255,85,${glow})`;
-        ctx.fillText('STAR SWEEPER', this.WIDTH / 2, by + 52);
-
-        ctx.font = '16px "Courier New"';
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillText('A   S P A C E   A D V E N T U R E', this.WIDTH / 2, by + 80);
-
-        // Decorative separator
-        ctx.strokeStyle = '#5555FF';
-        ctx.lineWidth = 1;
+        // ---- Large planet (SQ1-style desert world) ----
+        const planetX = 500, planetY = 320, planetR = 85;
+        // Planet shadow (dark side, crescent effect)
+        const pg = ctx.createRadialGradient(planetX - 25, planetY - 20, planetR * 0.1, planetX, planetY, planetR);
+        pg.addColorStop(0, '#AA8855');
+        pg.addColorStop(0.35, '#997744');
+        pg.addColorStop(0.6, '#775533');
+        pg.addColorStop(0.85, '#443322');
+        pg.addColorStop(1, '#221811');
+        ctx.fillStyle = pg;
         ctx.beginPath();
-        ctx.moveTo(bx + 30, by + 92); ctx.lineTo(bx + bw - 30, by + 92);
-        ctx.stroke();
-
-        // Ship silhouette
-        ctx.fillStyle = '#5555FF';
-        ctx.beginPath();
-        ctx.moveTo(230, by + 128);
-        ctx.lineTo(260, by + 118);
-        ctx.lineTo(280, by + 116);
-        ctx.lineTo(360, by + 116);
-        ctx.lineTo(380, by + 118);
-        ctx.lineTo(410, by + 128);
-        ctx.lineTo(395, by + 136);
-        ctx.lineTo(370, by + 133);
-        ctx.lineTo(270, by + 133);
-        ctx.lineTo(245, by + 136);
-        ctx.closePath();
+        ctx.arc(planetX, planetY, planetR, 0, Math.PI * 2);
         ctx.fill();
-        // Bridge dome
-        ctx.fillRect(308, by + 111, 24, 5);
-        // Engine glow
-        ctx.fillStyle = `rgba(85,255,255,${0.4 + Math.sin(this.animTimer / 200) * 0.3})`;
-        ctx.fillRect(226, by + 130, 5, 3);
-        ctx.fillRect(411, by + 130, 5, 3);
-        // Windows
-        ctx.fillStyle = '#55FFFF';
-        for (let wx = 290; wx < 360; wx += 14) {
-            ctx.fillRect(wx, by + 121, 4, 2);
-        }
-        // Particle trail
-        for (let p = 0; p < 6; p++) {
-            const px = 222 - p * 7 + Math.sin(this.animTimer / 100 + p) * 2;
-            const py = by + 131 + Math.sin(this.animTimer / 150 + p * 0.7) * 1;
-            const pa = 0.4 - p * 0.06;
-            if (pa > 0) {
-                ctx.fillStyle = `rgba(85,255,255,${pa})`;
-                ctx.fillRect(px, py, 3, 2);
+        // Atmospheric glow
+        ctx.strokeStyle = 'rgba(170,140,100,0.15)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(planetX, planetY, planetR + 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(120,100,80,0.08)';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(planetX, planetY, planetR + 5, 0, Math.PI * 2);
+        ctx.stroke();
+        // Surface details (craters/terrain bands)
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(planetX, planetY, planetR, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        ctx.beginPath(); ctx.arc(planetX - 30, planetY - 20, 25, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(planetX + 15, planetY + 30, 15, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(planetX - 50, planetY + 25, 10, 0, Math.PI * 2); ctx.fill();
+        // Terrain bands
+        ctx.fillStyle = 'rgba(100,80,50,0.06)';
+        ctx.fillRect(planetX - planetR, planetY - 10, planetR * 2, 8);
+        ctx.fillRect(planetX - planetR, planetY + 20, planetR * 2, 5);
+        ctx.restore();
+
+        // ---- Small moon ----
+        const moonX = 420, moonY = 240, moonR = 12;
+        const mg = ctx.createRadialGradient(moonX - 3, moonY - 3, 1, moonX, moonY, moonR);
+        mg.addColorStop(0, '#BBBBAA');
+        mg.addColorStop(0.7, '#888877');
+        mg.addColorStop(1, '#444440');
+        ctx.fillStyle = mg;
+        ctx.beginPath();
+        ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // ---- ISS Constellation flying across (animated) ----
+        const shipCycle = (t % 20000) / 20000; // 20s loop
+        const shipX = -80 + shipCycle * (W + 160);
+        const shipY = 175 + Math.sin(shipCycle * Math.PI * 2) * 8;
+        const shipS = 1.2;
+        // Engine trail
+        for (let p = 0; p < 10; p++) {
+            const trailX = shipX - 45 * shipS - p * 6;
+            const trailAlpha = 0.35 - p * 0.035;
+            if (trailAlpha > 0) {
+                ctx.fillStyle = `rgba(80,200,255,${trailAlpha})`;
+                ctx.fillRect(trailX, shipY - 1, 4, 2);
             }
         }
-
-        // Second separator
-        ctx.strokeStyle = '#5555FF';
+        // Ship hull
+        ctx.fillStyle = '#667788';
         ctx.beginPath();
-        ctx.moveTo(bx + 30, by + 152); ctx.lineTo(bx + bw - 30, by + 152);
+        ctx.moveTo(shipX + 35 * shipS, shipY);
+        ctx.lineTo(shipX + 20 * shipS, shipY - 7 * shipS);
+        ctx.lineTo(shipX - 25 * shipS, shipY - 8 * shipS);
+        ctx.lineTo(shipX - 40 * shipS, shipY - 4 * shipS);
+        ctx.lineTo(shipX - 40 * shipS, shipY + 4 * shipS);
+        ctx.lineTo(shipX - 25 * shipS, shipY + 8 * shipS);
+        ctx.lineTo(shipX + 20 * shipS, shipY + 7 * shipS);
+        ctx.closePath();
+        ctx.fill();
+        // Hull highlight
+        ctx.fillStyle = '#7799AA';
+        ctx.beginPath();
+        ctx.moveTo(shipX + 30 * shipS, shipY - 1);
+        ctx.lineTo(shipX + 15 * shipS, shipY - 5 * shipS);
+        ctx.lineTo(shipX - 20 * shipS, shipY - 6 * shipS);
+        ctx.lineTo(shipX - 20 * shipS, shipY);
+        ctx.closePath();
+        ctx.fill();
+        // Bridge
+        ctx.fillStyle = '#55AACC';
+        ctx.fillRect(shipX - 2 * shipS, shipY - 10 * shipS, 12 * shipS, 3 * shipS);
+        // Windows
+        ctx.fillStyle = '#88EEFF';
+        for (let wi = 0; wi < 4; wi++) {
+            ctx.fillRect(shipX - 10 * shipS + wi * 8 * shipS, shipY - 2, 3, 2);
+        }
+        // Engine pods
+        ctx.fillStyle = '#556677';
+        ctx.fillRect(shipX - 42 * shipS, shipY - 6 * shipS, 6 * shipS, 4 * shipS);
+        ctx.fillRect(shipX - 42 * shipS, shipY + 2 * shipS, 6 * shipS, 4 * shipS);
+        // Engine glow
+        const eGlow = 0.5 + Math.sin(t / 80) * 0.3;
+        ctx.fillStyle = `rgba(80,200,255,${eGlow})`;
+        ctx.fillRect(shipX - 44 * shipS, shipY - 5 * shipS, 3 * shipS, 2 * shipS);
+        ctx.fillRect(shipX - 44 * shipS, shipY + 3 * shipS, 3 * shipS, 2 * shipS);
+
+        // ---- Title text (SQ1 style: big, dramatic, spaced out) ----
+        ctx.textAlign = 'center';
+
+        // "STAR SWEEPER" main title with shadow
+        ctx.font = 'bold 44px "Courier New"';
+        // Drop shadow
+        ctx.fillStyle = '#000033';
+        ctx.fillText('STAR SWEEPER', W / 2 + 3, 58);
+        // Main text with pulsing glow
+        const glow = Math.sin(t / 600) * 0.2 + 0.8;
+        ctx.fillStyle = `rgba(255,255,85,${glow})`;
+        ctx.fillText('STAR SWEEPER', W / 2, 55);
+        // Highlight on top edge
+        ctx.fillStyle = `rgba(255,255,200,${glow * 0.4})`;
+        ctx.fillText('STAR SWEEPER', W / 2, 54);
+
+        // Subtitle
+        ctx.font = '15px "Courier New"';
+        ctx.fillStyle = '#55AAFF';
+        ctx.fillText('A   S P A C E   A D V E N T U R E', W / 2, 78);
+
+        // Thin decorative line under subtitle
+        ctx.strokeStyle = 'rgba(85,170,255,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(160, 86);
+        ctx.lineTo(480, 86);
         ctx.stroke();
 
-        // Credits (Sierra-style)
+        // ---- SQ1-style scrolling credits area (bottom third) ----
         ctx.font = '12px "Courier New"';
-        ctx.fillStyle = '#55FFFF';
-        ctx.fillText('A tribute to Sierra On-Line adventure games', this.WIDTH / 2, by + 175);
         ctx.fillStyle = '#AAAAAA';
-        ctx.fillText('Inspired by Space Quest: The Sarien Encounter', this.WIDTH / 2, by + 195);
-        ctx.font = '11px "Courier New"';
-        ctx.fillStyle = '#555555';
-        ctx.fillText('Procedural pixel art \u2022 No sprites \u2022 Pure JavaScript', this.WIDTH / 2, by + 225);
+        ctx.fillText('A tribute to Sierra On-Line adventure games', W / 2, H - 90);
 
-        // Prompt (below box)
-        const blink = Math.floor(this.animTimer / 600) % 2;
+        ctx.font = '11px "Courier New"';
+        ctx.fillStyle = '#6688AA';
+        ctx.fillText('Inspired by Space Quest: The Sarien Encounter (1986)', W / 2, H - 72);
+
+        ctx.font = '10px "Courier New"';
+        ctx.fillStyle = '#556677';
+        ctx.fillText('Procedural pixel art  \u2022  No sprites  \u2022  Pure JavaScript', W / 2, H - 54);
+
+        // ---- Blinking prompt ----
+        const blink = Math.floor(t / 600) % 2;
         if (blink) {
-            ctx.font = 'bold 16px "Courier New"';
+            ctx.font = 'bold 14px "Courier New"';
             ctx.fillStyle = '#FFFF55';
-            ctx.fillText('- Click to Begin -', this.WIDTH / 2, by + bh + 50);
+            ctx.fillText('\u25B6  Click or press any key to begin  \u25C0', W / 2, H - 22);
         }
 
-        // Bottom text
-        ctx.font = '10px "Courier New"';
-        ctx.fillStyle = '#555555';
-        ctx.fillText('\u00A9 2025', this.WIDTH / 2, this.HEIGHT - 10);
+        // Copyright
+        ctx.font = '9px "Courier New"';
+        ctx.fillStyle = '#333344';
+        ctx.fillText('\u00A9 2025-2026', W / 2, H - 6);
 
         ctx.textAlign = 'left';
     }

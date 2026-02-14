@@ -1113,7 +1113,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         skippable: true,
                         draw: (ctx, w, h, progress) => {
                             miniAnimRedrawRoom(ctx, w, h);
-                            drawPlayerBody(ctx, px, py, sc, progress < 0.6 ? Math.min(progress / 0.3, 1) * 0.7 : (1 - (progress - 0.6) / 0.4) * 0.7);
+                            const armUp = progress < 0.6 ? Math.min(progress / 0.3, 1) * 0.7 : (1 - (progress - 0.6) / 0.4) * 0.7;
+                            // Screen shake at 60%
+                            if (progress > 0.55 && progress < 0.7) {
+                                const shake = Math.sin(progress * 80) * 2;
+                                ctx.save();
+                                ctx.translate(shake, 0);
+                                miniAnimRedrawRoom(ctx, w, h);
+                                drawPlayerBody(ctx, px, py, sc, 0.3);
+                                ctx.restore();
+                            } else {
+                                drawPlayerBody(ctx, px, py, sc, armUp);
+                            }
                             // Spray particles
                             if (progress > 0.2 && progress < 0.7) {
                                 const sp = (progress - 0.2) / 0.5;
@@ -1126,14 +1137,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                     ctx.arc(sx, sy, 1.5 - sp * 0.5, 0, Math.PI * 2);
                                     ctx.fill();
                                 }
-                            }
-                            // Screen shake at 60%
-                            if (progress > 0.55 && progress < 0.7) {
-                                const shake = Math.sin(progress * 80) * 2;
-                                ctx.setTransform(1, 0, 0, 1, shake, 0);
-                                miniAnimRedrawRoom(ctx, w, h);
-                                drawPlayerBody(ctx, px, py, sc, 0.3);
-                                ctx.setTransform(1, 0, 0, 1, 0, 0);
                             }
                         },
                         onEnd: () => {
@@ -1450,9 +1453,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.stroke();
             // Sparks from wiring
             if (Math.floor(eng.animTimer / 200) % 5 === 0) {
+                const sparkSeed = Math.floor(eng.animTimer / 200);
                 ctx.fillStyle = '#FFFF55';
-                ctx.fillRect(290 + Math.random() * 6, 112 + Math.random() * 6, 2, 2);
-                ctx.fillRect(286 + Math.random() * 4, 108 + Math.random() * 4, 1, 1);
+                ctx.fillRect(290 + (sparkSeed * 7 % 6), 112 + (sparkSeed * 13 % 6), 2, 2);
+                ctx.fillRect(286 + (sparkSeed * 11 % 4), 108 + (sparkSeed * 17 % 4), 1, 1);
             }
 
             // Wall-mounted fire extinguisher (left wall)
@@ -2012,7 +2016,13 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(220, 15, 200, 70);
             ctx.strokeStyle = '#555577';
             ctx.strokeRect(220, 15, 200, 70);
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(221, 16, 198, 68);
+            ctx.clip();
+            ctx.translate(220, 15);
             stars(ctx, 200, 70, 777, 30);
+            ctx.restore();
             // A planet visible
             ctx.fillStyle = '#AA8855';
             ctx.beginPath();
@@ -3342,17 +3352,44 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (itemId === 'drink') {
                         engine.sound.drink();
-                        e.showMessage('"For me?! You\'re a saint!" Zorthak grabs the ale and downs half of it in one gulp. His eyes light up. "Alright, alright, I promised info and Zorthak keeps his word..."');
                         e.removeFromInventory('drink');
                         e.setFlag('pilot_has_drink');
-                        // After a moment, the pilot gives you the nav chip
-                        setTimeout(() => {
-                            if (e.getFlag('pilot_left')) return;
-                            e.showMessage('"Those Draknoid thugs... I did a cargo run near their flagship last month. Got the coordinates logged before they chased me off. Take this nav chip — it\'ll get you right to \'em." He slides a chip across the table.');
-                            e.addToInventory('nav_chip');
-                            e.setFlag('pilot_left');
-                            e.addScore(20);
-                        }, 3000);
+                        e.showMessage('"For me?! You\'re a saint!" Zorthak grabs the ale and downs half of it in one gulp. His eyes light up. "Alright, alright, I promised info and Zorthak keeps his word..."');
+                        // Pilot gives you the nav chip via short cutscene delay
+                        e.playCutscene({
+                            duration: 3000,
+                            skippable: true,
+                            draw: (ctx, w, h, progress) => {
+                                miniAnimRedrawRoom(ctx, w, h);
+                                // Pilot drinking animation
+                                const pilotX = 430, pilotY = 208;
+                                // Arm lifting drink
+                                const drinkP = Math.min(progress / 0.4, 1);
+                                ctx.fillStyle = '#556688';
+                                ctx.fillRect(pilotX + 12, pilotY - 8 - drinkP * 10, 8, 12);
+                                // Mug
+                                ctx.fillStyle = '#AA8844';
+                                ctx.fillRect(pilotX + 10, pilotY - 18 - drinkP * 10, 12, 8);
+                                ctx.fillStyle = '#DDAA44';
+                                ctx.fillRect(pilotX + 11, pilotY - 17 - drinkP * 10, 10, 5);
+                                // Satisfaction stars
+                                if (progress > 0.5) {
+                                    const sp = (progress - 0.5) / 0.5;
+                                    ctx.fillStyle = `rgba(255,255,100,${0.7 * (1 - sp)})`;
+                                    ctx.font = `${8 + sp * 4}px "Courier New"`;
+                                    ctx.textAlign = 'center';
+                                    ctx.fillText('*hic*', pilotX + 15, pilotY - 35 - sp * 15);
+                                    ctx.textAlign = 'left';
+                                }
+                            },
+                            onEnd: () => {
+                                if (e.getFlag('pilot_left')) return;
+                                e.showMessage('"Those Draknoid thugs... I did a cargo run near their flagship last month. Got the coordinates logged before they chased me off. Take this nav chip — it\'ll get you right to \'em." He slides a chip across the table.');
+                                e.addToInventory('nav_chip');
+                                e.setFlag('pilot_left');
+                                e.addScore(20);
+                            }
+                        });
                     } else {
                         e.showMessage('"That\'s not what I need, friend. I need a DRINK."');
                     }
@@ -4277,7 +4314,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (bp < 0.25) {
                         ctx.fillStyle = '#ff8';
                         ctx.beginPath();
-                        ctx.arc(px + 12, 295, 5 + Math.random() * 3, 0, Math.PI * 2);
+                        ctx.arc(px + 12, 295, 5 + (Math.sin(bp * 50) + 1) * 1.5, 0, Math.PI * 2);
                         ctx.fill();
                         ctx.fillStyle = '#fff';
                         ctx.beginPath();
@@ -4560,7 +4597,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 },
                 walk: (e) => {
-                    if (!e.getFlag('guard_defeated')) {
+                    if (e.getFlag('guard_defeated')) {
+                        e.showMessage('You step over the smouldering remains of the guard. Best not to look too closely.');
+                    } else {
                         e.die('You try to sneak past the Draknoid guard. Bad idea. He spots you instantly and opens fire with his plasma rifle. You should have found a weapon first.');
                     }
                 },
@@ -4658,8 +4697,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.showMessage('You can\'t get past the guard, let alone the force field!');
                     } else if (!e.getFlag('field_down')) {
                         e.showMessage('ZAP! The force field shocks you as you reach for it. You need to disable the field first!');
-                    } else {
+                    } else if (!e.getFlag('grabbed_quantum_drive')) {
                         // VICTORY!
+                        e.setFlag('grabbed_quantum_drive');
                         e.addScore(20);
                         const victoryMsg = 'You grab the Quantum Drive and run for the airlock! Behind you, alarms blare as the Draknoids realize what\'s happened. You sprint through the corridors, leap into your shuttle, and blast away just as the flagship turns to pursue. But it\'s too late — you jump to hyperspace with the Quantum Drive safely aboard. From humble janitor to galactic hero... the galaxy owes its future to one unlikely sanitation engineer. THE END.';
                         e.playCutscene({
@@ -4675,7 +4715,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.showMessage('You can\'t get past the guard!');
                     } else if (!e.getFlag('field_down')) {
                         e.showMessage('ZAP! The force field blocks you!');
-                    } else {
+                    } else if (!e.getFlag('grabbed_quantum_drive')) {
+                        e.setFlag('grabbed_quantum_drive');
                         e.addScore(20);
                         const victoryMsg = 'You grab the Quantum Drive and run for the airlock! Behind you, alarms blare as the Draknoids realize what\'s happened. You sprint through the corridors, leap into your shuttle, and blast away just as the flagship turns to pursue. But it\'s too late — you jump to hyperspace with the Quantum Drive safely aboard. From humble janitor to galactic hero... the galaxy owes its future to one unlikely sanitation engineer. THE END.';
                         e.playCutscene({
@@ -4723,7 +4764,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         const by = py - 4 * sc + i * 3;
                                         ctx.moveTo(bx, by);
                                         for (let j = 1; j <= 3; j++) {
-                                            ctx.lineTo(bx + j * 5, by + (Math.random() - 0.5) * 10);
+                                            ctx.lineTo(bx + j * 5, by + Math.sin(j * 17 + i * 7 + progress * 50) * 5);
                                         }
                                         ctx.stroke();
                                     }
