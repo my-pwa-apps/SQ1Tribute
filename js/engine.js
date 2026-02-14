@@ -87,6 +87,10 @@ class GameEngine {
 
         this.sound = new SoundEngine();
 
+        // VR state
+        this.vrActive = false;
+        this.vr = null;
+
         this.setupInput();
     }
 
@@ -625,6 +629,49 @@ class GameEngine {
 
         if (this.dead) this.drawDeathOverlay(ctx);
         if (this.won) this.drawWinOverlay(ctx);
+
+        // VR HUD: render message + inventory on canvas (visible on panorama)
+        if (this.vrActive && !this.dead && !this.won && !this.cutscene && !this.titleScreen) {
+            // Message area background
+            ctx.fillStyle = 'rgba(0, 0, 100, 0.85)';
+            ctx.fillRect(0, 350, this.WIDTH, 50);
+            ctx.strokeStyle = '#5555FF';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(0, 350, this.WIDTH, 50);
+            // Message text (word-wrapped)
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '12px "Courier New"';
+            ctx.textAlign = 'left';
+            const maxW = this.WIDTH - 20;
+            const words = (this.message || '').split(' ');
+            let line = '', textY = 365;
+            for (const w of words) {
+                const test = line + w + ' ';
+                if (ctx.measureText(test).width > maxW && line) {
+                    ctx.fillText(line.trim(), 10, textY);
+                    line = w + ' ';
+                    textY += 14;
+                    if (textY > 395) break;
+                } else {
+                    line = test;
+                }
+            }
+            if (line.trim() && textY <= 395) ctx.fillText(line.trim(), 10, textY);
+            // Inventory strip
+            if (this.inventory.length > 0) {
+                ctx.fillStyle = 'rgba(0, 0, 60, 0.85)';
+                ctx.fillRect(0, 332, this.WIDTH, 18);
+                ctx.strokeStyle = '#333388';
+                ctx.strokeRect(0, 332, this.WIDTH, 18);
+                ctx.fillStyle = '#AAAAAA';
+                ctx.font = '10px "Courier New"';
+                const invStr = 'INV: ' + this.inventory.map(id => {
+                    const nm = this.items[id]?.name || id;
+                    return this.selectedItem === id ? '[' + nm + ']' : nm;
+                }).join(' | ');
+                ctx.fillText(invStr, 10, 345);
+            }
+        }
 
         // Room transition fade-in
         if (this.roomTransition > 0) {
@@ -1498,13 +1545,26 @@ class GameEngine {
         this.dom.saveModal.classList.remove('open');
     }
 
+    // ---- VR Setup ----
+    initVR() {
+        if (typeof VRSystem !== 'undefined') {
+            this.vr = new VRSystem(this);
+        }
+    }
+
     // ---- Game Loop ----
     start() {
+        // Initialize VR support if available
+        this.initVR();
+
         const loop = (timestamp) => {
-            const dt = Math.min(timestamp - this.lastTime, 100);
-            this.lastTime = timestamp;
-            this.update(dt);
-            this.render();
+            // When VR is active, the XR frame loop handles update+render
+            if (!this.vrActive) {
+                const dt = Math.min(timestamp - this.lastTime, 100);
+                this.lastTime = timestamp;
+                this.update(dt);
+                this.render();
+            }
             requestAnimationFrame(loop);
         };
         requestAnimationFrame(loop);
