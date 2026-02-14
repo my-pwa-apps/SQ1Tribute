@@ -669,6 +669,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // ========== MINI-ANIMATION HELPERS ==========
+    // Redraws current room background + draws player in a custom pose
+    function miniAnimRedrawRoom(ctx, w, h) {
+        const room = engine.rooms[engine.currentRoomId];
+        if (room && room.draw) room.draw(ctx, w, h, engine);
+    }
+
+    function drawPlayerBody(ctx, px, py, s, armAngle) {
+        // Simplified front-facing player for mini-anims
+        // Legs
+        ctx.fillStyle = '#2828AA';
+        ctx.fillRect(px - 4 * s, py + 1 * s, 3 * s, 8 * s);
+        ctx.fillRect(px + 1 * s, py + 1 * s, 3 * s, 8 * s);
+        // Boots
+        ctx.fillStyle = '#222222';
+        ctx.fillRect(px - 5 * s, py + 9 * s, 4 * s, 3 * s);
+        ctx.fillRect(px + 0 * s, py + 9 * s, 4 * s, 3 * s);
+        // Body
+        ctx.fillStyle = '#4444DD';
+        ctx.fillRect(px - 5 * s, py - 10 * s, 10 * s, 11 * s);
+        // Collar
+        ctx.fillStyle = '#CCAA44';
+        ctx.fillRect(px - 4 * s, py - 10 * s, 8 * s, 1 * s);
+        // Belt
+        ctx.fillStyle = '#666666';
+        ctx.fillRect(px - 5 * s, py, 10 * s, 2 * s);
+        ctx.fillStyle = '#DDCC22';
+        ctx.fillRect(px - 1.5 * s, py - 0.5 * s, 3 * s, 2.5 * s);
+        // Head
+        ctx.fillStyle = '#FFCC88';
+        ctx.fillRect(px - 4 * s, py - 18 * s, 8 * s, 8 * s);
+        // Hair
+        ctx.fillStyle = '#BB7733';
+        ctx.fillRect(px - 4 * s, py - 19 * s, 8 * s, 4 * s);
+        // Eyes
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(px - 3 * s, py - 15 * s, 2.5 * s, 2 * s);
+        ctx.fillRect(px + 0.5 * s, py - 15 * s, 2.5 * s, 2 * s);
+        ctx.fillStyle = '#4477CC';
+        ctx.fillRect(px - 2.5 * s, py - 15 * s, 1.5 * s, 2 * s);
+        ctx.fillRect(px + 1 * s, py - 15 * s, 1.5 * s, 2 * s);
+        // Arms (with rotation based on armAngle: 0=down, 1=forward)
+        const armOffY = -armAngle * 8 * s;
+        ctx.fillStyle = '#4444DD';
+        ctx.fillRect(px - 7 * s, py - 8 * s + armOffY, 2 * s, 7 * s);
+        ctx.fillRect(px + 5 * s, py - 8 * s + armOffY, 2 * s, 7 * s);
+        // Hands
+        ctx.fillStyle = '#FFCC88';
+        ctx.fillRect(px - 7 * s, py - 1 * s + armOffY, 2 * s, 2.5 * s);
+        ctx.fillRect(px + 5 * s, py - 1 * s + armOffY, 2 * s, 2.5 * s);
+    }
+
     // ========== ROOM 1: BROOM CLOSET ==========
     engine.registerRoom({
         id: 'broom_closet',
@@ -1053,7 +1105,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: 'A spray bottle of Astro-Shine polish.',
                 look: (e) => e.showMessage('"Astro-Shine All-Surface Polish — Makes Any Metal Gleam Like New!" You\'ve gone through about fifty of these. This one\'s nearly empty.'),
                 get: (e) => e.showMessage('You grab the Astro-Shine bottle and give it a shake. Almost empty. Not worth the inventory space.'),
-                use: (e) => e.showMessage('You instinctively point the nozzle at the nearest surface and give it a spritz. Old habits. The ship shudders from another explosion. Right. Not the time.')
+                use: (e) => {
+                    const px = engine.playerX, py = engine.playerY;
+                    const sc = 1.85 + (py - 280) / 90 * 0.3;
+                    e.playCutscene({
+                        duration: 1800,
+                        skippable: true,
+                        draw: (ctx, w, h, progress) => {
+                            miniAnimRedrawRoom(ctx, w, h);
+                            drawPlayerBody(ctx, px, py, sc, progress < 0.6 ? Math.min(progress / 0.3, 1) * 0.7 : (1 - (progress - 0.6) / 0.4) * 0.7);
+                            // Spray particles
+                            if (progress > 0.2 && progress < 0.7) {
+                                const sp = (progress - 0.2) / 0.5;
+                                for (let i = 0; i < 6; i++) {
+                                    const sx = px + 8 * sc + sp * (15 + i * 5);
+                                    const sy = py - 6 * sc + Math.sin(i * 2 + sp * 8) * 4;
+                                    const alpha = 0.6 * (1 - sp);
+                                    ctx.fillStyle = `rgba(80,160,200,${alpha})`;
+                                    ctx.beginPath();
+                                    ctx.arc(sx, sy, 1.5 - sp * 0.5, 0, Math.PI * 2);
+                                    ctx.fill();
+                                }
+                            }
+                            // Screen shake at 60%
+                            if (progress > 0.55 && progress < 0.7) {
+                                const shake = Math.sin(progress * 80) * 2;
+                                ctx.setTransform(1, 0, 0, 1, shake, 0);
+                                miniAnimRedrawRoom(ctx, w, h);
+                                drawPlayerBody(ctx, px, py, sc, 0.3);
+                                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                            }
+                        },
+                        onEnd: () => {
+                            engine.playerX = px;
+                            engine.playerY = py;
+                            e.showMessage('You instinctively point the nozzle at the nearest surface and give it a spritz. Old habits. The ship shudders from another explosion. Right. Not the time.');
+                        }
+                    });
+                }
             },
             {
                 name: 'Zero-G Dust Cloths', x: 76, y: 70, w: 36, h: 20,
@@ -1074,7 +1163,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: 'A can of industrial air freshener.',
                 look: (e) => e.showMessage('"FreshAir Industrial Odor Neutralizer — Starship Strength." You need this stuff. A ship full of crew who think deodorant is optional. The can feels light — almost empty, like your will to live.'),
                 get: (e) => e.showMessage('You pick it up and shake it. Barely a rattle. Even at full capacity it couldn\'t mask what\'s happening to this ship right now.'),
-                use: (e) => e.showMessage('Psssht! A tiny burst of "Ocean Breeze" scent fills the closet. For one brief moment, you forget you\'re on an exploding spaceship. Then you remember.')
+                use: (e) => {
+                    const px = engine.playerX, py = engine.playerY;
+                    const sc = 1.85 + (py - 280) / 90 * 0.3;
+                    e.playCutscene({
+                        duration: 2000,
+                        skippable: true,
+                        draw: (ctx, w, h, progress) => {
+                            miniAnimRedrawRoom(ctx, w, h);
+                            // Arm raises to spray
+                            const armUp = progress < 0.3 ? progress / 0.3 : (progress > 0.7 ? 1 - (progress - 0.7) / 0.3 : 1);
+                            drawPlayerBody(ctx, px, py, sc, armUp * 0.5);
+                            // Spray cloud expanding
+                            if (progress > 0.25 && progress < 0.85) {
+                                const cp = (progress - 0.25) / 0.6;
+                                const cloudR = cp * 35;
+                                const alpha = 0.25 * (1 - cp);
+                                ctx.fillStyle = `rgba(180,220,240,${alpha})`;
+                                ctx.beginPath();
+                                ctx.arc(px, py - 12 * sc, cloudR, 0, Math.PI * 2);
+                                ctx.fill();
+                                // Smaller puffs
+                                ctx.fillStyle = `rgba(200,240,255,${alpha * 0.7})`;
+                                ctx.beginPath();
+                                ctx.arc(px - 15 + cp * 10, py - 8 * sc, cloudR * 0.5, 0, Math.PI * 2);
+                                ctx.fill();
+                                ctx.beginPath();
+                                ctx.arc(px + 15 - cp * 10, py - 14 * sc, cloudR * 0.4, 0, Math.PI * 2);
+                                ctx.fill();
+                                // "Psssht" text
+                                if (cp < 0.4) {
+                                    ctx.fillStyle = `rgba(255,255,255,${0.8 - cp * 2})`;
+                                    ctx.font = `${10 + cp * 8}px "Courier New"`;
+                                    ctx.textAlign = 'center';
+                                    ctx.fillText('Psssht!', px, py - 20 * sc - cp * 15);
+                                    ctx.textAlign = 'left';
+                                }
+                            }
+                        },
+                        onEnd: () => {
+                            engine.playerX = px;
+                            engine.playerY = py;
+                            e.showMessage('Psssht! A tiny burst of "Ocean Breeze" scent fills the closet. For one brief moment, you forget you\'re on an exploding spaceship. Then you remember.');
+                        }
+                    });
+                }
             },
             {
                 name: 'Detergent Jug', x: 40, y: 130, w: 22, h: 26,
@@ -1121,7 +1254,54 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.getFlag('has_mop_handle')) {
                         e.showMessage('You\'ve already taken what you need from it. The bucket looks lonely.');
                     } else {
-                        e.showMessage('You give the floor a half-hearted mop stroke. Old habits die hard. But somehow you don\'t think mopping is going to fix THIS mess. Maybe the handle would be useful, though...');
+                        const px = engine.playerX, py = engine.playerY;
+                        const sc = 1.85 + (py - 280) / 90 * 0.3;
+                        e.playCutscene({
+                            duration: 2800,
+                            skippable: true,
+                            draw: (ctx, w, h, progress) => {
+                                miniAnimRedrawRoom(ctx, w, h);
+                                // Walk to mop (0-25%)
+                                const mopX = 497, walkPhase = Math.min(progress / 0.25, 1);
+                                const curX = px + (mopX - px) * walkPhase;
+                                const curY = py;
+                                if (progress < 0.25) {
+                                    // Walking to mop
+                                    const frame = Math.floor(progress * 20) % 4;
+                                    const ls = Math.sin(frame * Math.PI / 2) * 3 * sc;
+                                    drawPlayerBody(ctx, curX, curY, sc, 0);
+                                } else if (progress < 0.35) {
+                                    // Pick up mop - arms raise
+                                    const lift = (progress - 0.25) / 0.1;
+                                    drawPlayerBody(ctx, mopX, curY, sc, lift * 0.8);
+                                } else if (progress < 0.8) {
+                                    // Mopping! Sweep back and forth
+                                    const mopP = (progress - 0.35) / 0.45;
+                                    const sweep = Math.sin(mopP * Math.PI * 4) * 30;
+                                    drawPlayerBody(ctx, mopX + sweep * 0.3, curY, sc, 0.6);
+                                    // Mop in hands
+                                    ctx.fillStyle = '#AA8844';
+                                    ctx.fillRect(mopX + sweep - 2, curY - 4 * sc, 4, 20 * sc);
+                                    ctx.fillStyle = '#CCCCAA';
+                                    ctx.fillRect(mopX + sweep - 8, curY + 8 * sc, 16, 6);
+                                    // Wet streak on floor
+                                    ctx.fillStyle = 'rgba(120,130,150,0.15)';
+                                    ctx.beginPath();
+                                    ctx.ellipse(mopX + sweep, curY + 12 * sc, 12, 3, 0, 0, Math.PI * 2);
+                                    ctx.fill();
+                                } else {
+                                    // Put mop back, walk back
+                                    const retP = (progress - 0.8) / 0.2;
+                                    const retX = mopX + (px - mopX) * retP;
+                                    drawPlayerBody(ctx, retX, curY, sc, (1 - retP) * 0.4);
+                                }
+                            },
+                            onEnd: () => {
+                                engine.playerX = px;
+                                engine.playerY = py;
+                                e.showMessage('You give the floor a half-hearted mop stroke. Old habits die hard. But somehow you don\'t think mopping is going to fix THIS mess. Maybe the handle would be useful, though...');
+                            }
+                        });
                     }
                 },
                 talk: (e) => e.showMessage('"Goodbye, old friend. If I don\'t make it back... tell the squeegee I always respected her." The mop says nothing, but you sense its pride.')
@@ -2392,7 +2572,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: 'Underground Pool', x: 55, y: 325, w: 150, h: 35,
                 description: 'A still underground pool.',
                 look: (e) => e.showMessage('A pool of perfectly still water. In its dark surface you see the faint reflections of crystals. The water looks clean enough to drink.'),
-                use: (e) => e.showMessage('You splash some cool water on your face. Refreshing!'),
+                use: (e) => {
+                    const px = engine.playerX, py = engine.playerY;
+                    const sc = 1.85 + (py - 280) / 90 * 0.3;
+                    e.playCutscene({
+                        duration: 2000,
+                        skippable: true,
+                        draw: (ctx, w, h, progress) => {
+                            miniAnimRedrawRoom(ctx, w, h);
+                            // Player kneels down
+                            const kneelY = py + (progress < 0.25 ? (progress / 0.25) * 8 * sc : (progress > 0.75 ? (1 - (progress - 0.75) / 0.25) * 8 * sc : 8 * sc));
+                            drawPlayerBody(ctx, px, kneelY, sc * 0.85, progress > 0.2 && progress < 0.8 ? 0.6 : 0);
+                            // Water splash effect
+                            if (progress > 0.3 && progress < 0.7) {
+                                const wp = (progress - 0.3) / 0.4;
+                                // Droplets flying up
+                                for (let i = 0; i < 8; i++) {
+                                    const angle = (i / 8) * Math.PI;
+                                    const dist = wp * 20;
+                                    const dx = px + Math.cos(angle) * dist;
+                                    const dy = kneelY - 2 * sc - Math.sin(angle) * dist * 1.5 + wp * wp * 15;
+                                    const alpha = 0.7 * (1 - wp);
+                                    ctx.fillStyle = `rgba(100,180,220,${alpha})`;
+                                    ctx.beginPath();
+                                    ctx.arc(dx, dy, 2 - wp, 0, Math.PI * 2);
+                                    ctx.fill();
+                                }
+                                // Water dripping from face
+                                if (wp > 0.3) {
+                                    ctx.fillStyle = `rgba(120,190,230,${0.5 * (1 - wp)})`;
+                                    ctx.fillRect(px - 2 * sc, kneelY - 14 * sc * 0.85, 1, (wp - 0.3) * 15);
+                                    ctx.fillRect(px + 2 * sc, kneelY - 13 * sc * 0.85, 1, (wp - 0.3) * 12);
+                                }
+                            }
+                        },
+                        onEnd: () => {
+                            engine.playerX = px;
+                            engine.playerY = py;
+                            e.showMessage('You splash some cool water on your face. Refreshing!');
+                        }
+                    });
+                },
                 get: (e) => e.showMessage('You cup your hands and drink some water. It has a slight mineral taste but seems safe enough.')
             },
             {
@@ -3158,7 +3378,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: 'An alien music machine.',
                 look: (e) => e.showMessage('A battered alien jukebox with colored lights that pulse to the music. The song list is in a script you can\'t read. The current track sounds like a cat fighting a synthesizer. In a good way?'),
                 get: (e) => e.showMessage('You try to pick up the jukebox. It weighs roughly as much as a small shuttle. Your back protests.'),
-                use: (e) => e.showMessage('You smack the side of the jukebox. The music skips, warbles, then continues playing the same song. Classic troubleshooting technique.'),
+                use: (e) => {
+                    const px = engine.playerX, py = engine.playerY;
+                    const sc = 1.85 + (py - 280) / 90 * 0.3;
+                    e.playCutscene({
+                        duration: 1800,
+                        skippable: true,
+                        draw: (ctx, w, h, progress) => {
+                            miniAnimRedrawRoom(ctx, w, h);
+                            // Walk toward jukebox, wind up, smack
+                            const jbX = 575;
+                            const walkP = Math.min(progress / 0.3, 1);
+                            const curX = px + (jbX - 30 - px) * walkP;
+                            if (progress < 0.3) {
+                                drawPlayerBody(ctx, curX, py, sc, 0);
+                            } else if (progress < 0.45) {
+                                // Wind up arm
+                                const wind = (progress - 0.3) / 0.15;
+                                drawPlayerBody(ctx, jbX - 30, py, sc, wind * 0.9);
+                            } else if (progress < 0.55) {
+                                // SMACK!
+                                drawPlayerBody(ctx, jbX - 25, py, sc, 0.3);
+                                // Impact star
+                                const impP = (progress - 0.45) / 0.1;
+                                ctx.fillStyle = `rgba(255,255,100,${0.8 * (1 - impP)})`;
+                                ctx.font = `${14 + impP * 6}px "Courier New"`;
+                                ctx.textAlign = 'center';
+                                ctx.fillText('SMACK!', jbX - 5, py - 18 * sc);
+                                ctx.textAlign = 'left';
+                                // Jukebox shake
+                                const jShake = Math.sin(impP * 30) * 3 * (1 - impP);
+                                ctx.fillStyle = 'rgba(255,200,50,0.3)';
+                                ctx.fillRect(558 + jShake, 118, 44, 65);
+                            } else {
+                                // Walk back
+                                const retP = (progress - 0.55) / 0.45;
+                                const retX = (jbX - 30) + (px - (jbX - 30)) * retP;
+                                drawPlayerBody(ctx, retX, py, sc, 0);
+                            }
+                        },
+                        onEnd: () => {
+                            engine.playerX = px;
+                            engine.playerY = py;
+                            e.showMessage('You smack the side of the jukebox. The music skips, warbles, then continues playing the same song. Classic troubleshooting technique.');
+                        }
+                    });
+                },
                 talk: (e) => e.showMessage('"Play something from Earth!" you request. The jukebox plays something that sounds like a yak being tuned. Close enough.')
             },
             {
@@ -4435,7 +4700,62 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 use: (e) => {
                     if (!e.getFlag('field_down')) {
-                        e.showMessage('ZAP! Bad idea. The field shocks your fingers. You need to disable it using the console.');
+                        const px = engine.playerX, py = engine.playerY;
+                        const sc = 1.85 + (py - 280) / 90 * 0.3;
+                        e.playCutscene({
+                            duration: 1500,
+                            skippable: true,
+                            draw: (ctx, w, h, progress) => {
+                                miniAnimRedrawRoom(ctx, w, h);
+                                if (progress < 0.3) {
+                                    // Reach toward field
+                                    drawPlayerBody(ctx, px, py, sc, progress / 0.3 * 0.8);
+                                } else if (progress < 0.5) {
+                                    // ZAP! shock effect
+                                    const zapP = (progress - 0.3) / 0.2;
+                                    drawPlayerBody(ctx, px + Math.sin(zapP * 40) * 4, py, sc, 0.8);
+                                    // Electric arcs
+                                    ctx.strokeStyle = `rgba(100,200,255,${0.9 - zapP * 0.5})`;
+                                    ctx.lineWidth = 2;
+                                    for (let i = 0; i < 4; i++) {
+                                        ctx.beginPath();
+                                        const bx = px + 6 * sc;
+                                        const by = py - 4 * sc + i * 3;
+                                        ctx.moveTo(bx, by);
+                                        for (let j = 1; j <= 3; j++) {
+                                            ctx.lineTo(bx + j * 5, by + (Math.random() - 0.5) * 10);
+                                        }
+                                        ctx.stroke();
+                                    }
+                                    // Flash
+                                    if (zapP < 0.3) {
+                                        ctx.fillStyle = `rgba(150,220,255,${0.3 * (1 - zapP / 0.3)})`;
+                                        ctx.fillRect(0, 0, w, h);
+                                    }
+                                    ctx.fillStyle = `rgba(255,255,100,${0.8 * (1 - zapP)})`;
+                                    ctx.font = '18px "Courier New"';
+                                    ctx.textAlign = 'center';
+                                    ctx.fillText('ZAP!', px + 8 * sc, py - 20 * sc);
+                                    ctx.textAlign = 'left';
+                                } else {
+                                    // Stagger back
+                                    const stagger = (progress - 0.5) / 0.5;
+                                    drawPlayerBody(ctx, px - stagger * 15, py, sc, (1 - stagger) * 0.3);
+                                    // Smoke wisps from fingers
+                                    if (stagger < 0.6) {
+                                        ctx.fillStyle = `rgba(200,200,200,${0.3 * (1 - stagger / 0.6)})`;
+                                        ctx.beginPath();
+                                        ctx.arc(px + 6 * sc - stagger * 10, py - 4 * sc - stagger * 10, 3 + stagger * 4, 0, Math.PI * 2);
+                                        ctx.fill();
+                                    }
+                                }
+                            },
+                            onEnd: () => {
+                                engine.playerX = px;
+                                engine.playerY = py;
+                                e.showMessage('ZAP! Bad idea. The field shocks your fingers. You need to disable it using the console.');
+                            }
+                        });
                     }
                 }
             },
