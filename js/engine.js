@@ -786,7 +786,7 @@ class GameEngine {
         // Shadow
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.beginPath();
-        ctx.ellipse(x, y + 20 * s, 8 * s, 2.5 * s, 0, 0, Math.PI * 2);
+        ctx.ellipse(x, y + 12 * s, 8 * s, 2.5 * s, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // Leg animation
@@ -955,8 +955,8 @@ class GameEngine {
             ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
             // Hands
             ctx.fillStyle = '#FFCC88';
-            ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2 * s);
-            ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2 * s);
+            ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
+            ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
             // Head (back of head, all hair)
             ctx.fillStyle = '#BB7733';
             ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 9 * s);
