@@ -74,6 +74,17 @@ class GameEngine {
 
         // Room transition fade
         this.roomTransition = 0;
+        this.exitCooldown = 0;
+
+        // CRT scanline overlay (pre-rendered for performance)
+        this.scanlineCanvas = document.createElement('canvas');
+        this.scanlineCanvas.width = this.WIDTH;
+        this.scanlineCanvas.height = this.HEIGHT;
+        const slCtx = this.scanlineCanvas.getContext('2d');
+        slCtx.fillStyle = 'rgba(0,0,0,0.12)';
+        for (let y = 0; y < this.HEIGHT; y += 2) {
+            slCtx.fillRect(0, y, this.WIDTH, 1);
+        }
 
         this.sound = new SoundEngine();
 
@@ -187,6 +198,7 @@ class GameEngine {
         const room = this.rooms[roomId];
         if (!room) { console.error('Room not found:', roomId); return; }
         this.roomTransition = 1.0; // Start fade-in
+        this.exitCooldown = 500; // Prevent immediate re-exit when spawning near an exit
         this.sound.roomTransition();
         this.currentRoomId = roomId;
         if (px !== undefined) this.playerX = px;
@@ -440,8 +452,9 @@ class GameEngine {
                 if (this.playerFrame % 2 === 0) this.sound.footstep();
             }
             // Check if player walked into an exit hotspot at its walk-to position
+            if (this.exitCooldown > 0) this.exitCooldown -= dt;
             const room = this.rooms[this.currentRoomId];
-            if (room && room.hotspots) {
+            if (this.exitCooldown <= 0 && room && room.hotspots) {
                 for (let i = room.hotspots.length - 1; i >= 0; i--) {
                     const hs = room.hotspots[i];
                     if (!hs.isExit || hs.hidden) continue;
@@ -542,16 +555,24 @@ class GameEngine {
         if (this.playerVisible && !this.dead) this.drawPlayer(ctx);
         this.drawHotspotLabel(ctx, room);
 
-        // Current action indicator (Sierra-style top bar)
+        // Current action indicator (Sierra-style menu bar)
         if (!this.dead && !this.won) {
+            // Solid bar across top
+            ctx.fillStyle = '#14142c';
+            ctx.fillRect(0, 0, this.WIDTH, 16);
+            ctx.fillStyle = '#334';
+            ctx.fillRect(0, 16, this.WIDTH, 1);
             const actionLabel = this.selectedItem
                 ? `Use ${this.items[this.selectedItem]?.name || '?'} on...`
                 : this.currentAction.charAt(0).toUpperCase() + this.currentAction.slice(1);
-            ctx.font = '10px "Courier New"';
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(0, 0, ctx.measureText(actionLabel).width + 12, 14);
-            ctx.fillStyle = '#aabbcc';
-            ctx.fillText(actionLabel, 6, 10);
+            ctx.font = 'bold 11px "Courier New"';
+            ctx.fillStyle = '#ddeeff';
+            ctx.fillText(actionLabel, 8, 12);
+            // Score in the bar
+            ctx.fillStyle = '#ffdd55';
+            ctx.textAlign = 'right';
+            ctx.fillText(`Score: ${this.score} / ${this.maxScore}`, this.WIDTH - 8, 12);
+            ctx.textAlign = 'left';
         }
 
         if (this.dead) this.drawDeathOverlay(ctx);
@@ -562,12 +583,25 @@ class GameEngine {
             ctx.fillStyle = `rgba(0,0,0,${this.roomTransition})`;
             ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
         }
+
+        // CRT scanline overlay
+        ctx.drawImage(this.scanlineCanvas, 0, 0);
+
+        // CRT vignette (darker edges)
+        const vig = ctx.createRadialGradient(
+            this.WIDTH / 2, this.HEIGHT / 2, this.HEIGHT * 0.35,
+            this.WIDTH / 2, this.HEIGHT / 2, this.WIDTH * 0.7
+        );
+        vig.addColorStop(0, 'rgba(0,0,0,0)');
+        vig.addColorStop(1, 'rgba(0,0,0,0.3)');
+        ctx.fillStyle = vig;
+        ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
     }
 
     // ---- Title Screen ----
     drawTitleScreen(ctx) {
-        // Starfield
-        ctx.fillStyle = '#050515';
+        // Starfield (EGA-style black background)
+        ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
         let rng = 99;
         for (let i = 0; i < 150; i++) {
@@ -586,95 +620,106 @@ class GameEngine {
         const nebulaX = 400 + Math.sin(this.animTimer / 8000) * 50;
         const nebulaY = 80 + Math.cos(this.animTimer / 6000) * 20;
         const ng = ctx.createRadialGradient(nebulaX, nebulaY, 10, nebulaX, nebulaY, 120);
-        ng.addColorStop(0, 'rgba(40,20,80,0.15)');
-        ng.addColorStop(0.5, 'rgba(20,10,60,0.08)');
+        ng.addColorStop(0, 'rgba(85,85,255,0.08)');
+        ng.addColorStop(0.5, 'rgba(85,85,255,0.04)');
         ng.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = ng;
         ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
 
-        // Title with shadow
+        // Sierra-style bordered title box
+        const bx = 80, by = 30, bw = 480, bh = 250;
+        ctx.fillStyle = '#0000AA';
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx + 2, by + 2, bw - 4, bh - 4);
+        ctx.strokeStyle = '#5555FF';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx + 6, by + 6, bw - 12, bh - 12);
+
+        // Title text
         ctx.textAlign = 'center';
-        ctx.font = 'bold 44px "Courier New"';
-        ctx.fillStyle = '#112244';
-        ctx.fillText('STAR SWEEPER', this.WIDTH / 2 + 2, 122);
+        ctx.font = 'bold 36px "Courier New"';
         const glow = Math.sin(this.animTimer / 500) * 0.3 + 0.7;
-        ctx.fillStyle = `rgba(100,180,255,${glow})`;
-        ctx.fillText('STAR SWEEPER', this.WIDTH / 2, 120);
+        ctx.fillStyle = `rgba(255,255,85,${glow})`;
+        ctx.fillText('STAR SWEEPER', this.WIDTH / 2, by + 52);
 
-        ctx.font = '20px "Courier New"';
-        ctx.fillStyle = '#aaccff';
-        ctx.fillText('A   S P A C E   A D V E N T U R E', this.WIDTH / 2, 158);
+        ctx.font = '16px "Courier New"';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText('A   S P A C E   A D V E N T U R E', this.WIDTH / 2, by + 80);
 
-        // Sierra tribute line with decorative border
-        ctx.strokeStyle = '#334466';
+        // Decorative separator
+        ctx.strokeStyle = '#5555FF';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(150, 180); ctx.lineTo(490, 180);
-        ctx.stroke();
-        ctx.font = '12px "Courier New"';
-        ctx.fillStyle = '#556688';
-        ctx.fillText('A tribute to classic Sierra adventure games', this.WIDTH / 2, 196);
-        ctx.beginPath();
-        ctx.moveTo(150, 204); ctx.lineTo(490, 204);
+        ctx.moveTo(bx + 30, by + 92); ctx.lineTo(bx + bw - 30, by + 92);
         ctx.stroke();
 
-        // Ship silhouette — more detailed
-        ctx.fillStyle = '#1a2a44';
+        // Ship silhouette
+        ctx.fillStyle = '#5555FF';
         ctx.beginPath();
-        ctx.moveTo(190, 262);
-        ctx.lineTo(230, 250);
-        ctx.lineTo(260, 248);
-        ctx.lineTo(380, 248);
-        ctx.lineTo(410, 250);
-        ctx.lineTo(450, 262);
-        ctx.lineTo(430, 272);
-        ctx.lineTo(400, 268);
-        ctx.lineTo(240, 268);
-        ctx.lineTo(210, 272);
+        ctx.moveTo(230, by + 128);
+        ctx.lineTo(260, by + 118);
+        ctx.lineTo(280, by + 116);
+        ctx.lineTo(360, by + 116);
+        ctx.lineTo(380, by + 118);
+        ctx.lineTo(410, by + 128);
+        ctx.lineTo(395, by + 136);
+        ctx.lineTo(370, by + 133);
+        ctx.lineTo(270, by + 133);
+        ctx.lineTo(245, by + 136);
         ctx.closePath();
         ctx.fill();
-        // Hull detail
-        ctx.fillStyle = '#223355';
-        ctx.fillRect(250, 253, 140, 2);
         // Bridge dome
-        ctx.fillStyle = '#223355';
-        ctx.fillRect(300, 243, 40, 6);
-        // Engine nacelles
-        ctx.fillStyle = '#152035';
-        ctx.fillRect(210, 264, 15, 8);
-        ctx.fillRect(415, 264, 15, 8);
+        ctx.fillRect(308, by + 111, 24, 5);
         // Engine glow
-        ctx.fillStyle = `rgba(100,150,255,${0.4 + Math.sin(this.animTimer / 200) * 0.2})`;
-        ctx.fillRect(206, 266, 6, 4);
-        ctx.fillRect(430, 266, 6, 4);
+        ctx.fillStyle = `rgba(85,255,255,${0.4 + Math.sin(this.animTimer / 200) * 0.3})`;
+        ctx.fillRect(226, by + 130, 5, 3);
+        ctx.fillRect(411, by + 130, 5, 3);
+        // Windows
+        ctx.fillStyle = '#55FFFF';
+        for (let wx = 290; wx < 360; wx += 14) {
+            ctx.fillRect(wx, by + 121, 4, 2);
+        }
         // Particle trail
-        for (let p = 0; p < 8; p++) {
-            const px = 200 - p * 8 + Math.sin(this.animTimer / 100 + p) * 2;
-            const py = 268 + Math.sin(this.animTimer / 150 + p * 0.7) * 2;
-            const pa = 0.3 - p * 0.035;
+        for (let p = 0; p < 6; p++) {
+            const px = 222 - p * 7 + Math.sin(this.animTimer / 100 + p) * 2;
+            const py = by + 131 + Math.sin(this.animTimer / 150 + p * 0.7) * 1;
+            const pa = 0.4 - p * 0.06;
             if (pa > 0) {
-                ctx.fillStyle = `rgba(100,150,255,${pa})`;
+                ctx.fillStyle = `rgba(85,255,255,${pa})`;
                 ctx.fillRect(px, py, 3, 2);
             }
         }
-        // Windows
-        ctx.fillStyle = '#4477aa';
-        for (let wx = 270; wx < 380; wx += 18) {
-            ctx.fillRect(wx, 254, 5, 3);
-        }
 
-        // Prompt
+        // Second separator
+        ctx.strokeStyle = '#5555FF';
+        ctx.beginPath();
+        ctx.moveTo(bx + 30, by + 152); ctx.lineTo(bx + bw - 30, by + 152);
+        ctx.stroke();
+
+        // Credits (Sierra-style)
+        ctx.font = '12px "Courier New"';
+        ctx.fillStyle = '#55FFFF';
+        ctx.fillText('A tribute to Sierra On-Line adventure games', this.WIDTH / 2, by + 175);
+        ctx.fillStyle = '#AAAAAA';
+        ctx.fillText('Inspired by Space Quest: The Sarien Encounter', this.WIDTH / 2, by + 195);
+        ctx.font = '11px "Courier New"';
+        ctx.fillStyle = '#555555';
+        ctx.fillText('Procedural pixel art \u2022 No sprites \u2022 Pure JavaScript', this.WIDTH / 2, by + 225);
+
+        // Prompt (below box)
         const blink = Math.floor(this.animTimer / 600) % 2;
         if (blink) {
-            ctx.font = '18px "Courier New"';
-            ctx.fillStyle = '#ffdd55';
-            ctx.fillText('[ Click to Begin ]', this.WIDTH / 2, 340);
+            ctx.font = 'bold 16px "Courier New"';
+            ctx.fillStyle = '#FFFF55';
+            ctx.fillText('- Click to Begin -', this.WIDTH / 2, by + bh + 50);
         }
 
-        // Copyright-style line
+        // Bottom text
         ctx.font = '10px "Courier New"';
-        ctx.fillStyle = '#334455';
-        ctx.fillText('Procedural pixel art \u2022 No sprites \u2022 Pure JavaScript', this.WIDTH / 2, 385);
+        ctx.fillStyle = '#555555';
+        ctx.fillText('\u00A9 2025', this.WIDTH / 2, this.HEIGHT - 10);
 
         ctx.textAlign = 'left';
     }
@@ -1058,15 +1103,13 @@ class GameEngine {
                 const tw = ctx.measureText(name).width;
                 const tx = Math.max(4, Math.min(this.mouseX - tw / 2, this.WIDTH - tw - 12));
                 const ty = Math.max(24, this.mouseY - 24);
-                // Sierra-style label with double border
-                ctx.fillStyle = '#0a0a20';
+                // Sierra-style label (EGA blue box)
+                ctx.fillStyle = '#0000AA';
                 ctx.fillRect(tx - 6, ty - 14, tw + 12, 20);
-                ctx.strokeStyle = '#8899aa';
+                ctx.strokeStyle = '#FFFFFF';
                 ctx.lineWidth = 1;
                 ctx.strokeRect(tx - 6, ty - 14, tw + 12, 20);
-                ctx.strokeStyle = '#445566';
-                ctx.strokeRect(tx - 4, ty - 12, tw + 8, 16);
-                ctx.fillStyle = '#FFFF88';
+                ctx.fillStyle = '#FFFF55';
                 ctx.fillText(name, tx, ty);
                 break;
             }
@@ -1075,28 +1118,28 @@ class GameEngine {
 
     // ---- Overlays ----
     drawDeathOverlay(ctx) {
-        ctx.fillStyle = 'rgba(60,0,0,0.6)';
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
 
-        // Sierra-style bordered message box
+        // Sierra-style bordered death box (EGA red/blue)
         const bx = 100, by = 110, bw = 440, bh = 170;
-        ctx.fillStyle = '#1a0000';
+        ctx.fillStyle = '#0000AA';
         ctx.fillRect(bx, by, bw, bh);
-        ctx.strokeStyle = '#ff4444';
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#FF5555';
+        ctx.lineWidth = 2;
         ctx.strokeRect(bx + 2, by + 2, bw - 4, bh - 4);
-        ctx.strokeStyle = '#882222';
+        ctx.strokeStyle = '#5555FF';
         ctx.lineWidth = 1;
         ctx.strokeRect(bx + 6, by + 6, bw - 12, bh - 12);
 
         ctx.textAlign = 'center';
         ctx.font = 'bold 32px "Courier New"';
-        ctx.fillStyle = '#FF3333';
+        ctx.fillStyle = '#FF5555';
         ctx.fillText('YOU DIED', this.WIDTH / 2, by + 50);
 
         // Wrap the death message
         ctx.font = '13px "Courier New"';
-        ctx.fillStyle = '#ddaaaa';
+        ctx.fillStyle = '#FFFFFF';
         const deathMsg = this.message.split(' — ')[0].trim();
         const words = deathMsg.split(' ');
         let line = '', lineY = by + 80;
@@ -1115,29 +1158,29 @@ class GameEngine {
         // Blinking restart prompt
         if (Math.floor(this.animTimer / 700) % 2) {
             ctx.font = '14px "Courier New"';
-            ctx.fillStyle = '#ffdd55';
+            ctx.fillStyle = '#FFFF55';
             ctx.fillText('Press R to try again', this.WIDTH / 2, by + bh - 22);
         }
         ctx.textAlign = 'left';
     }
 
     drawWinOverlay(ctx) {
-        ctx.fillStyle = 'rgba(0,0,40,0.7)';
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
 
-        // Sierra-style bordered victory box
+        // Sierra-style bordered victory box (EGA blue/yellow)
         const bx = 80, by = 60, bw = 480, bh = 280;
-        ctx.fillStyle = '#0a0a30';
+        ctx.fillStyle = '#0000AA';
         ctx.fillRect(bx, by, bw, bh);
-        ctx.strokeStyle = '#ffdd55';
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#FFFF55';
+        ctx.lineWidth = 2;
         ctx.strokeRect(bx + 2, by + 2, bw - 4, bh - 4);
-        ctx.strokeStyle = '#886622';
+        ctx.strokeStyle = '#5555FF';
         ctx.lineWidth = 1;
         ctx.strokeRect(bx + 6, by + 6, bw - 12, bh - 12);
 
         // Star decorations in corners
-        ctx.fillStyle = '#ffdd55';
+        ctx.fillStyle = '#FFFF55';
         ctx.font = '16px "Courier New"';
         ctx.fillText('\u2605', bx + 14, by + 24);
         ctx.fillText('\u2605', bx + bw - 26, by + 24);
@@ -1147,7 +1190,7 @@ class GameEngine {
         ctx.textAlign = 'center';
         ctx.font = 'bold 30px "Courier New"';
         const glow = Math.sin(this.animTimer / 400) * 0.3 + 0.7;
-        ctx.fillStyle = `rgba(255,255,0,${glow})`;
+        ctx.fillStyle = `rgba(255,255,85,${glow})`;
         ctx.fillText('CONGRATULATIONS!', this.WIDTH / 2, by + 55);
 
         ctx.font = '16px "Courier New"';
@@ -1155,7 +1198,7 @@ class GameEngine {
         ctx.fillText('You have saved the galaxy!', this.WIDTH / 2, by + 95);
 
         ctx.font = 'bold 18px "Courier New"';
-        ctx.fillStyle = '#88ff88';
+        ctx.fillStyle = '#55FF55';
         ctx.fillText(`Final Score: ${this.score} / ${this.maxScore}`, this.WIDTH / 2, by + 135);
 
         // Score rating
@@ -1165,17 +1208,17 @@ class GameEngine {
         else if (this.score >= 150) rating = 'Star Captain';
         else if (this.score >= 100) rating = 'Cadet';
         ctx.font = '14px "Courier New"';
-        ctx.fillStyle = '#ffcc44';
+        ctx.fillStyle = '#FFFF55';
         ctx.fillText(`Rank: ${rating}`, this.WIDTH / 2, by + 160);
 
         ctx.font = '14px "Courier New"';
-        ctx.fillStyle = '#88bbff';
+        ctx.fillStyle = '#55FFFF';
         ctx.fillText('From humble janitor to galactic hero...', this.WIDTH / 2, by + 195);
         ctx.fillText('Your story will be told across the stars.', this.WIDTH / 2, by + 215);
 
         if (Math.floor(this.animTimer / 700) % 2) {
             ctx.font = '14px "Courier New"';
-            ctx.fillStyle = '#ffdd55';
+            ctx.fillStyle = '#FFFF55';
             ctx.fillText('Press R to play again', this.WIDTH / 2, by + 260);
         }
         ctx.textAlign = 'left';

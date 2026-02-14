@@ -21,6 +21,29 @@ document.addEventListener('DOMContentLoaded', () => {
     ].forEach(item => engine.registerItem(item));
 
     // ========== DRAWING HELPERS ==========
+
+    // EGA 16-color palette reference (classic Sierra colors)
+    const EGA = {
+        black:   '#000000', blue:    '#0000AA', green:   '#00AA00', cyan:    '#00AAAA',
+        red:     '#AA0000', magenta: '#AA00AA', brown:   '#AA5500', lgray:   '#AAAAAA',
+        dgray:   '#555555', lblue:   '#5555FF', lgreen:  '#55FF55', lcyan:   '#55FFFF',
+        lred:    '#FF5555', lmagenta:'#FF55FF', yellow:  '#FFFF55', white:   '#FFFFFF'
+    };
+
+    /** Draw a dithered rectangle (checkerboard pattern of two colors — classic EGA look) */
+    function ditherRect(ctx, x, y, w, h, c1, c2, patternSize) {
+        const ps = patternSize || 2;
+        ctx.fillStyle = c1;
+        ctx.fillRect(x, y, w, h);
+        ctx.fillStyle = c2;
+        for (let py = y; py < y + h; py += ps) {
+            const offset = ((py - y) / ps) % 2 === 0 ? 0 : ps;
+            for (let px = x + offset; px < x + w; px += ps * 2) {
+                ctx.fillRect(px, py, ps, ps);
+            }
+        }
+    }
+
     function stars(ctx, w, h, seed, count) {
         let r = seed || 54321;
         const next = () => { r = (r * 16807) % 2147483647; return (r & 0xFFFF) / 0xFFFF; };
@@ -347,18 +370,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Speech bubble helper for in-room guard animation
+    // Speech bubble helper (Sierra-style blue box)
     function drawSpeechBubble(ctx, x, y, text) {
         ctx.font = '9px "Courier New"';
         const tw = ctx.measureText(text).width + 14;
-        // Bubble background
-        ctx.fillStyle = '#fff';
+        // Blue bubble background
+        ctx.fillStyle = '#0000AA';
         ctx.fillRect(x - tw / 2, y - 10, tw, 18);
-        ctx.strokeStyle = '#000';
+        ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 1;
         ctx.strokeRect(x - tw / 2, y - 10, tw, 18);
         // Pointer triangle
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = '#0000AA';
         ctx.beginPath();
         ctx.moveTo(x - 6, y + 8);
         ctx.lineTo(x + 4, y + 8);
@@ -369,9 +392,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.moveTo(x - 6, y + 8);
         ctx.lineTo(x - 12, y + 22);
         ctx.lineTo(x + 4, y + 8);
+        ctx.strokeStyle = '#FFFFFF';
         ctx.stroke();
-        // Text
-        ctx.fillStyle = '#000';
+        // White text
+        ctx.fillStyle = '#FFFFFF';
         ctx.textAlign = 'center';
         ctx.fillText(text, x, y + 3);
         ctx.textAlign = 'left';
@@ -1104,6 +1128,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.moveTo(0, 275); ctx.lineTo(200, 255); ctx.lineTo(440, 255);
             ctx.lineTo(640, 275); ctx.lineTo(640, 400); ctx.lineTo(0, 400);
             ctx.closePath(); ctx.fill();
+            // Dithered floor texture (EGA-style)
+            ditherRect(ctx, 0, 340, w, 60, '#383855', '#2d2d48', 4);
             // Floor lines
             ctx.strokeStyle = '#2d2d48';
             for (let i = 0; i < 10; i++) {
@@ -1766,6 +1792,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.showMessage('The pod is already gone.');
                         return;
                     }
+                    // Warn about missing critical items
+                    if (!e.hasItem('cartridge') && !e.getFlag('pod_warn_cartridge')) {
+                        e.showMessage('You hesitate before climbing in. Something nags at you... There\'s a lot of ship you haven\'t searched yet. You feel like you should check the Science Lab before leaving forever.');
+                        e.setFlag('pod_warn_cartridge');
+                        return;
+                    }
+                    if (!e.hasItem('survival_kit') && !e.getFlag('got_kit') && !e.getFlag('pod_warn_kit')) {
+                        e.showMessage('A survival instinct tells you to check for emergency supplies before launching into the unknown. That locker on the wall looks promising...');
+                        e.setFlag('pod_warn_kit');
+                        return;
+                    }
                     engine.sound.pod();
                     e.showMessage('You climb into the escape pod, strap in, and slam the launch button. The pod rockets away from the dying Constellation toward the desert planet below...');
                     e.setFlag('pod_launched');
@@ -1862,8 +1899,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         draw: (ctx, w, h, eng) => {
-            // Sky gradient
-            gradientRect(ctx, 0, 0, w, 200, '#CC6622', '#FFAA44');
+            // Sky gradient with EGA-style dithered bands
+            gradientRect(ctx, 0, 0, w, 100, '#CC6622', '#DD8833');
+            ditherRect(ctx, 0, 100, w, 50, '#DD8833', '#EEAA44', 2);
+            gradientRect(ctx, 0, 150, w, 50, '#EEAA44', '#FFAA44');
 
             // Twin suns
             ctx.fillStyle = '#FFEE88';
@@ -1890,8 +1929,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.lineTo(640, 200); ctx.lineTo(0, 200);
             ctx.closePath(); ctx.fill();
 
-            // Sand
-            gradientRect(ctx, 0, 190, w, 210, '#D4A855', '#C49845');
+            // Sand with dithered edge
+            ditherRect(ctx, 0, 190, w, 20, '#D4A855', '#C49845', 2);
+            gradientRect(ctx, 0, 210, w, 190, '#C49845', '#C09838');
 
             // Sand dunes
             ctx.fillStyle = '#CCAA55';
@@ -2088,8 +2128,8 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'Underground Cave',
         description: 'A cool underground cave — blessed relief from the desert heat. Crystalline formations glitter on the walls. A tunnel leads deeper underground.',
         draw: (ctx, w, h, eng) => {
-            // Cave background
-            gradientRect(ctx, 0, 0, w, h, '#1a1208', '#0d0a06');
+            // Cave background with dithered dark-to-darker transition
+            ditherRect(ctx, 0, 0, w, h, '#1a1208', '#0d0a06', 2);
 
             // Rock ceiling
             ctx.fillStyle = '#2a1e14';
@@ -2560,6 +2600,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.getFlag('flew_away')) {
                         e.showMessage('The ship is gone.');
                     } else if (e.hasItem('nav_chip')) {
+                        // Warn about missing weapon
+                        if (!e.hasItem('pulsar_ray') && !e.getFlag('shuttle_warn_ray')) {
+                            e.showMessage('You\'re about to fly straight to a hostile warship. You feel like you should be better armed before leaving. Maybe the trading post has something useful...');
+                            e.setFlag('shuttle_warn_ray');
+                            return;
+                        }
                         engine.sound.hyperspace();
                         e.showMessage('You load the nav chip into the shuttle\'s computer. Coordinates to the Draknoid flagship locked in! The engines roar to life and you blast off into space...');
                         e.setFlag('flew_away');
@@ -2580,6 +2626,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                     if (itemId === 'nav_chip') {
+                        // Warn about missing weapon
+                        if (!e.hasItem('pulsar_ray') && !e.getFlag('shuttle_warn_ray')) {
+                            e.showMessage('You\'re about to fly straight to a hostile warship. You feel like you should be better armed before leaving. Maybe the trading post has something useful...');
+                            e.setFlag('shuttle_warn_ray');
+                            return;
+                        }
                         engine.sound.hyperspace();
                         e.showMessage('You insert the nav chip into the shuttle\'s navigation computer. Coordinates locked — destination: Draknoid Flagship! You strap in and blast off!');
                         e.setFlag('flew_away');

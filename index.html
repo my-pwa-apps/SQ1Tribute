@@ -7,7 +7,7 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: #0a0a1e;
+            background: #080818;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -18,25 +18,26 @@
         }
         #game-container {
             width: 644px;
-            border: 2px solid #334;
-            background: #0d0d20;
-            box-shadow: 0 0 40px rgba(50,50,120,0.3);
+            border: 3px solid #222244;
+            background: #0a0a1a;
+            box-shadow: 0 0 60px rgba(30,30,80,0.5), inset 0 0 20px rgba(0,0,0,0.5);
+            border-radius: 4px;
         }
         #title-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 6px 14px;
-            background: linear-gradient(to bottom, #2a2a55, #1e1e40);
-            border-bottom: 2px solid #334;
+            padding: 4px 14px;
+            background: #0000AA;
+            border-bottom: 2px solid #5555FF;
             font-size: 13px;
         }
         #game-title {
-            color: #88bbff;
+            color: #FFFFFF;
             font-weight: bold;
-            text-shadow: 0 0 8px rgba(100,150,255,0.3);
+            letter-spacing: 1px;
         }
-        #score-display { color: #ffdd55; }
+        #score-display { color: #FFFF55; }
         #game-canvas {
             display: block;
             width: 640px;
@@ -46,46 +47,47 @@
             image-rendering: -webkit-optimize-contrast;
             image-rendering: crisp-edges;
             background: #000;
+            border-bottom: 1px solid #222;
         }
         #action-bar {
             display: flex;
-            gap: 4px;
-            padding: 6px 10px;
-            background: #151530;
-            border-top: 2px solid #334;
+            gap: 2px;
+            padding: 4px 6px;
+            background: #0000AA;
+            border-top: 1px solid #5555FF;
+            border-bottom: 1px solid #5555FF;
         }
         .action-btn {
             flex: 1;
-            padding: 7px 4px;
-            background: #222250;
-            border: 2px solid #444;
-            color: #aaa;
+            padding: 5px 4px;
+            background: #000088;
+            border: 1px solid #5555FF;
+            color: #AAAAAA;
             font-family: 'Courier New', monospace;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: bold;
             cursor: pointer;
             text-align: center;
-            transition: all 0.15s;
+            transition: all 0.1s;
         }
-        .action-btn:hover { background: #333370; color: #ddd; }
+        .action-btn:hover { background: #0000CC; color: #FFFFFF; }
         .action-btn.active {
-            background: #4040a0;
-            border-color: #7799ff;
-            color: #fff;
-            box-shadow: 0 0 8px rgba(100,130,255,0.3);
+            background: #5555FF;
+            border-color: #FFFFFF;
+            color: #FFFFFF;
         }
         #inventory-bar {
             display: flex;
             align-items: center;
             gap: 6px;
-            padding: 5px 10px;
-            background: #12122a;
-            border-top: 1px solid #223;
-            min-height: 36px;
+            padding: 4px 10px;
+            background: #000066;
+            border-bottom: 1px solid #333388;
+            min-height: 32px;
         }
         #inv-label {
             font-size: 11px;
-            color: #667;
+            color: #AAAAAA;
             white-space: nowrap;
         }
         #inventory-items {
@@ -95,55 +97,55 @@
             flex: 1;
         }
         .inv-item {
-            padding: 3px 8px;
-            background: #222250;
-            border: 1px solid #445;
-            border-radius: 2px;
+            padding: 2px 6px;
+            background: #000088;
+            border: 1px solid #5555FF;
+            border-radius: 0;
             font-size: 11px;
             cursor: pointer;
-            color: #9ab;
-            transition: all 0.15s;
+            color: #AAAAAA;
+            transition: all 0.1s;
             white-space: nowrap;
         }
-        .inv-item:hover { background: #333370; color: #cde; }
+        .inv-item:hover { background: #0000CC; color: #FFFFFF; }
         .inv-item.selected {
-            border-color: #ffdd00;
-            color: #ffdd00;
-            background: #333350;
+            border-color: #FFFF55;
+            color: #FFFF55;
+            background: #000088;
         }
         #message-area {
-            padding: 8px 14px;
-            background: #0a0a18;
-            border-top: 1px solid #223;
-            min-height: 56px;
-            max-height: 72px;
+            padding: 6px 14px;
+            background: #0000AA;
+            border-top: 1px solid #5555FF;
+            min-height: 52px;
+            max-height: 68px;
             overflow-y: auto;
         }
         #message-text {
             font-size: 13px;
             line-height: 1.4;
-            color: #88ccff;
+            color: #FFFFFF;
         }
         #message-area::-webkit-scrollbar { width: 6px; }
-        #message-area::-webkit-scrollbar-track { background: #0a0a18; }
-        #message-area::-webkit-scrollbar-thumb { background: #334; border-radius: 3px; }
+        #message-area::-webkit-scrollbar-track { background: #000088; }
+        #message-area::-webkit-scrollbar-thumb { background: #5555FF; border-radius: 0; }
         .save-btn {
-            padding: 5px 10px;
-            background: #222250;
-            border: 1px solid #445;
-            color: #9ab;
+            padding: 4px 10px;
+            background: #000088;
+            border: 1px solid #5555FF;
+            color: #AAAAAA;
             font-family: 'Courier New', monospace;
             font-size: 11px;
             cursor: pointer;
-            transition: all 0.15s;
+            transition: all 0.1s;
         }
-        .save-btn:hover { background: #333370; color: #ddd; }
+        .save-btn:hover { background: #0000CC; color: #FFFFFF; }
         #save-load-bar {
             display: flex;
             gap: 6px;
-            padding: 4px 10px;
-            background: #0e0e24;
-            border-top: 1px solid #223;
+            padding: 3px 10px;
+            background: #000066;
+            border-top: 1px solid #333388;
             align-items: center;
         }
         #save-modal {
@@ -157,15 +159,15 @@
         }
         #save-modal.open { display: flex; }
         #save-modal-inner {
-            background: #1a1a38;
-            border: 2px solid #445;
+            background: #0000AA;
+            border: 2px solid #5555FF;
             padding: 20px 28px;
             min-width: 360px;
-            box-shadow: 0 0 40px rgba(0,0,0,0.6);
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
         }
         #save-modal-inner h3 {
             margin: 0 0 14px 0;
-            color: #88bbff;
+            color: #FFFFFF;
             font-size: 16px;
             text-align: center;
         }
@@ -180,35 +182,35 @@
         .slot-info {
             flex: 1;
             font-size: 12px;
-            color: #8899aa;
+            color: #AAAAAA;
         }
-        .slot-info .slot-name { color: #bbccdd; font-weight: bold; }
-        .slot-info .slot-detail { color: #667788; font-size: 10px; }
+        .slot-info .slot-name { color: #FFFFFF; font-weight: bold; }
+        .slot-info .slot-detail { color: #5555FF; font-size: 10px; }
         .slot-action {
             padding: 4px 12px;
-            background: #2a2a5a;
-            border: 1px solid #445;
-            color: #aabbcc;
+            background: #000088;
+            border: 1px solid #5555FF;
+            color: #FFFFFF;
             font-family: 'Courier New', monospace;
             font-size: 11px;
             cursor: pointer;
-            transition: all 0.12s;
+            transition: all 0.1s;
         }
-        .slot-action:hover { background: #3a3a7a; color: #fff; }
-        .slot-action.delete { border-color: #644; }
-        .slot-action.delete:hover { background: #5a2a2a; }
+        .slot-action:hover { background: #0000CC; color: #FFFFFF; }
+        .slot-action.delete { border-color: #AA0000; }
+        .slot-action.delete:hover { background: #AA0000; }
         #save-modal-close {
             display: block;
             margin: 14px auto 0;
             padding: 6px 24px;
-            background: #333;
-            border: 1px solid #555;
-            color: #aaa;
+            background: #000088;
+            border: 1px solid #5555FF;
+            color: #FFFFFF;
             font-family: 'Courier New', monospace;
             font-size: 12px;
             cursor: pointer;
         }
-        #save-modal-close:hover { background: #444; color: #ddd; }
+        #save-modal-close:hover { background: #0000CC; }
     </style>
 </head>
 <body>
