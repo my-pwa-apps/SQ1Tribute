@@ -384,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.fillRect(297, 326, 12, 8);
                     } else {
                         // Standing up — use drawPlayerBody for proper look
-                        drawPlayerBody(ctx, px, baseY, sc, wakeProg > 0.85 ? 0 : 0.5);
+                        drawPlayerBody(ctx, px, baseY, 1.85, wakeProg > 0.85 ? 0 : 0.5);
                     }
 
                     // Text
