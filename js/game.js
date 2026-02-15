@@ -1991,53 +1991,128 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(640, y); ctx.stroke();
             }
 
-            // Left wall panels
+            // Perspective helpers for corridor walls
+            // Left wall: top (0,0)→(200,55), bottom (0,275)→(200,255)
+            const lTop = (x) => x * 0.275;
+            const lBot = (x) => 275 - x * 0.1;
+            // Right wall: top (640,0)→(440,55), bottom (640,275)→(440,255)
+            const rTop = (x) => (640 - x) * 0.275;
+            const rBot = (x) => 275 - (640 - x) * 0.1;
+
+            // Left wall panels (perspective trapezoids)
             ctx.strokeStyle = '#3a3a5e';
-            ctx.strokeRect(20, 20, 70, 100);
-            ctx.strokeRect(20, 130, 70, 130);
+            // Upper panel: ~7% to ~45% of wall height, x=20..90
+            ctx.beginPath();
+            ctx.moveTo(20, lTop(20) + 4); ctx.lineTo(90, lTop(90) + 4);
+            ctx.lineTo(90, lTop(90) + 100); ctx.lineTo(20, lTop(20) + 100);
+            ctx.closePath(); ctx.stroke();
+            // Lower panel: ~48% to ~95% of wall height, x=20..90
+            ctx.beginPath();
+            ctx.moveTo(20, lTop(20) + 110); ctx.lineTo(90, lTop(90) + 110);
+            ctx.lineTo(90, lBot(90) - 4); ctx.lineTo(20, lBot(20) - 4);
+            ctx.closePath(); ctx.stroke();
 
-            // Right wall panels
-            ctx.strokeRect(550, 20, 70, 100);
-            ctx.strokeRect(550, 130, 70, 130);
+            // Right wall panels (perspective trapezoids)
+            // Upper panel: x=550..620
+            ctx.beginPath();
+            ctx.moveTo(550, rTop(550) + 4); ctx.lineTo(620, rTop(620) + 4);
+            ctx.lineTo(620, rTop(620) + 100); ctx.lineTo(550, rTop(550) + 100);
+            ctx.closePath(); ctx.stroke();
+            // Lower panel: x=550..620
+            ctx.beginPath();
+            ctx.moveTo(550, rTop(550) + 110); ctx.lineTo(620, rTop(620) + 110);
+            ctx.lineTo(620, rBot(620) - 4); ctx.lineTo(550, rBot(550) - 4);
+            ctx.closePath(); ctx.stroke();
 
-            // Scorch marks
+            // Scorch marks (back wall marks are flat — correct; left wall mark follows perspective)
             ctx.fillStyle = 'rgba(15,15,15,0.6)';
             ctx.fillRect(250, 90, 45, 35);
             ctx.fillRect(370, 110, 35, 25);
-            ctx.fillRect(80, 150, 25, 40);
+            // Left wall scorch mark — perspective quadrilateral
+            ctx.beginPath();
+            ctx.moveTo(80, lTop(80) + 130); ctx.lineTo(105, lTop(105) + 130);
+            ctx.lineTo(105, lTop(105) + 170); ctx.lineTo(80, lTop(80) + 170);
+            ctx.closePath(); ctx.fill();
 
-            // Lab door (left)
+            // Lab door (left wall — perspective trapezoid)
+            // Left wall runs (0,0)→(200,55)→(200,255)→(0,275)
+            // Door at t=0.1..0.5: near x=20, far x=100
             ctx.fillStyle = '#4a5e70';
-            ctx.fillRect(20, 65, 85, 195);
+            ctx.beginPath();
+            ctx.moveTo(20, 86); ctx.lineTo(100, 99);
+            ctx.lineTo(100, 265); ctx.lineTo(20, 273);
+            ctx.closePath(); ctx.fill();
+            // Inner panel
             ctx.fillStyle = '#5a7088';
-            ctx.fillRect(26, 71, 73, 183);
-            ctx.fillStyle = '#3a4e60';
-            ctx.fillRect(60, 71, 3, 183);
+            ctx.beginPath();
+            ctx.moveTo(26, 90); ctx.lineTo(96, 102);
+            ctx.lineTo(96, 262); ctx.lineTo(26, 270);
+            ctx.closePath(); ctx.fill();
+            // Center seam
+            ctx.strokeStyle = '#3a4e60';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(60, 93); ctx.lineTo(60, 268);
+            ctx.stroke();
+            ctx.lineWidth = 1;
             // Lab label
             ctx.font = '10px "Courier New"';
             ctx.fillStyle = '#88AACC';
-            ctx.fillText('SCIENCE', 32, 120);
-            ctx.fillText('  LAB', 32, 133);
+            ctx.fillText('SCIENCE', 30, 140);
+            ctx.fillText('  LAB', 30, 153);
 
-            // Pod bay door (right)
+            // Pod bay door (right wall — perspective trapezoid)
+            // Right wall runs (640,0)→(440,55)→(440,255)→(640,275)
+            // Door at t=0.1..0.5: near x=620, far x=540
             ctx.fillStyle = '#4a5e70';
-            ctx.fillRect(535, 65, 85, 195);
+            ctx.beginPath();
+            ctx.moveTo(620, 86); ctx.lineTo(540, 99);
+            ctx.lineTo(540, 265); ctx.lineTo(620, 273);
+            ctx.closePath(); ctx.fill();
+            // Inner panel
             ctx.fillStyle = '#5a7088';
-            ctx.fillRect(541, 71, 73, 183);
-            ctx.fillStyle = '#3a4e60';
-            ctx.fillRect(575, 71, 3, 183);
+            ctx.beginPath();
+            ctx.moveTo(614, 90); ctx.lineTo(544, 102);
+            ctx.lineTo(544, 262); ctx.lineTo(614, 270);
+            ctx.closePath(); ctx.fill();
+            // Center seam
+            ctx.strokeStyle = '#3a4e60';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(580, 93); ctx.lineTo(580, 268);
+            ctx.stroke();
+            ctx.lineWidth = 1;
             // Pod label
+            ctx.font = '10px "Courier New"';
             ctx.fillStyle = '#88AACC';
-            ctx.fillText('ESCAPE', 548, 120);
-            ctx.fillText(' PODS', 548, 133);
-            // Keycard reader — only turns green after actually swiping
+            ctx.fillText('ESCAPE', 552, 140);
+            ctx.fillText(' PODS', 552, 153);
+            // Keycard reader — on wall next to door
             ctx.fillStyle = eng.getFlag('pod_bay_unlocked') ? '#22AA22' : '#AA2222';
-            ctx.fillRect(530, 150, 6, 10);
+            ctx.fillRect(534, 170, 6, 10);
 
-            // Back corridor label
+            // Supply Closet door (back wall)
+            ctx.fillStyle = '#4a5e70';
+            ctx.fillRect(285, 115, 72, 140);
+            ctx.fillStyle = '#5a7088';
+            ctx.fillRect(291, 121, 60, 128);
+            // Door seam
+            ctx.strokeStyle = '#3a4e60';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(321, 121); ctx.lineTo(321, 249);
+            ctx.stroke();
+            ctx.lineWidth = 1;
+            // Closet label
             ctx.fillStyle = '#556688';
-            ctx.font = '9px "Courier New"';
-            ctx.fillText('SUPPLY CLOSET →', 260, 245);
+            ctx.font = '8px "Courier New"';
+            ctx.textAlign = 'center';
+            ctx.fillText('SUPPLY', 321, 155);
+            ctx.fillText('CLOSET', 321, 165);
+            ctx.textAlign = 'left';
+            // Door handle
+            ctx.fillStyle = '#888888';
+            ctx.fillRect(310, 190, 4, 8);
 
             // Exposed wiring from blast damage
             ctx.strokeStyle = '#CCAA22';
@@ -2055,13 +2130,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillRect(286 + (sparkSeed * 11 % 4), 108 + (sparkSeed * 17 % 4), 1, 1);
             }
 
-            // Wall-mounted fire extinguisher (left wall)
+            // Wall-mounted fire extinguisher (left wall — follows perspective)
+            const extX = 130, extYBase = lTop(130) + 125;
             ctx.fillStyle = '#CC2222';
-            ctx.fillRect(130, 155, 10, 22);
+            ctx.fillRect(extX, extYBase, 10, 22);
             ctx.fillStyle = '#AA1111';
-            ctx.fillRect(132, 150, 6, 7);
+            ctx.fillRect(extX + 2, extYBase - 5, 6, 7);
             ctx.fillStyle = '#333333';
-            ctx.fillRect(133, 148, 4, 4);
+            ctx.fillRect(extX + 3, extYBase - 7, 4, 4);
 
             // Deck number sign (back wall)
             ctx.fillStyle = '#334466';
@@ -2168,13 +2244,13 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         hotspots: [
             {
-                name: 'Science Lab', x: 15, y: 60, w: 95, h: 205, isExit: true, walkToX: 110, walkToY: 285,
+                name: 'Science Lab', x: 15, y: 80, w: 90, h: 200, isExit: true, walkToX: 110, walkToY: 285,
                 description: 'Door to the Science Lab.',
                 look: (e) => e.showMessage('A door labeled "SCIENCE LAB". The emergency has knocked the security locks offline — it\'s unlocked.'),
                 onExit: (e) => e.goToRoom('science_lab', 560, 310)
             },
             {
-                name: 'Escape Pod Bay', x: 530, y: 60, w: 95, h: 205, isExit: true, walkToX: 540, walkToY: 285,
+                name: 'Escape Pod Bay', x: 535, y: 80, w: 90, h: 200, isExit: true, walkToX: 540, walkToY: 285,
                 description: 'Door to the Escape Pod Bay.',
                 look: (e) => {
                     if (e.hasItem('keycard')) {
@@ -2194,8 +2270,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             {
-                name: 'Supply Closet', x: 240, y: 230, w: 160, h: 30, isExit: true, walkToX: 320, walkToY: 280,
-                description: 'Back toward the supply closet.',
+                name: 'Supply Closet', x: 280, y: 110, w: 82, h: 150, isExit: true, walkToX: 320, walkToY: 280,
+                description: 'The door back to the supply closet.',
                 look: (e) => e.showMessage('The supply closet door \u2014 your former napping quarters. Through the open doorway you can see your old mop leaning faithfully against the wall.'),
                 onExit: (e) => e.goToRoom('broom_closet', 320, 310)
             },
