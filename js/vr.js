@@ -1,348 +1,351 @@
 // ============================================================
 // STAR SWEEPER - WebXR VR Support (Immersive Diorama Mode)
-// Renders the 2D game inside a curved panoramic backdrop
-// with 3D hotspot markers and controller laser interaction
-// Stand INSIDE the Sierra adventure rooms on Quest 3S
+// Quest 3S compatible: stand inside Sierra adventure rooms
+// ============================================================
+//
+// Architecture: The game's 2D canvas is rendered to an OffscreenCanvas
+// (immune to Quest browser page throttling), then uploaded as a
+// WebGL texture and projected onto an inward-facing cylinder mesh.
+// A visible, DOM-attached <canvas> provides the WebGL context that
+// the XRWebGLLayer binds to (Quest requirement).
+//
+// Controls (Quest Touch):
+//   Trigger       = click / interact at laser target
+//   Grip/Squeeze  = cycle action (Walk/Look/Get/Use/Talk)
+//   A button      = skip cutscene / start game / restart
+//   B button      = quick-look at laser target
+//   Thumbstick LR = cycle selected inventory item (in Use mode)
 // ============================================================
 
 class VRSystem {
     constructor(engine) {
         this.engine = engine;
+
+        // --- XR state ---
         this.xrSession = null;
         this.xrRefSpace = null;
         this.gl = null;
-        this.glCanvas = null;
+        this.vrCanvas = null;           // Visible DOM canvas for WebGL/XR
         this.xrLayer = null;
 
-        // Panoramic backdrop: curved half-cylinder wrapping around the player
-        this.backdropRadius = 4.0;       // meters
-        this.backdropArcDeg = 170;       // degrees of horizontal wrap
-        this.backdropTop = 3.2;          // top edge height (meters)
-        this.backdropBottom = -0.3;      // bottom edge (slightly below floor)
-        this.hSegs = 64;                 // horizontal mesh segments
-        this.vSegs = 32;                 // vertical mesh segments
+        // --- Offscreen 2D canvas for game rendering ---
+        this.offCanvas = null;
+        this.offCtx = null;
 
-        // Floor
-        this.floorSize = 8.0;           // meters on each side
+        // --- Panorama geometry ---
+        this.backdropRadius = 4.0;      // metres
+        this.backdropArcDeg = 170;      // horizontal wrap angle
+        this.backdropTop = 3.2;
+        this.backdropBottom = -0.3;
+        this.hSegs = 64;
+        this.vSegs = 32;
 
-        // Shader programs
-        this.texProgram = null;          // Textured surfaces (backdrop, floor)
-        this.markerProgram = null;       // GL_POINTS hotspot markers
-        this.lineProgram = null;         // Laser beam lines
+        // --- Floor ---
+        this.floorSize = 8.0;
 
-        // Textures
-        this.gameTexture = null;         // Game canvas -> panorama
-        this.floorTexture = null;        // Dark grid floor
-
-        // Geometry buffers
+        // --- GL resources ---
+        this.texProg = null;
+        this.markerProg = null;
+        this.lineProg = null;
+        this.gameTex = null;
+        this.floorTex = null;
         this.backdropVBO = null;
-        this.backdropVertCount = 0;
+        this.backdropCount = 0;
         this.floorVBO = null;
-        this.floorVertCount = 0;
-        this.laserVBO = null;
+        this.floorCount = 0;
+        this.dynVBO = null;             // Shared dynamic buffer (lasers, cursor)
         this.markerVBO = null;
 
-        // Controller state
-        this.controllers = [null, null]; // [left, right]
-        this.lastTrigger = [false, false];
-        this.lastSqueeze = [false, false];
-        this.lastAButton = [false, false];
-        this.activeCtrlIdx = -1;
-        this.hitDist = 5.0;
-        this.hitScreenThisFrame = false;
-        this.pointedHotspot = null;
-        this.cursorCanvasX = -1;
-        this.cursorCanvasY = -1;
-
-        // Action cycling via grip button
-        this.actions = ['walk', 'look', 'get', 'use', 'talk'];
-        this.actionIndex = 0;
-
-        // Hotspot marker data: [x,y,z, r,g,b,a, ...] per visible hotspot
-        this.markerData = [];
-
-        // Scratch matrix
-        this.modelMatrix = new Float32Array(16);
-
-        // Uniform location caches (populated after shader compile)
+        // Uniform caches
         this.texU = {};
-        this.markerU = {};
-        this.lineU = {};
+        this.mkU = {};
+        this.lnU = {};
+
+        // --- Controller state ---
+        this.ctrls = [null, null];      // [left, right]
+        this.prevTrig = [false, false];
+        this.prevGrip = [false, false];
+        this.prevA = [false, false];
+        this.prevB = [false, false];
+        this.prevThumbLR = [0, 0];
+        this.activeIdx = -1;
+        this.hitDist = 5.0;
+        this.hitThisFrame = false;
+        this.pointedHS = null;
+        this.curCX = -1;
+        this.curCY = -1;
+
+        // --- Action cycling ---
+        this.actions = ['walk', 'look', 'get', 'use', 'talk'];
+        this.actIdx = 0;
+
+        // --- Marker data (rebuilt each frame) ---
+        this.mkData = [];
+
+        // --- Scratch matrices ---
+        this.mModel = new Float32Array(16);
+
+        // --- Stars list (ambient background particles) ---
+        this.stars = [];
+        for (let i = 0; i < 300; i++) {
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.random() * Math.PI;
+            const r = 18 + Math.random() * 4;
+            this.stars.push(
+                r * Math.sin(phi) * Math.cos(theta),
+                r * Math.cos(phi),
+                r * Math.sin(phi) * Math.sin(theta),
+                0.4 + Math.random() * 0.6,             // brightness
+                0.4 + Math.random() * 0.6,
+                0.5 + Math.random() * 0.5,
+                0.5 + Math.random() * 0.5              // alpha
+            );
+        }
+        this.starVBO = null;
 
         this.vrSupported = false;
-        this.checkVRSupport();
+        this._checkSupport();
     }
 
-    // ===============================
-    // VR Availability & Button
-    // ===============================
+    // ---- Check & expose VR button ----
 
-    async checkVRSupport() {
+    async _checkSupport() {
         if (!navigator.xr) return;
         try {
             this.vrSupported = await navigator.xr.isSessionSupported('immersive-vr');
-            if (this.vrSupported) this.showEnterVRButton();
-        } catch (e) {
-            console.log('VR check failed:', e);
-        }
+            if (this.vrSupported) this._addButton();
+        } catch (e) { /* no VR */ }
     }
 
-    showEnterVRButton() {
+    _addButton() {
         const bar = document.getElementById('save-load-bar');
         if (!bar) return;
-        const btn = document.createElement('button');
-        btn.className = 'save-btn';
-        btn.id = 'btn-vr';
-        btn.title = 'Enter VR (Quest 3S)';
-        btn.textContent = 'Enter VR';
-        btn.style.background = '#006600';
-        btn.style.borderColor = '#00AA00';
-        btn.addEventListener('click', () => this.enterVR());
-        bar.appendChild(btn);
+        const b = document.createElement('button');
+        b.className = 'save-btn';
+        b.id = 'btn-vr';
+        b.title = 'Enter VR (Quest 3S)';
+        b.textContent = 'Enter VR';
+        b.style.cssText = 'background:#006600;border-color:#00AA00;';
+        b.addEventListener('click', () => this.enterVR());
+        bar.appendChild(b);
     }
 
-    // ===============================
-    // WebGL Initialization
-    // ===============================
+    // ===========================================================
+    // WebGL init (called once, on first VR entry)
+    // ===========================================================
 
-    initWebGL() {
-        this.glCanvas = document.createElement('canvas');
-        this.gl = this.glCanvas.getContext('webgl2', { xrCompatible: true, alpha: false });
-        if (!this.gl) { console.error('WebGL2 not available for VR'); return false; }
+    _initGL() {
+        // 1. Create a VISIBLE canvas in the DOM (Quest requires this)
+        this.vrCanvas = document.createElement('canvas');
+        this.vrCanvas.id = 'vr-gl-canvas';
+        this.vrCanvas.style.cssText =
+            'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1;';
+        document.body.appendChild(this.vrCanvas);
 
-        this.buildShaders();
-        this.buildBackdropMesh();
-        this.buildFloorMesh();
+        // 2. Get WebGL2 context (xrCompatible hint)
+        this.gl = this.vrCanvas.getContext('webgl2', {
+            xrCompatible: true,
+            alpha: false,
+            antialias: true,
+            preserveDrawingBuffer: true
+        });
+        if (!this.gl) { console.error('VR: WebGL2 unavailable'); return false; }
 
-        // Dynamic buffers
-        this.laserVBO = this.gl.createBuffer();
-        this.markerVBO = this.gl.createBuffer();
+        // 3. Create offscreen canvas for 2D game rendering
+        //    (Works even when Quest throttles the visible page)
+        this.offCanvas = document.createElement('canvas');
+        this.offCanvas.width = 640;
+        this.offCanvas.height = 400;
+        this.offCtx = this.offCanvas.getContext('2d');
 
-        this.createTextures();
+        this._buildShaders();
+        this._buildBackdrop();
+        this._buildFloor();
+        this._buildStarVBO();
+
+        const gl = this.gl;
+        this.dynVBO = gl.createBuffer();
+        this.markerVBO = gl.createBuffer();
+        this._createTextures();
         return true;
     }
 
-    buildShaders() {
+    // --- Shaders ---
+
+    _buildShaders() {
         const gl = this.gl;
 
-        // ---- Textured surface shader (backdrop panorama, floor) ----
-        const vsT = `#version 300 es
-            in vec3 aPos;
-            in vec2 aUV;
+        // Textured surface (backdrop, floor)
+        this.texProg = this._prog(
+            `#version 300 es
+            in vec3 aP; in vec2 aT;
             uniform mat4 uProj, uView, uModel;
-            out vec2 vUV;
-            void main() {
-                gl_Position = uProj * uView * uModel * vec4(aPos, 1.0);
-                vUV = aUV;
-            }
-        `;
-        const fsT = `#version 300 es
+            out vec2 vT;
+            void main(){ gl_Position = uProj * uView * uModel * vec4(aP,1); vT = aT; }`,
+            `#version 300 es
             precision mediump float;
-            in vec2 vUV;
-            uniform sampler2D uTex;
-            uniform float uBright;
-            out vec4 oColor;
-            void main() {
-                vec4 c = texture(uTex, vUV);
-                oColor = vec4(c.rgb * uBright, c.a);
-            }
-        `;
-        this.texProgram = this.compileProgram(vsT, fsT);
-        this.texU = this.locateUniforms(this.texProgram,
-            ['uProj', 'uView', 'uModel', 'uTex', 'uBright']);
+            in vec2 vT; uniform sampler2D uTex; uniform float uBr;
+            out vec4 o;
+            void main(){ vec4 c=texture(uTex,vT); o=vec4(c.rgb*uBr,c.a); }`
+        );
+        this.texU = this._locs(this.texProg, ['uProj','uView','uModel','uTex','uBr']);
 
-        // ---- Hotspot marker shader (glowing point sprites) ----
-        const vsM = `#version 300 es
-            in vec3 aPos;
-            in vec4 aColor;
-            uniform mat4 uProj, uView;
-            uniform float uSize;
-            out vec4 vColor;
-            void main() {
-                vec4 p = uProj * uView * vec4(aPos, 1.0);
-                gl_Position = p;
-                gl_PointSize = clamp(uSize * 300.0 / max(p.w, 0.1), 4.0, 64.0);
-                vColor = aColor;
-            }
-        `;
-        const fsM = `#version 300 es
+        // Point-sprite markers (hotspots)
+        this.markerProg = this._prog(
+            `#version 300 es
+            in vec3 aP; in vec4 aC;
+            uniform mat4 uProj, uView; uniform float uSz;
+            out vec4 vC;
+            void main(){
+                vec4 p=uProj*uView*vec4(aP,1); gl_Position=p;
+                gl_PointSize=clamp(uSz*300.0/max(p.w,.1),4.0,64.0); vC=aC;
+            }`,
+            `#version 300 es
             precision mediump float;
-            in vec4 vColor;
-            out vec4 oColor;
-            void main() {
-                float d = length(gl_PointCoord - vec2(0.5));
-                if (d > 0.5) discard;
-                float glow = smoothstep(0.5, 0.0, d);
-                float ring = smoothstep(0.35, 0.3, d) - smoothstep(0.45, 0.4, d);
-                oColor = vec4(vColor.rgb, (glow * 0.5 + ring * 0.8) * vColor.a);
-            }
-        `;
-        this.markerProgram = this.compileProgram(vsM, fsM);
-        this.markerU = this.locateUniforms(this.markerProgram,
-            ['uProj', 'uView', 'uSize']);
+            in vec4 vC; out vec4 o;
+            void main(){
+                float d=length(gl_PointCoord-vec2(.5));
+                if(d>.5) discard;
+                float g=smoothstep(.5,.0,d);
+                float r=smoothstep(.35,.3,d)-smoothstep(.45,.4,d);
+                o=vec4(vC.rgb,(g*.5+r*.8)*vC.a);
+            }`
+        );
+        this.mkU = this._locs(this.markerProg, ['uProj','uView','uSz']);
 
-        // ---- Laser beam shader (solid color lines) ----
-        const vsL = `#version 300 es
-            in vec3 aPos;
-            uniform mat4 uProj, uView;
-            void main() {
-                gl_Position = uProj * uView * vec4(aPos, 1.0);
-            }
-        `;
-        const fsL = `#version 300 es
+        // Lines / lasers (also reused for stars background)
+        this.lineProg = this._prog(
+            `#version 300 es
+            in vec3 aP; in vec4 aC;
+            uniform mat4 uProj, uView; uniform float uSz;
+            out vec4 vC;
+            void main(){
+                vec4 p=uProj*uView*vec4(aP,1); gl_Position=p;
+                gl_PointSize=clamp(uSz*80.0/max(p.w,.1),1.0,6.0); vC=aC;
+            }`,
+            `#version 300 es
             precision mediump float;
-            uniform vec4 uColor;
-            out vec4 oColor;
-            void main() {
-                oColor = uColor;
-            }
-        `;
-        this.lineProgram = this.compileProgram(vsL, fsL);
-        this.lineU = this.locateUniforms(this.lineProgram,
-            ['uProj', 'uView', 'uColor']);
+            in vec4 vC; out vec4 o;
+            uniform int uMode; uniform vec4 uColor;
+            void main(){
+                if(uMode==1){ o=uColor; }
+                else {
+                    float d=length(gl_PointCoord-vec2(.5));
+                    if(d>.5) discard;
+                    o=vec4(vC.rgb, vC.a*smoothstep(.5,.0,d));
+                }
+            }`
+        );
+        this.lnU = this._locs(this.lineProg, ['uProj','uView','uSz','uMode','uColor']);
     }
 
-    compileProgram(vsSrc, fsSrc) {
+    _prog(vs, fs) {
         const gl = this.gl;
-        const vs = gl.createShader(gl.VERTEX_SHADER);
-        gl.shaderSource(vs, vsSrc);
-        gl.compileShader(vs);
-        if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS))
-            console.error('VR vertex shader:', gl.getShaderInfoLog(vs));
+        const v = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(v, vs); gl.compileShader(v);
+        if (!gl.getShaderParameter(v, gl.COMPILE_STATUS))
+            console.error('VR VS:', gl.getShaderInfoLog(v));
 
-        const fs = gl.createShader(gl.FRAGMENT_SHADER);
-        gl.shaderSource(fs, fsSrc);
-        gl.compileShader(fs);
-        if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS))
-            console.error('VR fragment shader:', gl.getShaderInfoLog(fs));
+        const f = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(f, fs); gl.compileShader(f);
+        if (!gl.getShaderParameter(f, gl.COMPILE_STATUS))
+            console.error('VR FS:', gl.getShaderInfoLog(f));
 
-        const prog = gl.createProgram();
-        gl.attachShader(prog, vs);
-        gl.attachShader(prog, fs);
-        gl.linkProgram(prog);
-        if (!gl.getProgramParameter(prog, gl.LINK_STATUS))
-            console.error('VR shader link:', gl.getProgramInfoLog(prog));
-        return prog;
+        const p = gl.createProgram();
+        gl.attachShader(p, v); gl.attachShader(p, f);
+        gl.linkProgram(p);
+        if (!gl.getProgramParameter(p, gl.LINK_STATUS))
+            console.error('VR link:', gl.getProgramInfoLog(p));
+        return p;
     }
 
-    locateUniforms(prog, names) {
-        const gl = this.gl;
-        const map = {};
-        for (const n of names) map[n] = gl.getUniformLocation(prog, n);
-        return map;
+    _locs(prog, names) {
+        const m = {};
+        for (const n of names) m[n] = this.gl.getUniformLocation(prog, n);
+        return m;
     }
 
-    // ===============================
-    // Geometry Construction
-    // ===============================
+    // --- Geometry ---
 
-    buildBackdropMesh() {
-        // Generate an inward-facing half-cylinder mesh
-        // Player stands at the origin, the room art wraps around them
-        const gl = this.gl;
-        const R = this.backdropRadius;
-        const arcRad = this.backdropArcDeg * Math.PI / 180;
-        const startAngle = -arcRad / 2;
-        const H = this.hSegs, V = this.vSegs;
+    _buildBackdrop() {
+        const gl = this.gl, R = this.backdropRadius;
+        const arc = this.backdropArcDeg * Math.PI / 180;
+        const sa = -arc / 2, H = this.hSegs, V = this.vSegs;
         const top = this.backdropTop, bot = this.backdropBottom;
 
-        // Build vertex grid: each vertex has [x, y, z, u, v]
         const grid = [];
         for (let j = 0; j <= V; j++) {
-            const v = j / V;
-            const y = top + (bot - top) * v;
+            const v = j / V, y = top + (bot - top) * v;
             for (let i = 0; i <= H; i++) {
-                const u = i / H;
-                const angle = startAngle + arcRad * u;
-                grid.push(
-                    R * Math.sin(angle),    // x
-                    y,                       // y
-                    -R * Math.cos(angle),   // z (negative = in front)
-                    u,                       // tex u
-                    v                        // tex v
-                );
+                const u = i / H, a = sa + arc * u;
+                grid.push(R * Math.sin(a), y, -R * Math.cos(a), u, v);
             }
         }
-
-        // Build triangle list (inward-facing winding)
-        const verts = [];
-        const stride = H + 1;
-        for (let j = 0; j < V; j++) {
-            for (let i = 0; i < H; i++) {
-                const a = (j * stride + i) * 5;
-                const b = (j * stride + i + 1) * 5;
-                const c = ((j + 1) * stride + i) * 5;
-                const d = ((j + 1) * stride + i + 1) * 5;
-                // Triangle 1: a, c, b (CW from inside = inward-facing)
-                verts.push(grid[a], grid[a+1], grid[a+2], grid[a+3], grid[a+4]);
-                verts.push(grid[c], grid[c+1], grid[c+2], grid[c+3], grid[c+4]);
-                verts.push(grid[b], grid[b+1], grid[b+2], grid[b+3], grid[b+4]);
-                // Triangle 2: b, c, d
-                verts.push(grid[b], grid[b+1], grid[b+2], grid[b+3], grid[b+4]);
-                verts.push(grid[c], grid[c+1], grid[c+2], grid[c+3], grid[c+4]);
-                verts.push(grid[d], grid[d+1], grid[d+2], grid[d+3], grid[d+4]);
-            }
+        const verts = [], s = H + 1;
+        for (let j = 0; j < V; j++) for (let i = 0; i < H; i++) {
+            const idx = [j * s + i, j * s + i + 1, (j+1) * s + i, (j+1) * s + i + 1]
+                .map(k => k * 5);
+            const [a, b, c, d] = idx;
+            // CW winding from inside (inward-facing)
+            for (const k of [a,c,b, b,c,d])
+                verts.push(grid[k], grid[k+1], grid[k+2], grid[k+3], grid[k+4]);
         }
-
-        this.backdropVertCount = verts.length / 5;
+        this.backdropCount = verts.length / 5;
         this.backdropVBO = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.backdropVBO);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
     }
 
-    buildFloorMesh() {
-        const gl = this.gl;
-        const s = this.floorSize / 2;
-        // Floor at y=0, UVs scaled for repeating grid pattern
-        const uvScale = 4.0;
-        const verts = new Float32Array([
-            -s, 0, -s,   0,       0,
-             s, 0, -s,   uvScale, 0,
-             s, 0,  s,   uvScale, uvScale,
-            -s, 0, -s,   0,       0,
-             s, 0,  s,   uvScale, uvScale,
-            -s, 0,  s,   0,       uvScale,
+    _buildFloor() {
+        const gl = this.gl, s = this.floorSize / 2, uv = 4.0;
+        const v = new Float32Array([
+            -s,0,-s, 0,0,       s,0,-s, uv,0,      s,0,s, uv,uv,
+            -s,0,-s, 0,0,       s,0,s,  uv,uv,    -s,0,s, 0,uv
         ]);
-        this.floorVertCount = 6;
+        this.floorCount = 6;
         this.floorVBO = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.floorVBO);
-        gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, v, gl.STATIC_DRAW);
     }
 
-    createTextures() {
+    _buildStarVBO() {
+        const gl = this.gl;
+        this.starVBO = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.starVBO);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.stars), gl.STATIC_DRAW);
+    }
+
+    _createTextures() {
         const gl = this.gl;
 
-        // Game canvas texture (updated every frame from engine.canvas)
-        this.gameTexture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, this.gameTexture);
+        // Game panorama texture
+        this.gameTex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, this.gameTex);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); // Pixelated!
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); // pixelated
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        // Initialise with a 1x1 pixel so it's valid immediately
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0,
+            gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,40,255]));
 
-        // Floor grid texture (procedural dark grid)
+        // Floor grid texture (procedural)
         const fc = document.createElement('canvas');
         fc.width = 256; fc.height = 256;
-        const fctx = fc.getContext('2d');
-        fctx.fillStyle = '#050510';
-        fctx.fillRect(0, 0, 256, 256);
-        // Minor grid lines
-        fctx.strokeStyle = 'rgba(30, 30, 80, 0.5)';
-        fctx.lineWidth = 1;
+        const fx = fc.getContext('2d');
+        fx.fillStyle = '#050510'; fx.fillRect(0, 0, 256, 256);
+        fx.strokeStyle = 'rgba(30,30,80,0.5)'; fx.lineWidth = 1;
         for (let i = 0; i <= 256; i += 32) {
-            fctx.beginPath(); fctx.moveTo(i, 0); fctx.lineTo(i, 256); fctx.stroke();
-            fctx.beginPath(); fctx.moveTo(0, i); fctx.lineTo(256, i); fctx.stroke();
+            fx.beginPath(); fx.moveTo(i,0); fx.lineTo(i,256); fx.stroke();
+            fx.beginPath(); fx.moveTo(0,i); fx.lineTo(256,i); fx.stroke();
         }
-        // Major grid lines
-        fctx.strokeStyle = 'rgba(50, 50, 120, 0.4)';
-        fctx.lineWidth = 2;
+        fx.strokeStyle = 'rgba(50,50,120,0.4)'; fx.lineWidth = 2;
         for (let i = 0; i <= 256; i += 128) {
-            fctx.beginPath(); fctx.moveTo(i, 0); fctx.lineTo(i, 256); fctx.stroke();
-            fctx.beginPath(); fctx.moveTo(0, i); fctx.lineTo(256, i); fctx.stroke();
+            fx.beginPath(); fx.moveTo(i,0); fx.lineTo(i,256); fx.stroke();
+            fx.beginPath(); fx.moveTo(0,i); fx.lineTo(256,i); fx.stroke();
         }
-
-        this.floorTexture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, this.floorTexture);
+        this.floorTex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, this.floorTex);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fc);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -351,408 +354,393 @@ class VRSystem {
         gl.generateMipmap(gl.TEXTURE_2D);
     }
 
-    // ===============================
-    // VR Session Management
-    // ===============================
+    // ===========================================================
+    // Session lifecycle
+    // ===========================================================
 
     async enterVR() {
         if (!this.vrSupported) {
             this.engine.showMessage('VR not supported on this device.');
             return;
         }
-        if (!this.gl && !this.initWebGL()) {
-            this.engine.showMessage('Failed to initialize WebGL for VR.');
+        if (!this.gl && !this._initGL()) {
+            this.engine.showMessage('WebGL init failed for VR.');
             return;
         }
 
         try {
+            // Ensure context is XR compatible (critical for Quest)
+            await this.gl.makeXRCompatible();
+
             this.xrSession = await navigator.xr.requestSession('immersive-vr', {
                 requiredFeatures: ['local-floor'],
                 optionalFeatures: ['hand-tracking']
             });
 
-            this.xrSession.addEventListener('end', () => this.onSessionEnd());
+            this.xrSession.addEventListener('end', () => this._onEnd());
             this.xrSession.addEventListener('inputsourceschange',
-                (e) => this.onInputSourcesChange(e));
+                (e) => this._onSources(e));
 
             this.xrLayer = new XRWebGLLayer(this.xrSession, this.gl);
             await this.xrSession.updateRenderState({ baseLayer: this.xrLayer });
             this.xrRefSpace = await this.xrSession.requestReferenceSpace('local-floor');
 
-            // Activate VR mode in engine
+            // Redirect engine drawing to the offscreen canvas
+            this.engine._origCanvas = this.engine.canvas;
+            this.engine._origCtx = this.engine.ctx;
+            this.engine.canvas = this.offCanvas;
+            this.engine.ctx = this.offCtx;
+
             this.engine.vrActive = true;
-            this.engine.playerVisible = false; // First-person: hide sprite
+            this.engine.playerVisible = false;
 
             // Start XR render loop
-            this.xrSession.requestAnimationFrame((t, f) => this.onXRFrame(t, f));
+            this.xrSession.requestAnimationFrame((t, f) => this._xrFrame(t, f));
 
             this.engine.showMessage(
-                'Welcome to VR! You are standing inside the room. ' +
-                'Trigger=interact, Grip=change action, A=skip/confirm.'
-            );
+                'VR active! Trigger=interact, Grip=change action, A=confirm.');
 
             const btn = document.getElementById('btn-vr');
             if (btn) {
                 btn.textContent = 'Exit VR';
-                btn.style.background = '#660000';
-                btn.style.borderColor = '#AA0000';
+                btn.style.cssText = 'background:#660000;border-color:#AA0000;';
                 btn.onclick = () => this.exitVR();
             }
         } catch (e) {
             console.error('VR session failed:', e);
-            this.engine.showMessage('Failed to enter VR: ' + e.message);
+            this.engine.showMessage('VR failed: ' + e.message);
         }
     }
 
-    async exitVR() {
-        if (this.xrSession) await this.xrSession.end();
-    }
+    async exitVR() { if (this.xrSession) await this.xrSession.end(); }
 
-    onSessionEnd() {
+    _onEnd() {
         this.xrSession = null;
+        // Restore original canvas
+        if (this.engine._origCanvas) {
+            this.engine.canvas = this.engine._origCanvas;
+            this.engine.ctx = this.engine._origCtx;
+            this.engine._origCanvas = null;
+            this.engine._origCtx = null;
+        }
         this.engine.vrActive = false;
         this.engine.playerVisible = true;
-        this.controllers = [null, null];
+        this.ctrls = [null, null];
+
         const btn = document.getElementById('btn-vr');
         if (btn) {
             btn.textContent = 'Enter VR';
-            btn.style.background = '#006600';
-            btn.style.borderColor = '#00AA00';
+            btn.style.cssText = 'background:#006600;border-color:#00AA00;';
             btn.onclick = () => this.enterVR();
         }
     }
 
-    onInputSourcesChange(event) {
-        for (const s of event.added) {
-            const idx = s.handedness === 'left' ? 0 : 1;
-            this.controllers[idx] = s;
-        }
-        for (const s of event.removed) {
-            const idx = s.handedness === 'left' ? 0 : 1;
-            if (this.controllers[idx] === s) this.controllers[idx] = null;
+    _onSources(e) {
+        for (const s of e.added)
+            this.ctrls[s.handedness === 'left' ? 0 : 1] = s;
+        for (const s of e.removed) {
+            const i = s.handedness === 'left' ? 0 : 1;
+            if (this.ctrls[i] === s) this.ctrls[i] = null;
         }
     }
 
-    // ===============================
-    // XR Frame Loop
-    // ===============================
+    // ===========================================================
+    // XR frame callback
+    // ===========================================================
 
-    onXRFrame(timestamp, frame) {
-        if (!this.xrSession) return;
-        this.xrSession.requestAnimationFrame((t, f) => this.onXRFrame(t, f));
+    _xrFrame(timestamp, frame) {
+        const session = this.xrSession;
+        if (!session) return;
+        session.requestAnimationFrame((t, f) => this._xrFrame(t, f));
 
         const gl = this.gl;
         const pose = frame.getViewerPose(this.xrRefSpace);
         if (!pose) return;
 
-        // Update game logic
+        // 1. Engine update
         const dt = Math.min(timestamp - this.engine.lastTime, 100);
         this.engine.lastTime = timestamp;
         this.engine.update(dt);
 
-        // Render 2D game to its canvas (this becomes the panorama texture)
+        // 2. Engine render to offscreen 2D canvas
         this.engine.render();
 
-        // Upload game canvas to GPU texture
-        gl.bindTexture(gl.TEXTURE_2D, this.gameTexture);
+        // 3. Upload offscreen canvas to GPU texture
+        gl.bindTexture(gl.TEXTURE_2D, this.gameTex);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,
-            gl.UNSIGNED_BYTE, this.engine.canvas);
+            gl.UNSIGNED_BYTE, this.offCanvas);
 
-        // Process controller input (raycasts, button presses)
-        this.processInput(frame);
+        // 4. Controller input
+        this._processInput(frame);
 
-        // Build hotspot marker data
-        this.buildMarkerData();
+        // 5. Hotspot markers
+        this._buildMarkers();
 
-        // Bind XR framebuffer and configure GL state
+        // 6. Render stereo views
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.xrLayer.framebuffer);
-        gl.disable(gl.CULL_FACE);  // Render both sides (we're inside the cylinder)
+        gl.disable(gl.CULL_FACE);
         gl.enable(gl.DEPTH_TEST);
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-        // Render for each eye (stereo)
         for (const view of pose.views) {
             const vp = this.xrLayer.getViewport(view);
             gl.viewport(vp.x, vp.y, vp.width, vp.height);
-            gl.clearColor(0.015, 0.015, 0.04, 1.0); // Deep space void
+            gl.clearColor(0.01, 0.01, 0.03, 1.0);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-            const proj = view.projectionMatrix;
-            const viewMat = view.transform.inverse.matrix;
+            const P = view.projectionMatrix;
+            const V = view.transform.inverse.matrix;
 
-            this.drawBackdrop(proj, viewMat);
-            this.drawFloor(proj, viewMat);
-            this.drawMarkers(proj, viewMat);
-            this.drawLasers(frame, proj, viewMat);
+            this._drawStars(P, V);
+            this._drawTextured(this.backdropVBO, this.backdropCount, this.gameTex, P, V, 1.15);
+            this._drawTextured(this.floorVBO, this.floorCount, this.floorTex, P, V, 1.0);
+            this._drawMarkers(P, V);
+            this._drawLasers(frame, P, V);
         }
     }
 
-    // ===============================
-    // 3D Rendering
-    // ===============================
+    // ===========================================================
+    // Drawing helpers
+    // ===========================================================
 
-    bindAndDrawTexturedMesh(vbo, vertCount, texture, proj, viewMat, brightness) {
+    _drawTextured(vbo, cnt, tex, P, V, br) {
         const gl = this.gl;
-        gl.useProgram(this.texProgram);
-
-        mat4Identity(this.modelMatrix);
-        gl.uniformMatrix4fv(this.texU.uProj, false, proj);
-        gl.uniformMatrix4fv(this.texU.uView, false, viewMat);
-        gl.uniformMatrix4fv(this.texU.uModel, false, this.modelMatrix);
+        gl.useProgram(this.texProg);
+        _m4id(this.mModel);
+        gl.uniformMatrix4fv(this.texU.uProj, false, P);
+        gl.uniformMatrix4fv(this.texU.uView, false, V);
+        gl.uniformMatrix4fv(this.texU.uModel, false, this.mModel);
         gl.uniform1i(this.texU.uTex, 0);
-        gl.uniform1f(this.texU.uBright, brightness);
-
+        gl.uniform1f(this.texU.uBr, br);
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-
+        gl.bindTexture(gl.TEXTURE_2D, tex);
         gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-        const aPos = gl.getAttribLocation(this.texProgram, 'aPos');
-        const aUV = gl.getAttribLocation(this.texProgram, 'aUV');
-        gl.enableVertexAttribArray(aPos);
-        gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 20, 0);
-        gl.enableVertexAttribArray(aUV);
-        gl.vertexAttribPointer(aUV, 2, gl.FLOAT, false, 20, 12);
-
-        gl.drawArrays(gl.TRIANGLES, 0, vertCount);
-
-        gl.disableVertexAttribArray(aPos);
-        gl.disableVertexAttribArray(aUV);
+        const a0 = gl.getAttribLocation(this.texProg, 'aP');
+        const a1 = gl.getAttribLocation(this.texProg, 'aT');
+        gl.enableVertexAttribArray(a0);
+        gl.vertexAttribPointer(a0, 3, gl.FLOAT, false, 20, 0);
+        gl.enableVertexAttribArray(a1);
+        gl.vertexAttribPointer(a1, 2, gl.FLOAT, false, 20, 12);
+        gl.drawArrays(gl.TRIANGLES, 0, cnt);
+        gl.disableVertexAttribArray(a0);
+        gl.disableVertexAttribArray(a1);
     }
 
-    drawBackdrop(proj, viewMat) {
-        // The room art wraps around you on the inside of the cylinder
-        this.bindAndDrawTexturedMesh(
-            this.backdropVBO, this.backdropVertCount,
-            this.gameTexture, proj, viewMat, 1.15
-        );
-    }
-
-    drawFloor(proj, viewMat) {
-        // Dark grid floor beneath the player
-        this.bindAndDrawTexturedMesh(
-            this.floorVBO, this.floorVertCount,
-            this.floorTexture, proj, viewMat, 1.0
-        );
-    }
-
-    drawMarkers(proj, viewMat) {
-        if (this.markerData.length === 0) return;
+    _drawStars(P, V) {
         const gl = this.gl;
-
-        gl.useProgram(this.markerProgram);
-        gl.uniformMatrix4fv(this.markerU.uProj, false, proj);
-        gl.uniformMatrix4fv(this.markerU.uView, false, viewMat);
-        gl.uniform1f(this.markerU.uSize, 1.0);
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.markerVBO);
-        gl.bufferData(gl.ARRAY_BUFFER,
-            new Float32Array(this.markerData), gl.DYNAMIC_DRAW);
-
-        const aPos = gl.getAttribLocation(this.markerProgram, 'aPos');
-        const aColor = gl.getAttribLocation(this.markerProgram, 'aColor');
-        gl.enableVertexAttribArray(aPos);
-        gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 28, 0);
-        gl.enableVertexAttribArray(aColor);
-        gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, 28, 12);
-
-        gl.depthMask(false); // Transparent markers shouldn't write depth
-        gl.drawArrays(gl.POINTS, 0, this.markerData.length / 7);
+        gl.useProgram(this.lineProg);
+        gl.uniformMatrix4fv(this.lnU.uProj, false, P);
+        gl.uniformMatrix4fv(this.lnU.uView, false, V);
+        gl.uniform1f(this.lnU.uSz, 1.0);
+        gl.uniform1i(this.lnU.uMode, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.starVBO);
+        const a0 = gl.getAttribLocation(this.lineProg, 'aP');
+        const a1 = gl.getAttribLocation(this.lineProg, 'aC');
+        gl.enableVertexAttribArray(a0);
+        gl.vertexAttribPointer(a0, 3, gl.FLOAT, false, 28, 0);
+        gl.enableVertexAttribArray(a1);
+        gl.vertexAttribPointer(a1, 4, gl.FLOAT, false, 28, 12);
+        gl.depthMask(false);
+        gl.drawArrays(gl.POINTS, 0, this.stars.length / 7);
         gl.depthMask(true);
-
-        gl.disableVertexAttribArray(aPos);
-        gl.disableVertexAttribArray(aColor);
+        gl.disableVertexAttribArray(a0);
+        gl.disableVertexAttribArray(a1);
     }
 
-    drawLasers(frame, proj, viewMat) {
+    _drawMarkers(P, V) {
+        if (!this.mkData.length) return;
         const gl = this.gl;
-        gl.useProgram(this.lineProgram);
-        gl.uniformMatrix4fv(this.lineU.uProj, false, proj);
-        gl.uniformMatrix4fv(this.lineU.uView, false, viewMat);
+        gl.useProgram(this.markerProg);
+        gl.uniformMatrix4fv(this.mkU.uProj, false, P);
+        gl.uniformMatrix4fv(this.mkU.uView, false, V);
+        gl.uniform1f(this.mkU.uSz, 1.0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.markerVBO);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.mkData), gl.DYNAMIC_DRAW);
+        const a0 = gl.getAttribLocation(this.markerProg, 'aP');
+        const a1 = gl.getAttribLocation(this.markerProg, 'aC');
+        gl.enableVertexAttribArray(a0);
+        gl.vertexAttribPointer(a0, 3, gl.FLOAT, false, 28, 0);
+        gl.enableVertexAttribArray(a1);
+        gl.vertexAttribPointer(a1, 4, gl.FLOAT, false, 28, 12);
+        gl.depthMask(false);
+        gl.drawArrays(gl.POINTS, 0, this.mkData.length / 7);
+        gl.depthMask(true);
+        gl.disableVertexAttribArray(a0);
+        gl.disableVertexAttribArray(a1);
+    }
+
+    _drawLasers(frame, P, V) {
+        const gl = this.gl;
+        gl.useProgram(this.lineProg);
+        gl.uniformMatrix4fv(this.lnU.uProj, false, P);
+        gl.uniformMatrix4fv(this.lnU.uView, false, V);
+        gl.uniform1f(this.lnU.uSz, 1.0);
+        gl.uniform1i(this.lnU.uMode, 1);    // Solid color line mode
 
         for (let i = 0; i < 2; i++) {
-            const src = this.controllers[i];
+            const src = this.ctrls[i];
             if (!src || !src.targetRaySpace) continue;
+            const rp = frame.getPose(src.targetRaySpace, this.xrRefSpace);
+            if (!rp) continue;
 
-            const rayPose = frame.getPose(src.targetRaySpace, this.xrRefSpace);
-            if (!rayPose) continue;
+            const o = rp.transform.position;
+            const d = this._rayDir(rp.transform);
+            const active = this.hitThisFrame && i === this.activeIdx;
+            const len = active ? this.hitDist : 5.0;
 
-            const o = rayPose.transform.position;
-            const d = this.getRayDirection(rayPose.transform);
-            const isActive = this.hitScreenThisFrame && i === this.activeCtrlIdx;
-            const len = isActive ? this.hitDist : 5.0;
+            const color = active ? [0.1,1,0.3,0.85] : [0.2,0.4,1,0.6];
+            gl.uniform4fv(this.lnU.uColor, color);
 
-            const endX = o.x + d[0] * len;
-            const endY = o.y + d[1] * len;
-            const endZ = o.z + d[2] * len;
-
-            // Green when hitting backdrop, blue otherwise
-            const color = isActive
-                ? [0.1, 1.0, 0.3, 0.85]
-                : [0.2, 0.4, 1.0, 0.6];
-            gl.uniform4fv(this.lineU.uColor, color);
-
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.laserVBO);
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.dynVBO);
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-                o.x, o.y, o.z, endX, endY, endZ
+                o.x, o.y, o.z,
+                o.x + d[0]*len, o.y + d[1]*len, o.z + d[2]*len
             ]), gl.DYNAMIC_DRAW);
 
-            const aPos = gl.getAttribLocation(this.lineProgram, 'aPos');
-            gl.enableVertexAttribArray(aPos);
-            gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 0, 0);
+            const a0 = gl.getAttribLocation(this.lineProg, 'aP');
+            gl.enableVertexAttribArray(a0);
+            gl.vertexAttribPointer(a0, 3, gl.FLOAT, false, 0, 0);
+            // Disable color attrib (not used in line mode)
+            const a1 = gl.getAttribLocation(this.lineProg, 'aC');
+            if (a1 >= 0) gl.disableVertexAttribArray(a1);
             gl.drawArrays(gl.LINES, 0, 2);
-            gl.disableVertexAttribArray(aPos);
+            gl.disableVertexAttribArray(a0);
         }
     }
 
-    // ===============================
-    // Hotspot 3D Markers
-    // ===============================
+    // ===========================================================
+    // Hotspot markers
+    // ===========================================================
 
-    buildMarkerData() {
+    _buildMarkers() {
+        this.mkData = [];
         const room = this.engine.rooms[this.engine.currentRoomId];
-        this.markerData = [];
         if (!room || !room.hotspots) return;
-
         const pulse = (Math.sin(Date.now() * 0.004) + 1) * 0.25 + 0.5;
 
         for (const hs of room.hotspots) {
             if (hs.hidden) continue;
-
-            // Map hotspot center to 3D position on cylinder surface
-            const pos = this.canvasTo3D(hs.x + hs.w / 2, hs.y + hs.h / 2);
-
-            // Pull marker slightly in front of the backdrop surface
+            const p = this._c2w(hs.x + hs.w / 2, hs.y + hs.h / 2);
             const pull = 0.93;
-            const mx = pos.x * pull;
-            const mz = pos.z * pull;
-            const my = pos.y;
 
-            // Color-code by interaction type
             let r, g, b, a;
-            if (hs.isExit) {
-                r = 0.15; g = 1.0; b = 0.3; a = pulse;       // Green: exits
-            } else if (hs.get) {
-                r = 0.3; g = 0.7; b = 1.0; a = pulse;        // Cyan: collectibles
-            } else if (hs.talk) {
-                r = 1.0; g = 0.8; b = 0.2; a = pulse * 0.8;  // Gold: NPCs
-            } else {
-                r = 0.9; g = 0.9; b = 0.5; a = pulse * 0.6;  // Dim yellow: other
+            if (hs.isExit)       { r=0.15; g=1; b=0.3; a=pulse; }
+            else if (hs.get)     { r=0.3; g=0.7; b=1; a=pulse; }
+            else if (hs.talk)    { r=1; g=0.8; b=0.2; a=pulse*0.8; }
+            else                 { r=0.9; g=0.9; b=0.5; a=pulse*0.6; }
+            if (this.pointedHS === hs) {
+                r = Math.min(1, r+0.4); g = Math.min(1, g+0.4);
+                b = Math.min(1, b+0.4); a = 1;
             }
-
-            // Brighten when controller is pointing at this hotspot
-            if (this.pointedHotspot === hs) {
-                r = Math.min(1.0, r + 0.4);
-                g = Math.min(1.0, g + 0.4);
-                b = Math.min(1.0, b + 0.4);
-                a = 1.0;
-            }
-
-            this.markerData.push(mx, my, mz, r, g, b, a);
+            this.mkData.push(p.x*pull, p.y, p.z*pull, r, g, b, a);
         }
     }
 
-    canvasTo3D(cx, cy) {
-        // Convert 2D canvas coordinates to a 3D point on the cylinder surface
+    _c2w(cx, cy) {
         const R = this.backdropRadius;
-        const arcRad = this.backdropArcDeg * Math.PI / 180;
-        const startAngle = -arcRad / 2;
-
-        const u = cx / 640;   // 0 = left edge, 1 = right edge of canvas
-        const v = cy / 400;   // 0 = top, 1 = bottom
-
-        const angle = startAngle + arcRad * u;
-        const y = this.backdropTop + (this.backdropBottom - this.backdropTop) * v;
-        const x = R * Math.sin(angle);
-        const z = -R * Math.cos(angle);
-
-        return { x, y, z };
+        const arc = this.backdropArcDeg * Math.PI / 180;
+        const sa = -arc / 2;
+        const u = cx / 640, v = cy / 400;
+        const angle = sa + arc * u;
+        return {
+            x: R * Math.sin(angle),
+            y: this.backdropTop + (this.backdropBottom - this.backdropTop) * v,
+            z: -R * Math.cos(angle)
+        };
     }
 
-    // ===============================
-    // Controller Input
-    // ===============================
+    // ===========================================================
+    // Controller input
+    // ===========================================================
 
-    processInput(frame) {
-        this.hitScreenThisFrame = false;
-        this.pointedHotspot = null;
-        this.activeCtrlIdx = -1;
+    _processInput(frame) {
+        this.hitThisFrame = false;
+        this.pointedHS = null;
+        this.activeIdx = -1;
         this.hitDist = 5.0;
 
         for (let i = 0; i < 2; i++) {
-            const src = this.controllers[i];
+            const src = this.ctrls[i];
             if (!src || !src.targetRaySpace) continue;
+            const rp = frame.getPose(src.targetRaySpace, this.xrRefSpace);
+            if (!rp) continue;
 
-            const rayPose = frame.getPose(src.targetRaySpace, this.xrRefSpace);
-            if (!rayPose) continue;
+            const o = rp.transform.position;
+            const d = this._rayDir(rp.transform);
+            const hit = this._rayCyl([o.x, o.y, o.z], d);
 
-            const o = rayPose.transform.position;
-            const d = this.getRayDirection(rayPose.transform);
-            const origin = [o.x, o.y, o.z];
-
-            // Raycast against the cylindrical backdrop
-            const hit = this.rayCylinderIntersect(origin, d);
             if (hit) {
-                this.hitScreenThisFrame = true;
-                this.activeCtrlIdx = i;
+                this.hitThisFrame = true;
+                this.activeIdx = i;
                 this.hitDist = hit.t;
-                this.cursorCanvasX = hit.cx;
-                this.cursorCanvasY = hit.cy;
-
-                // Feed hover coordinates to engine (for hotspot labels on canvas)
+                this.curCX = hit.cx; this.curCY = hit.cy;
                 this.engine.mouseX = hit.cx;
                 this.engine.mouseY = hit.cy;
-
-                // Identify which hotspot is under the cursor
                 const room = this.engine.rooms[this.engine.currentRoomId];
-                if (room) {
-                    this.pointedHotspot = this.engine.findHotspot(hit.cx, hit.cy, room);
-                }
+                if (room) this.pointedHS = this.engine.findHotspot(hit.cx, hit.cy, room);
             }
 
-            // ---- Gamepad buttons ----
             const gp = src.gamepad;
             if (!gp) continue;
 
-            // Trigger (button 0) = click / interact
+            // Trigger
             const trig = gp.buttons[0] && gp.buttons[0].pressed;
-            if (trig && !this.lastTrigger[i]) {
-                this.onTriggerDown(hit);
-            }
-            this.lastTrigger[i] = trig;
+            if (trig && !this.prevTrig[i]) this._onTrig(hit);
+            this.prevTrig[i] = trig;
 
-            // Squeeze / Grip (button 1) = cycle through actions
-            const squeeze = gp.buttons[1] && gp.buttons[1].pressed;
-            if (squeeze && !this.lastSqueeze[i]) {
-                this.cycleAction();
-            }
-            this.lastSqueeze[i] = squeeze;
+            // Grip
+            const grip = gp.buttons[1] && gp.buttons[1].pressed;
+            if (grip && !this.prevGrip[i]) this._cycleAct();
+            this.prevGrip[i] = grip;
 
-            // A button (button 4) = skip cutscene / start game / restart
-            const aBtn = gp.buttons.length > 4 && gp.buttons[4]
-                && gp.buttons[4].pressed;
-            if (aBtn && !this.lastAButton[i]) {
-                if (this.engine.cutscene) {
-                    this.engine.skipCutscene();
-                    this.engine.playerVisible = false;
-                } else if (this.engine.titleScreen) {
-                    this.engine.titleScreen = false;
-                    this.engine.sound.gameStart();
-                    this.engine.goToRoom('broom_closet', 320, 310);
-                    this.engine.playerVisible = false;
+            // A button
+            const aBtn = gp.buttons.length > 4 && gp.buttons[4] && gp.buttons[4].pressed;
+            if (aBtn && !this.prevA[i]) {
+                if (this.engine.cutscene) { this.engine.skipCutscene(); this.engine.playerVisible = false; }
+                else if (this.engine.titleScreen) {
+                    this.engine.titleScreen = false; this.engine.sound.gameStart();
+                    this.engine.goToRoom('broom_closet', 320, 310); this.engine.playerVisible = false;
                 } else if (this.engine.dead || this.engine.won) {
-                    this.engine.restart();
-                    this.engine.playerVisible = false;
+                    this.engine.restart(); this.engine.playerVisible = false;
                 }
             }
-            this.lastAButton[i] = !!aBtn;
+            this.prevA[i] = !!aBtn;
+
+            // B button = quick-look
+            const bBtn = gp.buttons.length > 5 && gp.buttons[5] && gp.buttons[5].pressed;
+            if (bBtn && !this.prevB[i] && hit) {
+                const prev = this.engine.currentAction;
+                this.engine.currentAction = 'look';
+                this.engine.handleClick(hit.cx, hit.cy);
+                this.engine.currentAction = prev;
+                this.engine.playerVisible = false;
+            }
+            this.prevB[i] = !!bBtn;
+
+            // Thumbstick X = cycle inventory in Use mode
+            if (gp.axes && gp.axes.length >= 4) {
+                const tx = gp.axes[2];
+                const wasOver = Math.abs(this.prevThumbLR[i]) > 0.6;
+                const nowOver = Math.abs(tx) > 0.6;
+                if (nowOver && !wasOver && this.engine.currentAction === 'use'
+                    && this.engine.inventory.length > 0) {
+                    const inv = this.engine.inventory;
+                    const dir = tx > 0 ? 1 : -1;
+                    const cur = inv.indexOf(this.engine.selectedItem);
+                    const next = (cur + dir + inv.length) % inv.length;
+                    this.engine.selectedItem = inv[next];
+                    this.engine.showMessage('Using: ' + (this.engine.items[inv[next]]?.name || inv[next]));
+                    this.engine.updateInventoryUI();
+                }
+                this.prevThumbLR[i] = tx;
+            }
         }
     }
 
-    onTriggerDown(hit) {
+    _onTrig(hit) {
         this.engine.sound.init();
 
-        // Title screen: start game
         if (this.engine.titleScreen) {
             this.engine.titleScreen = false;
             this.engine.sound.gameStart();
@@ -760,29 +748,17 @@ class VRSystem {
             this.engine.playerVisible = false;
             return;
         }
-
-        // Death/win: restart
         if (this.engine.dead || this.engine.won) {
-            this.engine.restart();
-            this.engine.playerVisible = false;
-            return;
+            this.engine.restart(); this.engine.playerVisible = false; return;
         }
-
-        // Cutscene: skip
         if (this.engine.cutscene) {
-            this.engine.skipCutscene();
-            this.engine.playerVisible = false;
-            return;
+            this.engine.skipCutscene(); this.engine.playerVisible = false; return;
         }
-
         if (!hit) return;
 
-        // VR optimization: instant room transitions for Walk + Exit
-        // (skip the walking animation since we're first-person)
-        if (this.engine.currentAction === 'walk'
-            && this.pointedHotspot
-            && this.pointedHotspot.isExit) {
-            const hs = this.pointedHotspot;
+        // Instant exit transitions in VR (skip walk animation)
+        if (this.engine.currentAction === 'walk' && this.pointedHS && this.pointedHS.isExit) {
+            const hs = this.pointedHS;
             if (hs.walkToX !== undefined) this.engine.playerX = hs.walkToX;
             if (hs.walkToY !== undefined) this.engine.playerY = hs.walkToY;
             if (hs.onExit) hs.onExit(this.engine);
@@ -790,94 +766,57 @@ class VRSystem {
             return;
         }
 
-        // Standard click handling (mapped from 3D raycast to 2D canvas coords)
         this.engine.handleClick(hit.cx, hit.cy);
-
-        // Keep sprite hidden after actions (engine might re-enable it)
-        if (!this.engine.cutscene) {
-            this.engine.playerVisible = false;
-        }
+        if (!this.engine.cutscene) this.engine.playerVisible = false;
     }
 
-    cycleAction() {
-        this.actionIndex = (this.actionIndex + 1) % this.actions.length;
-        this.engine.setAction(this.actions[this.actionIndex]);
+    _cycleAct() {
+        this.actIdx = (this.actIdx + 1) % this.actions.length;
+        this.engine.setAction(this.actions[this.actIdx]);
     }
 
-    // ===============================
-    // Raycasting Math
-    // ===============================
+    // ===========================================================
+    // Raycasting
+    // ===========================================================
 
-    getRayDirection(transform) {
-        // Rotate (0, 0, -1) by the target ray's orientation quaternion
+    _rayDir(transform) {
         const q = transform.orientation;
-        const qx = q.x, qy = q.y, qz = q.z, qw = q.w;
-        const dx = 2 * (qx * qz + qw * qy);
-        const dy = 2 * (qy * qz - qw * qx);
-        const dz = 1 - 2 * (qx * qx + qy * qy);
-        return [-dx, -dy, -dz];
+        return [
+            -(2 * (q.x * q.z + q.w * q.y)),
+            -(2 * (q.y * q.z - q.w * q.x)),
+            -(1 - 2 * (q.x * q.x + q.y * q.y))
+        ];
     }
 
-    rayCylinderIntersect(origin, dir) {
-        // Intersect ray with cylinder x^2 + z^2 = R^2
-        // Player stands inside the cylinder, ray hits the inner surface
+    _rayCyl(o, d) {
         const R = this.backdropRadius;
-
-        // Quadratic equation coefficients (projected onto XZ plane)
-        const a = dir[0] * dir[0] + dir[2] * dir[2];
-        if (a < 1e-8) return null; // Ray is vertical (parallel to cylinder axis)
-
-        const b = 2 * (origin[0] * dir[0] + origin[2] * dir[2]);
-        const c = origin[0] * origin[0] + origin[2] * origin[2] - R * R;
-        const disc = b * b - 4 * a * c;
+        const a = d[0]*d[0] + d[2]*d[2];
+        if (a < 1e-8) return null;
+        const b = 2 * (o[0]*d[0] + o[2]*d[2]);
+        const c = o[0]*o[0] + o[2]*o[2] - R*R;
+        const disc = b*b - 4*a*c;
         if (disc < 0) return null;
-
-        const sqrtDisc = Math.sqrt(disc);
-        const t1 = (-b - sqrtDisc) / (2 * a);
-        const t2 = (-b + sqrtDisc) / (2 * a);
-
-        // Inside the cylinder: one t is negative, one positive
-        // Take the nearest positive intersection
-        let t = t2;
-        if (t1 > 0.01 && t1 < t) t = t1;
-        if (t <= 0.01) t = t2;
+        const sq = Math.sqrt(disc);
+        let t1 = (-b - sq) / (2*a), t2 = (-b + sq) / (2*a);
+        let t = (t1 > 0.01 && t1 < t2) ? t1 : t2;
         if (t <= 0.01) return null;
 
-        const hitX = origin[0] + t * dir[0];
-        const hitY = origin[1] + t * dir[1];
-        const hitZ = origin[2] + t * dir[2];
+        const hx = o[0]+t*d[0], hy = o[1]+t*d[1], hz = o[2]+t*d[2];
+        if (hy < this.backdropBottom || hy > this.backdropTop) return null;
 
-        // Check height bounds
-        if (hitY < this.backdropBottom || hitY > this.backdropTop) return null;
+        const angle = Math.atan2(hx, -hz);
+        const half = (this.backdropArcDeg / 2) * Math.PI / 180;
+        if (angle < -half || angle > half) return null;
 
-        // Check angle bounds (only the wrap-around arc, not behind the player)
-        const angle = Math.atan2(hitX, -hitZ);
-        const halfArc = (this.backdropArcDeg / 2) * Math.PI / 180;
-        if (angle < -halfArc || angle > halfArc) return null;
-
-        // Convert to 2D canvas coordinates
-        const u = (angle + halfArc) / (2 * halfArc);           // 0-1 along arc
-        const v = (hitY - this.backdropTop)
-            / (this.backdropBottom - this.backdropTop);          // 0-1 top to bottom
-        const cx = Math.round(Math.max(0, Math.min(640, u * 640)));
-        const cy = Math.round(Math.max(0, Math.min(400, v * 400)));
-
-        return { t, cx, cy };
+        const u = (angle + half) / (2 * half);
+        const v = (hy - this.backdropTop) / (this.backdropBottom - this.backdropTop);
+        return {
+            t,
+            cx: Math.round(Math.max(0, Math.min(640, u * 640))),
+            cy: Math.round(Math.max(0, Math.min(400, v * 400)))
+        };
     }
 }
 
-// ============================================================
-// Minimal Matrix Utilities (no dependencies)
-// ============================================================
-
-function mat4Identity(out) {
-    out.fill(0);
-    out[0] = out[5] = out[10] = out[15] = 1;
-}
-
-function mat4Translate(out, x, y, z) {
-    out[12] += out[0] * x + out[4] * y + out[8] * z;
-    out[13] += out[1] * x + out[5] * y + out[9] * z;
-    out[14] += out[2] * x + out[6] * y + out[10] * z;
-    out[15] += out[3] * x + out[7] * y + out[11] * z;
-}
+// ---- tiny mat4 identity ----
+function _m4id(o) { o.fill(0); o[0]=o[5]=o[10]=o[15]=1; }

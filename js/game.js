@@ -20,6 +20,188 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'mop_handle', name: 'Mop Handle', description: 'A sturdy titanium alloy mop handle. Not much of a weapon, but great for prying things open.' },
     ].forEach(item => engine.registerItem(item));
 
+    // ========== AGS-INSPIRED DIALOG TREES ==========
+
+    // Bartender dialog — the cantina bartender has info and sells drinks
+    engine.registerDialog({
+        id: 'bartender',
+        startTopic: 'greeting',
+        topics: [
+            {
+                id: 'greeting',
+                text: '"Welcome to the cantina, smoothskin. What can old Grix do for ya?"',
+                options: [
+                    {
+                        text: 'What is this place?',
+                        response: '"This here is the finest — and only — cantina on Kerona. We got drinks, music, and just the right amount of danger. Been running this joint for 30 cycles now."',
+                        once: true
+                    },
+                    {
+                        text: 'I\'d like a Keronian Ale.',
+                        response: '"Sure thing. That\'ll be 10 buckazoids."',
+                        action: (eng) => {
+                            const cr = eng.getFlag('credits_amount') || 0;
+                            if (cr >= 10 && !eng.hasItem('drink')) {
+                                if (typeof engine !== 'undefined' && engine.sound) engine.sound.sell();
+                                eng.setFlag('credits_amount', cr - 10);
+                                eng.items['credits'].name = 'Buckazoids (' + (cr - 10) + ')';
+                                eng.items['credits'].description = 'A credit chip with ' + (cr - 10) + ' buckazoids remaining.';
+                                if (cr - 10 <= 0) eng.removeFromInventory('credits');
+                                eng.addToInventory('drink');
+                                eng.updateInventoryUI();
+                                eng.showMessage('"Here ya go, smoothskin. One Keronian Ale." The bartender slides a shimmering green drink across the bar.');
+                            } else if (eng.hasItem('drink')) {
+                                eng.showMessage('"You already got a drink. Don\'t be greedy."');
+                            } else {
+                                eng.showMessage('"Can\'t pour what you can\'t pay for. 10 buckazoids, smoothskin."');
+                            }
+                        },
+                        condition: (eng) => eng.hasItem('credits')
+                    },
+                    {
+                        text: 'Know anything about the Draknoids?',
+                        response: '"Draknoids? Bad news, those ones. Mean, scaly, and they don\'t tip. They got a flagship somewhere in the Earnon sector. Talk to that pilot over there — Zorthak. He knows more than he lets on."',
+                        once: true
+                    },
+                    {
+                        text: 'Who\'s that pilot over there?',
+                        response: '"That\'s Zorthak. Used to be the best navigator in the sector before the drink got him. Literally. He crashed a freighter into a bar. Buy him an ale and he might share some useful intel."',
+                        once: true,
+                        condition: (eng) => !eng.getFlag('pilot_left')
+                    },
+                    {
+                        text: 'Seen anything unusual lately?',
+                        response: '"Unusual? Ha! Everything\'s unusual out here. Though I did see some Draknoid scouts sniffing around the landing pad last week. Buyer beware if you\'re planning to fly anywhere."',
+                        once: true
+                    },
+                    {
+                        text: 'Never mind. Goodbye.',
+                        response: '"Keep your nose clean, smoothskin."',
+                        endDialog: true
+                    }
+                ]
+            }
+        ]
+    });
+
+    // Zorthak the pilot — gives info and eventually the nav chip
+    engine.registerDialog({
+        id: 'zorthak',
+        startTopic: 'greeting',
+        topics: [
+            {
+                id: 'greeting',
+                text: '"*hic* Name\'s Zorthak. Best pilot... well, FORMER best pilot in the sector."',
+                options: [
+                    {
+                        text: 'What happened to your license?',
+                        response: '"Crashed a cargo hauler into this very cantina three cycles ago. In my defense, the autopilot was broken AND I was celebrating my birthday. Grix rebuilt the place, but the Pilot\'s Guild wasn\'t as forgiving."',
+                        once: true
+                    },
+                    {
+                        text: 'Tell me about the Draknoids.',
+                        response: '"The Draknoids... *hic*... they\'re up to something big. Got a flagship hidden in the Earnon sector. But I ain\'t saying more without a drink in my hand. A Keronian Ale would loosen these lips real nice."',
+                        once: true
+                    },
+                    {
+                        text: 'Can I buy you a drink?',
+                        response: '"Now you\'re speaking my language! A Keronian Ale — tell Grix to put it on your tab."',
+                        condition: (eng) => !eng.hasItem('drink') && !eng.getFlag('pilot_has_drink')
+                    },
+                    {
+                        text: 'Here, have this ale.',
+                        response: '"For ME?! You\'re a saint among smoothskins!"',
+                        condition: (eng) => eng.hasItem('drink') && !eng.getFlag('pilot_has_drink'),
+                        action: (eng) => {
+                            if (typeof engine !== 'undefined' && engine.sound) engine.sound.drink();
+                            eng.removeFromInventory('drink');
+                            eng.setFlag('pilot_has_drink');
+                            eng.updateInventoryUI();
+                        },
+                        nextTopic: 'after_drink'
+                    },
+                    {
+                        text: 'Know any way off this rock?',
+                        response: '"There\'s a cargo shuttle on the landing pad outside. Spaceworthy enough, but you\'d need nav coordinates. *hic* And a death wish, depending on where you\'re headed."',
+                        once: true
+                    },
+                    {
+                        text: 'I need to go. See you around.',
+                        response: '"Yeah, yeah... I\'ll be right here. Not like I got anywhere to go."',
+                        endDialog: true
+                    }
+                ]
+            },
+            {
+                id: 'after_drink',
+                text: 'Zorthak grabs the ale and downs half in one gulp. His eyes light up. "Alright, alright, I PROMISED info and Zorthak keeps his word..."',
+                options: [
+                    {
+                        text: 'Tell me everything about the Draknoids.',
+                        response: '"Those Draknoid thugs... I did a cargo run near their flagship last month. Got the coordinates logged before they chased me off. Here — take this nav chip. It\'ll get you right to \'em." He slides a chip across the table.',
+                        action: (eng) => {
+                            eng.addToInventory('nav_chip');
+                            eng.setFlag('pilot_left');
+                            eng.addScore(20);
+                            eng.updateInventoryUI();
+                        },
+                        endDialog: true
+                    },
+                    {
+                        text: 'What else do you know?',
+                        response: '"I know that this ale is DIVINE. Oh, you mean useful stuff? The Draknoids guard their ship with some kind of energy barrier. You\'ll need serious firepower to get past their guards. Check Tiny\'s shop — he sells hardware."',
+                        once: true
+                    }
+                ]
+            }
+        ]
+    });
+
+    // Tiny the merchant — trading post shopkeeper
+    engine.registerDialog({
+        id: 'tiny',
+        startTopic: 'greeting',
+        topics: [
+            {
+                id: 'greeting',
+                text: '"Welcome, welcome! Tiny\'s Trading Post — where every deal is a steal! ...For me, mostly."',
+                options: [
+                    {
+                        text: 'Tell me about the Pulsar Ray.',
+                        response: '"Ah, the Mark IV Pulsar Ray! Compact, reliable, and packs a punch. Only 30 buckazoids. Perfect for, uh, \'personal protection\'. Every spacefarer should have one."',
+                        once: true,
+                        condition: (eng) => !eng.getFlag('bought_ray')
+                    },
+                    {
+                        text: 'What about the jet pack?',
+                        response: '"ZephyrTech personal propulsion unit! Only 500 buckazoids. A bargain at twice the price!" His huge eyes blink. "No haggling."',
+                        once: true
+                    },
+                    {
+                        text: 'That shield belt looks nice.',
+                        response: '"Personal deflector shield — top of the line! 200 buckazoids. I\'d demonstrate but the last customer who tried it fried my display case. Insurance doesn\'t cover that."',
+                        once: true
+                    },
+                    {
+                        text: 'Got anything to sell or trade?',
+                        response: '"I buy crystals, rare minerals, alien artifacts, data cores — anything valuable. If you got something interesting, show it to me! I pay fair prices... mostly."',
+                        once: true
+                    },
+                    {
+                        text: 'What\'s the deal with the refund policy?',
+                        response: '"NO refunds. NO returns. NO complaints. Last guy who complained got his money back — in the form of a one-way ticket to the Keronian desert. Read the sign." He points emphatically.',
+                        once: true
+                    },
+                    {
+                        text: 'Just browsing. Goodbye.',
+                        response: '"Come back when your wallet is ready! Tiny\'s always open."',
+                        endDialog: true
+                    }
+                ]
+            }
+        ]
+    });
+
     // ========== DRAWING HELPERS ==========
 
     // EGA 16-color palette reference (classic Sierra colors)
@@ -726,6 +908,19 @@ document.addEventListener('DOMContentLoaded', () => {
         id: 'broom_closet',
         name: 'Broom Closet',
         description: 'You wake up groggy in the ship\'s broom closet — your favorite napping spot. Alarms wail. Red lights flash. Something terrible has happened aboard the ISS Constellation.',
+        onEnter: (e) => {
+            // AGI-inspired barriers: shelves, mop bucket, door area
+            e.addBarrier(25, 280, 195, 10);   // Lower shelf base blocks walking through it
+            e.addBarrier(465, 275, 65, 25);    // Mop bucket
+            e.addBarrier(345, 305, 35, 25);    // Floor drain
+
+            // Foreground layer: bucket rim draws over player when walking behind it
+            e.addForegroundLayer(300, (ctx, eng) => {
+                // Bucket front rim (draws over player walking behind bucket)
+                ctx.fillStyle = '#404855';
+                ctx.fillRect(474, 255, 46, 3);
+            });
+        },
         draw: (ctx, w, h, eng) => {
             // Walls
             metalWall(ctx, 0, 0, w, 275, '#38384e', '#3e3e58');
@@ -1355,6 +1550,17 @@ document.addEventListener('DOMContentLoaded', () => {
         id: 'corridor',
         name: 'Ship Corridor',
         description: 'The main corridor of the ISS Constellation. Emergency lights cast an eerie red glow over devastation. Blast marks scar the walls. The ship has been attacked.',
+        onEnter: (e) => {
+            // AGI-inspired barriers: fallen crew member, debris
+            e.addBarrier(320, 325, 65, 20);    // Dr. Chen's body
+            e.addBarrier(230, 315, 25, 15);    // Debris cluster left
+            e.addBarrier(415, 345, 20, 15);    // Debris cluster right
+
+            // Edge transitions for corridor (AGI EGOEDGE/NEWROOM)
+            e.setEdgeTransition('left', (eng) => {
+                eng.goToRoom('broom_closet', 320, 310);
+            });
+        },
         draw: (ctx, w, h, eng) => {
             // Perspective corridor
             // Ceiling
@@ -1658,6 +1864,22 @@ document.addEventListener('DOMContentLoaded', () => {
         id: 'science_lab',
         name: 'Science Lab',
         description: 'The ship\'s science lab. Equipment is smashed and overturned, but some computers still flicker with power. The attackers were looking for something specific.',
+        onEnter: (e) => {
+            // AGI-inspired barriers: lab table legs, overturned chair
+            e.addBarrier(245, 280, 180, 8);    // Lab table base spans walkable area
+            e.addBarrier(195, 285, 35, 25);    // Overturned chair
+
+            // Foreground layer: lab table edge draws over player walking behind it
+            e.addForegroundLayer(285, (ctx, eng) => {
+                ctx.fillStyle = '#555570';
+                ctx.fillRect(240, 268, 185, 4); // Table front edge
+            });
+
+            // Edge transition: right side back to corridor
+            e.setEdgeTransition('right', (eng) => {
+                eng.goToRoom('corridor', 120, 310);
+            });
+        },
         draw: (ctx, w, h, eng) => {
             // Walls and floor
             metalWall(ctx, 0, 0, w, 270, '#2e2e48', '#343458');
@@ -1871,6 +2093,15 @@ document.addEventListener('DOMContentLoaded', () => {
         id: 'pod_bay',
         name: 'Escape Pod Bay',
         description: 'The Escape Pod Bay. Most pods have already launched. One remains — your ticket off this doomed ship.',
+        onEnter: (e) => {
+            // AGI-inspired barriers: control panel
+            e.addBarrier(440, 280, 100, 40);   // Launch control panel
+
+            // Edge transition: left back to corridor
+            e.setEdgeTransition('left', (eng) => {
+                eng.goToRoom('corridor', 540, 310);
+            });
+        },
         draw: (ctx, w, h, eng) => {
             // Bay walls - larger, industrial feel
             gradientRect(ctx, 0, 0, w, 270, '#252545', '#2a2a50');
@@ -2147,6 +2378,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.setFlag('desert_entered');
                 e.setFlag('desert_timer', 0);
             }
+            // AGS-inspired: depth scaling — player shrinks toward horizon
+            e.setDepthScaling(260, 370, 0.65, 1.0);
+
+            // AGI-inspired barriers: crashed pod wreckage, rock formation
+            e.addBarrier(80, 275, 130, 30);    // Crashed pod hull
+            e.addBarrier(370, 280, 100, 15);   // Rock formation base
+
+            // Edge transitions (AGI EGOEDGE): block east/west like original SQ1 desert
+            e.setEdgeTransition('left', (eng) => {
+                eng.showMessage('Nothing but endless sand dunes that way. You\'d die of exposure before finding anything.');
+            });
+            e.setEdgeTransition('right', (eng) => {
+                eng.showMessage('The desert stretches to the horizon. Going that way would be suicide without more supplies.');
+            });
         },
         onUpdate: (e, dt) => {
             if (!e.hasItem('survival_kit') && !e.getFlag('used_kit')) {
@@ -2387,6 +2632,40 @@ document.addEventListener('DOMContentLoaded', () => {
         id: 'cave',
         name: 'Underground Cave',
         description: 'A cool underground cave — blessed relief from the desert heat. Crystalline formations glitter on the walls. A tunnel leads deeper underground.',
+        onEnter: (e) => {
+            // AGS-inspired: depth scaling — cave has mild perspective
+            e.setDepthScaling(270, 365, 0.75, 1.0);
+
+            // AGI-inspired barriers: stalagmites, underground pool
+            e.addBarrier(115, 290, 15, 35);    // Left stalagmite
+            e.addBarrier(345, 285, 15, 40);    // Center stalagmite
+            e.addBarrier(545, 290, 15, 35);    // Right stalagmite
+            e.addBarrier(60, 330, 140, 25);    // Underground pool
+
+            // Foreground layer: stalagmite tips draw over player
+            e.addForegroundLayer(320, (ctx, eng) => {
+                // Center stalagmite foreground tip
+                ctx.fillStyle = '#3d2e1e';
+                ctx.beginPath();
+                ctx.moveTo(352, 270); ctx.lineTo(347, 325); ctx.lineTo(357, 325);
+                ctx.closePath(); ctx.fill();
+            });
+
+            // Edge transitions
+            e.setEdgeTransition('left', (eng) => {
+                eng.goToRoom('desert', 430, 305);
+            });
+            e.setEdgeTransition('right', (eng) => {
+                // Only if player has explored enough
+                if (eng.getFlag('cave_visited')) {
+                    eng.goToRoom('outpost', 100, 310);
+                } else {
+                    eng.setFlag('cave_visited');
+                    eng.addScore(5);
+                    eng.goToRoom('outpost', 100, 310);
+                }
+            });
+        },
         draw: (ctx, w, h, eng) => {
             // Cave background with dithered dark-to-darker transition
             ditherRect(ctx, 0, 0, w, h, '#1a1208', '#0d0a06', 2);
@@ -2682,6 +2961,65 @@ document.addEventListener('DOMContentLoaded', () => {
         id: 'outpost',
         name: 'Frontier Outpost',
         description: 'A ramshackle alien frontier town — Ulence Flats. Odd buildings line a dusty street. A cantina, a trading post, and a landing pad are visible.',
+        onEnter: (e) => {
+            // AGS-inspired: depth scaling — outdoor town perspective
+            e.setDepthScaling(265, 365, 0.7, 1.0);
+
+            // AGI-inspired barriers: fuel barrels, street lamp
+            e.addBarrier(190, 290, 45, 15);    // Fuel barrels
+            e.addBarrier(396, 290, 10, 15);    // Street lamp pole base
+
+            // AGI-inspired NPC: wandering alien creature (like SQ1's Ulence Flats aliens)
+            if (!e.getNPC('outpost_alien')) {
+                e.addNPC({
+                    id: 'outpost_alien',
+                    x: 420, y: 310,
+                    motionType: 'wander',
+                    stepSize: 1,
+                    stepTime: 350,
+                    celCount: 2,
+                    cycleTime: 400,
+                    draw: (ctx, eng, npc) => {
+                        // Small alien creature wandering the street
+                        const s = 1.2 + (npc.y - 280) / 120 * 0.3;
+                        const bob = Math.sin(eng.animTimer / 300) * 1.5;
+                        // Body (green blob)
+                        ctx.fillStyle = '#44AA44';
+                        ctx.beginPath();
+                        ctx.ellipse(npc.x, npc.y - 8 * s + bob, 6 * s, 10 * s, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        // Darker belly
+                        ctx.fillStyle = '#338833';
+                        ctx.beginPath();
+                        ctx.ellipse(npc.x, npc.y - 5 * s + bob, 4 * s, 5 * s, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        // Big eye
+                        ctx.fillStyle = '#FFFF88';
+                        ctx.beginPath();
+                        ctx.arc(npc.x, npc.y - 12 * s + bob, 3 * s, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = '#111';
+                        ctx.beginPath();
+                        ctx.arc(npc.x + (npc.facing === 'left' ? -1 : 1) * s, npc.y - 12 * s + bob, 1.2 * s, 0, Math.PI * 2);
+                        ctx.fill();
+                        // Legs (animated)
+                        ctx.fillStyle = '#44AA44';
+                        const legOff = npc.cel === 0 ? 2 : -2;
+                        ctx.fillRect(npc.x - 3 * s, npc.y + 1 * s, 2 * s, 4 * s + legOff);
+                        ctx.fillRect(npc.x + 1 * s, npc.y + 1 * s, 2 * s, 4 * s - legOff);
+                        // Feet
+                        ctx.fillStyle = '#338833';
+                        ctx.fillRect(npc.x - 4 * s, npc.y + 4 * s + legOff, 3 * s, 1.5 * s);
+                        ctx.fillRect(npc.x + 0.5 * s, npc.y + 4 * s - legOff, 3 * s, 1.5 * s);
+                    }
+                });
+            }
+
+            // Edge transition: left goes back to cave
+            e.setEdgeTransition('left', (eng) => {
+                eng.goToRoom('cave', 560, 310);
+            });
+        },
         draw: (ctx, w, h, eng) => {
             // Sky
             gradientRect(ctx, 0, 0, w, 160, '#442266', '#774488');
@@ -2989,6 +3327,24 @@ document.addEventListener('DOMContentLoaded', () => {
         id: 'cantina',
         name: 'Cantina',
         description: 'The cantina is smoky and dim. Alien music plays from somewhere. A few patrons sit at tables. A bartender polishes glasses behind the bar.',
+        onEnter: (e) => {
+            // AGI-inspired barriers: bar counter, tables, stools
+            e.addBarrier(20, 250, 320, 20);    // Bar counter front face
+            e.addBarrier(415, 280, 85, 12);    // Table 1
+            e.addBarrier(525, 295, 85, 12);    // Table 2
+
+            // Foreground layer: bar counter top draws over player walking behind
+            e.addForegroundLayer(270, (ctx, eng) => {
+                // Bar counter top lip
+                ctx.fillStyle = '#775544';
+                ctx.fillRect(28, 250, 305, 4);
+            });
+
+            // Edge transition: left exits to outpost
+            e.setEdgeTransition('left', (eng) => {
+                eng.goToRoom('outpost', 95, 310);
+            });
+        },
         draw: (ctx, w, h, eng) => {
             // Walls
             ctx.fillStyle = '#2a1a2a';
@@ -3295,14 +3651,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: 'A large, green-skinned alien bartender.',
                 look: (e) => e.showMessage('A burly, three-eyed alien bartender of a species you don\'t recognize. He\'s polishing a glass with three hands while keeping all three eyes on the room. Professional.'),
                 talk: (e) => {
-                    if (!e.getFlag('talked_bartender')) {
-                        e.showMessage('"Welcome to the cantina, smoothskin. We got drinks, we got music, we got trouble. What\'ll it be? A Keronian Ale costs 10 buckazoids."');
-                        e.setFlag('talked_bartender');
-                    } else if (e.hasItem('drink')) {
-                        e.showMessage('"You already got a drink. Don\'t spill it."');
-                    } else {
-                        e.showMessage('"Same as before. 10 buckazoids for a Keronian Ale. That\'s the only thing on tap today."');
-                    }
+                    e.setFlag('talked_bartender');
+                    e.startDialog('bartender');
                 },
                 useItem: (e, itemId) => {
                     if (itemId === 'credits') {
@@ -3340,9 +3690,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.getFlag('pilot_left')) {
                         e.showMessage('He\'s not here anymore.');
                     } else if (e.getFlag('pilot_has_drink')) {
-                        e.showMessage('Zorthak is savoring his ale. He looks like he has something to tell you... give him a moment.');
+                        e.startDialog('zorthak', 'after_drink');
                     } else {
-                        e.showMessage('"*hic* Name\'s Zorthak. Used to be the best pilot in the sector... until they revoked my license. Could really use a drink but I\'m broke. Buy me one and I\'ll make it worth your while... I know things. Important things about those Draknoid scum."');
+                        e.startDialog('zorthak');
                     }
                 },
                 useItem: (e, itemId) => {
@@ -3482,6 +3832,21 @@ document.addEventListener('DOMContentLoaded', () => {
         id: 'shop',
         name: 'Trading Post',
         description: 'The interior of the trading post. An alien merchant stands behind a counter displaying various goods — weapons, tools, and curiosities from across the galaxy.',
+        onEnter: (e) => {
+            // AGI-inspired barriers: shop counter
+            e.addBarrier(40, 255, 420, 15);    // Counter front edge
+
+            // Foreground layer: counter top draws over player
+            e.addForegroundLayer(265, (ctx, eng) => {
+                ctx.fillStyle = '#665533';
+                ctx.fillRect(48, 255, 405, 3); // Counter front lip
+            });
+
+            // Edge transition: left exits to outpost
+            e.setEdgeTransition('left', (eng) => {
+                eng.goToRoom('outpost', 305, 310);
+            });
+        },
         draw: (ctx, w, h, eng) => {
             // Walls
             ctx.fillStyle = '#2a2a1a';
@@ -3795,11 +4160,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: 'The alien shopkeeper called Tiny (ironically).',
                 look: (e) => e.showMessage('A tall, lean alien with huge green eyes and a merchant\'s hat. Despite the name "Tiny" on the sign, he\'s actually quite imposing. He watches you with those huge, unblinking eyes.'),
                 talk: (e) => {
-                    if (e.getFlag('bought_ray')) {
-                        e.showMessage('"Pleasure doing business, friend! Come back anytime. I got a shipment of self-sealing stem bolts coming in next week!"');
-                    } else {
-                        e.showMessage('"Welcome, welcome! Tiny\'s Trading Post has everything a spacefarer needs! I buy and sell. Got anything interesting? That Pulsar Ray is only 30 buckazoids — real bargain!"');
-                    }
+                    e.startDialog('tiny');
                 },
                 useItem: (e, itemId) => {
                     if (itemId === 'crystal') {
@@ -3914,6 +4275,19 @@ document.addEventListener('DOMContentLoaded', () => {
         id: 'draknoid_ship',
         name: 'Draknoid Flagship',
         description: 'You\'ve infiltrated the Draknoid flagship. A massive chamber houses the stolen Quantum Drive prototype, protected by a shimmering force field. A Draknoid guard stands watch.',
+        onEnter: (e) => {
+            // AGI-inspired barriers: central platform, guard (when alive)
+            e.addBarrier(240, 280, 160, 10);   // Central platform base
+            if (!e.getFlag('guard_defeated')) {
+                e.addBarrier(90, 280, 70, 15); // Guard body blocks passage
+            }
+
+            // Foreground layer: platform surface draws over player walking behind
+            e.addForegroundLayer(285, (ctx, eng) => {
+                ctx.fillStyle = '#1a3a1a';
+                ctx.fillRect(248, 280, 145, 3);
+            });
+        },
         draw: (ctx, w, h, eng) => {
             // Dark alien ship interior
             gradientRect(ctx, 0, 0, w, h, '#0a150a', '#081008');

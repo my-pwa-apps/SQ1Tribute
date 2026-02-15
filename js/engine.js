@@ -91,6 +91,55 @@ class GameEngine {
         this.vrActive = false;
         this.vr = null;
 
+        // === AGI-INSPIRED SYSTEMS ===
+
+        // Horizon line (AGI default: 36 out of 168; scaled to 400px → ~86)
+        // Objects above horizon can't walk there (unless ignoring horizon)
+        this.horizon = 240; // Default: top of walkable area
+
+        // Priority/depth foreground layers (AGI OBJLIST y-sorting)
+        // Rooms can register draw callbacks that render AFTER the player
+        // based on Y-position, giving proper depth occlusion
+        this.foregroundLayers = []; // { y, draw(ctx, eng) }
+
+        // Walkable area barriers (AGI priority 0/1 control lines)
+        // Rooms can define rectangular barriers the player can't cross
+        this.barriers = []; // { x, y, w, h }
+
+        // Edge transitions (AGI EGOEDGE / NEWROOM)
+        // Rooms can define what happens when ego hits screen edges
+        this.edgeTransitions = { left: null, right: null, top: null, bottom: null };
+
+        // Animated NPC objects (AGI ANIOBJ system)
+        this.npcs = []; // AnimatedNPC instances
+
+        // Sierra-style text window (drawn on canvas, AGI PRINT/TEXTWIN)
+        this.textWindow = null; // { text, x, y, w, h, timer, duration }
+
+        // Step-based movement timing (AGI movefreq / moveclk)
+        this.stepSize = 3;       // pixels per step (AGI default: 1, scaled up for our 640px)
+        this.stepTime = 1;       // animation cycles between steps
+        this.stepCounter = 0;    // counts down like AGI moveclk
+
+        // === AGS-INSPIRED SYSTEMS ===
+
+        // Player idle animation (AGS Character.IdleView / IdleDelay)
+        // When player stands still for idleDelay ms, idle animation triggers
+        this.idleTimer = 0;          // ms since player last moved
+        this.idleDelay = 4000;       // ms before idle kicks in (AGS default ~20 game loops)
+        this.idleActive = false;     // whether idle anim is currently playing
+        this.idleFrame = 0;          // current idle animation frame
+        this.idleFrameTimer = 0;     // timer for idle frame cycling
+        this.idleCycleSpeed = 600;   // ms per idle frame
+
+        // Dialog tree system (AGS Dialog / DialogTopic / DialogOptions)
+        this.dialogs = {};           // registered dialog trees { id: DialogTree }
+        this.activeDialog = null;    // currently displayed dialog (or null)
+
+        // Depth scaling (AGS WalkableArea.ScalingNear / ScalingFar)
+        // Characters scale smaller when further away (near top of walkable area)
+        this.depthScaling = null;    // { nearY, farY, nearScale, farScale } or null to disable
+
         this.setupInput();
     }
 
@@ -119,6 +168,32 @@ class GameEngine {
                 return;
             }
             if (this.dead || this.won) return;
+            // AGS-inspired: dialog options click handling
+            if (this.activeDialog && this.activeDialog.phase === 'options') {
+                const coords = this.getCanvasCoords(e);
+                // Check if click is within the dialog options box
+                const lines = this.activeDialog.visibleOptions;
+                if (lines && lines.length > 0) {
+                    const lineH = 18;
+                    const pad = 12;
+                    const maxW = 440;
+                    const boxW = maxW + pad * 2;
+                    const boxH = lines.length * lineH + pad * 2 + 4;
+                    const boxX = Math.round((this.WIDTH - boxW) / 2);
+                    const boxY = Math.round((this.HEIGHT - boxH) / 2 - 20);
+                    if (coords.x >= boxX && coords.x <= boxX + boxW &&
+                        coords.y >= boxY + pad && coords.y <= boxY + pad + lines.length * lineH) {
+                        const idx = Math.floor((coords.y - boxY - pad) / lineH);
+                        if (idx >= 0 && idx < lines.length) {
+                            this.sound.uiClick();
+                            this.selectDialogOption(idx);
+                        }
+                    }
+                }
+                return;
+            }
+            // AGI-inspired: dismiss text window on click
+            if (this.textWindow) { this.dismissTextWindow(); return; }
             const coords = this.getCanvasCoords(e);
             this.handleClick(coords.x, coords.y);
         });
@@ -140,6 +215,50 @@ class GameEngine {
                 if (e.key === ' ' || e.key === 'Escape' || e.key === 'Enter') {
                     this.skipCutscene();
                 }
+                return;
+            }
+            // AGS-inspired: dialog option keyboard selection
+            if (this.activeDialog && this.activeDialog.phase === 'options') {
+                const lines = this.activeDialog.visibleOptions;
+                if (lines && lines.length > 0) {
+                    // Number keys 1-9 select options directly (AGS numbered options)
+                    if (e.key >= '1' && e.key <= '9') {
+                        const idx = parseInt(e.key) - 1;
+                        if (idx < lines.length) {
+                            this.sound.uiClick();
+                            this.selectDialogOption(idx);
+                        }
+                        return;
+                    }
+                    // Arrow keys navigate
+                    if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        this.activeDialog.selectedIndex = Math.max(0, (this.activeDialog.selectedIndex || 0) - 1);
+                        return;
+                    }
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        this.activeDialog.selectedIndex = Math.min(lines.length - 1, (this.activeDialog.selectedIndex || 0) + 1);
+                        return;
+                    }
+                    // Enter confirms selection
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        this.sound.uiClick();
+                        this.selectDialogOption(this.activeDialog.selectedIndex || 0);
+                        return;
+                    }
+                    // Escape closes dialog
+                    if (e.key === 'Escape') {
+                        this.activeDialog = null;
+                        this.textWindow = null;
+                        return;
+                    }
+                }
+                return;
+            }
+            // AGI-inspired: dismiss text window with Enter/Space/Escape
+            if (this.textWindow && (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape')) {
+                this.dismissTextWindow();
                 return;
             }
             if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -254,6 +373,7 @@ class GameEngine {
         this.roomTransition = 1.0; // Start fade-in
         this.exitCooldown = 500; // Prevent immediate re-exit when spawning near an exit
         this.sound.roomTransition();
+        this.clearRoomState(); // AGI-inspired: clear per-room state
         this.currentRoomId = roomId;
         if (px !== undefined) this.playerX = px;
         if (py !== undefined) this.playerY = py;
@@ -452,6 +572,430 @@ class GameEngine {
         }
     }
 
+    // === AGI-INSPIRED: PRIORITY/DEPTH SYSTEM (OBJLIST) ===
+
+    /** Register a foreground draw layer (drawn after player if y > player y).
+     *  Like AGI's y-sorted object list, lower Y = behind, higher Y = in front. */
+    addForegroundLayer(y, drawFn) {
+        this.foregroundLayers.push({ y, draw: drawFn });
+    }
+
+    clearForegroundLayers() {
+        this.foregroundLayers = [];
+    }
+
+    // === AGI-INSPIRED: WALKABLE AREA BARRIERS (CONTROL LINES) ===
+
+    /** Add a rectangular barrier the player cannot walk through.
+     *  Like AGI priority 0 (unconditional block) control lines. */
+    addBarrier(x, y, w, h) {
+        this.barriers.push({ x, y, w, h });
+    }
+
+    clearBarriers() {
+        this.barriers = [];
+    }
+
+    /** Check if a position collides with any barrier (AGI CanBHere).
+     *  Tests the player's baseline (feet position). */
+    collidesBarrier(px, py) {
+        // Player baseline is roughly a 14px-wide line at foot level
+        const halfW = 7;
+        for (const b of this.barriers) {
+            if (px + halfW > b.x && px - halfW < b.x + b.w &&
+                py >= b.y && py <= b.y + b.h) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // === AGI-INSPIRED: EDGE TRANSITIONS (EGOEDGE/NEWROOM) ===
+
+    /** Set what happens when ego hits a screen edge.
+     *  Like AGI's var[EGOEDGE] triggering room changes. */
+    setEdgeTransition(edge, callback) {
+        // edge: 'left', 'right', 'top', 'bottom'
+        this.edgeTransitions[edge] = callback;
+    }
+
+    clearEdgeTransitions() {
+        this.edgeTransitions = { left: null, right: null, top: null, bottom: null };
+    }
+
+    checkEdgeTransitions() {
+        if (this.exitCooldown > 0) return;
+        const margin = 5;
+        if (this.playerX <= 30 + margin && this.edgeTransitions.left) {
+            this.edgeTransitions.left(this);
+        } else if (this.playerX >= 610 - margin && this.edgeTransitions.right) {
+            this.edgeTransitions.right(this);
+        } else if (this.playerY <= this.horizon + margin && this.edgeTransitions.top) {
+            this.edgeTransitions.top(this);
+        } else if (this.playerY >= 370 - margin && this.edgeTransitions.bottom) {
+            this.edgeTransitions.bottom(this);
+        }
+    }
+
+    // === AGI-INSPIRED: SIERRA TEXT WINDOW (PRINT/TEXTWIN) ===
+
+    /** Show a Sierra-style text window on the canvas (like AGI's Print/Display).
+     *  Classic blue box with white border and yellow text. */
+    showTextWindow(text, opts) {
+        opts = opts || {};
+        const ctx = this.ctx;
+        ctx.font = '13px "Courier New"';
+
+        // Word-wrap text to fit dialogue width
+        const maxLineW = opts.maxWidth || 420;
+        const words = text.split(' ');
+        const lines = [];
+        let line = '';
+        for (const word of words) {
+            const test = line ? line + ' ' + word : word;
+            if (ctx.measureText(test).width > maxLineW) {
+                if (line) lines.push(line);
+                line = word;
+            } else {
+                line = test;
+            }
+        }
+        if (line) lines.push(line);
+
+        const lineH = 16;
+        const pad = 12;
+        const boxW = maxLineW + pad * 2 + 16;
+        const boxH = lines.length * lineH + pad * 2 + 4;
+        const boxX = opts.x !== undefined ? opts.x : Math.round((this.WIDTH - boxW) / 2);
+        const boxY = opts.y !== undefined ? opts.y : Math.round((this.HEIGHT - boxH) / 2 - 40);
+
+        this.textWindow = {
+            text: text,
+            lines: lines,
+            x: boxX, y: boxY, w: boxW, h: boxH,
+            timer: 0,
+            duration: opts.duration || 0, // 0 = click to dismiss
+            color: opts.color || '#FFFF55',
+            bgColor: opts.bgColor || '#0000AA'
+        };
+    }
+
+    /** Draw the Sierra-style text window (called during render). */
+    drawTextWindow(ctx) {
+        if (!this.textWindow) return;
+        const tw = this.textWindow;
+
+        // AGI-style box: solid EGA blue background, double border
+        ctx.fillStyle = tw.bgColor;
+        ctx.fillRect(tw.x, tw.y, tw.w, tw.h);
+
+        // Outer border (white)
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(tw.x + 1, tw.y + 1, tw.w - 2, tw.h - 2);
+
+        // Inner border (lighter blue)
+        ctx.strokeStyle = '#5555FF';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(tw.x + 4, tw.y + 4, tw.w - 8, tw.h - 8);
+
+        // Text
+        ctx.font = '13px "Courier New"';
+        ctx.fillStyle = tw.color;
+        ctx.textAlign = 'left';
+        const startY = tw.y + 12 + 10;
+        for (let i = 0; i < tw.lines.length; i++) {
+            ctx.fillText(tw.lines[i], tw.x + 16, startY + i * 16);
+        }
+
+        ctx.textAlign = 'left';
+    }
+
+    dismissTextWindow() {
+        this.textWindow = null;
+        // AGS-inspired: advance dialog state if in an active dialog
+        if (this.activeDialog) {
+            this._advanceDialog();
+        }
+    }
+
+    // === AGI-INSPIRED: ANIMATED NPC OBJECTS (ANIOBJ SYSTEM) ===
+
+    /** Register an NPC with AGI-style properties.
+     *  Like AGI's ANIOBJ struct with motion, cycling, priority. */
+    addNPC(npcDef) {
+        const npc = new AnimatedNPC(npcDef, this);
+        this.npcs.push(npc);
+        return npc;
+    }
+
+    removeNPC(id) {
+        this.npcs = this.npcs.filter(n => n.id !== id);
+    }
+
+    clearNPCs() {
+        this.npcs = [];
+    }
+
+    getNPC(id) {
+        return this.npcs.find(n => n.id === id) || null;
+    }
+
+    // === AGI-INSPIRED: ROOM SETUP HELPERS ===
+
+    /** Called by goToRoom — clears per-room AGI state */
+    clearRoomState() {
+        this.clearForegroundLayers();
+        this.clearBarriers();
+        this.clearEdgeTransitions();
+        this.clearNPCs();
+        this.textWindow = null;
+        this.activeDialog = null;
+        this.depthScaling = null;
+    }
+
+    // === AGS-INSPIRED: DEPTH SCALING (WalkableArea.ScalingNear/Far) ===
+
+    /** Set up perspective depth scaling for the current room.
+     *  Characters at nearY get nearScale, at farY get farScale, linearly interpolated.
+     *  e.g. setDepthScaling(280, 370, 0.7, 1.0) — smaller at top, full size at bottom */
+    setDepthScaling(farY, nearY, farScale, nearScale) {
+        this.depthScaling = { farY, nearY, farScale, nearScale };
+    }
+
+    /** Get the depth scale factor for a given Y position (AGS get_area_scaling). */
+    getDepthScale(y) {
+        if (!this.depthScaling) return 1.0;
+        const ds = this.depthScaling;
+        if (y <= ds.farY) return ds.farScale;
+        if (y >= ds.nearY) return ds.nearScale;
+        const t = (y - ds.farY) / (ds.nearY - ds.farY);
+        return ds.farScale + t * (ds.nearScale - ds.farScale);
+    }
+
+    // === AGS-INSPIRED: DIALOG TREE SYSTEM (Dialog/DialogTopic) ===
+
+    /** Register a dialog tree.
+     *  dialogDef: {
+     *    id: string,
+     *    topics: [{
+     *      id: string,
+     *      text: string,                    // NPC greeting / topic intro
+     *      options: [{
+     *        text: string,                   // option display text
+     *        response: string,               // NPC response
+     *        action?: function(engine),       // optional callback
+     *        nextTopic?: string,              // goto another topic (or null = return to options)
+     *        endDialog?: boolean,             // close dialog after this
+     *        once?: boolean,                  // disappear after chosen (AGS DFLG_OFFPERM)
+     *        condition?: function(engine),    // only show if returns true
+     *      }]
+     *    }],
+     *    startTopic: string                  // id of initial topic
+     *  }
+     */
+    registerDialog(dialogDef) {
+        this.dialogs[dialogDef.id] = {
+            ...dialogDef,
+            chosenOptions: {}  // track which options have been chosen (AGS DFLG_HASBEENCHOSEN)
+        };
+    }
+
+    /** Start a dialog conversation (AGS Dialog.Start). */
+    startDialog(dialogId, topicId) {
+        const dlg = this.dialogs[dialogId];
+        if (!dlg) return;
+        const topic = topicId
+            ? dlg.topics.find(t => t.id === topicId)
+            : dlg.topics.find(t => t.id === dlg.startTopic);
+        if (!topic) return;
+
+        // Show the NPC's greeting as a text window, then show options
+        this.activeDialog = {
+            dialogId: dialogId,
+            topicId: topic.id,
+            phase: 'greeting',  // 'greeting' -> 'options' -> 'response' -> back to 'options' or end
+            greetingText: topic.text,
+            responseText: null,
+            pendingAction: null,
+            pendingNextTopic: null,
+            pendingEnd: false
+        };
+
+        if (topic.text) {
+            this.showTextWindow(topic.text, { color: '#FFFFFF', duration: 0 });
+        } else {
+            // No greeting, skip to options
+            this.activeDialog.phase = 'options';
+            this._showDialogOptions();
+        }
+    }
+
+    /** Internal: display dialog options as a clickable list (AGS show_dialog_options). */
+    _showDialogOptions() {
+        const dlg = this.dialogs[this.activeDialog.dialogId];
+        const topic = dlg.topics.find(t => t.id === this.activeDialog.topicId);
+        if (!topic) { this.activeDialog = null; return; }
+
+        // Filter visible options (respecting once/condition flags)
+        const visibleOpts = [];
+        for (let i = 0; i < topic.options.length; i++) {
+            const opt = topic.options[i];
+            // Skip if it was a once-only option and already chosen
+            if (opt.once && dlg.chosenOptions[this.activeDialog.topicId + '_' + i]) continue;
+            // Skip if condition is specified and not met
+            if (opt.condition && !opt.condition(this)) continue;
+            visibleOpts.push({ index: i, opt });
+        }
+
+        if (visibleOpts.length === 0) {
+            // No options available — end dialog
+            this.activeDialog = null;
+            this.textWindow = null;
+            return;
+        }
+
+        // Build the dialog options display (AGS-style numbered list in blue box)
+        const lines = visibleOpts.map((v, idx) => {
+            const chosen = dlg.chosenOptions[this.activeDialog.topicId + '_' + v.index];
+            const prefix = (idx + 1) + '. ';
+            return { text: prefix + v.opt.text, chosen: !!chosen, optIndex: v.index };
+        });
+
+        this.activeDialog.phase = 'options';
+        this.activeDialog.visibleOptions = lines;
+        this.activeDialog.selectedIndex = 0; // keyboard selection
+
+        // We don't use showTextWindow for this — we render a custom options panel
+        this.textWindow = null; // clear any existing text window
+    }
+
+    /** Handle dialog option selection (by number key or click). */
+    selectDialogOption(displayIndex) {
+        if (!this.activeDialog || this.activeDialog.phase !== 'options') return;
+        const lines = this.activeDialog.visibleOptions;
+        if (displayIndex < 0 || displayIndex >= lines.length) return;
+
+        const dlg = this.dialogs[this.activeDialog.dialogId];
+        const topic = dlg.topics.find(t => t.id === this.activeDialog.topicId);
+        const optInfo = lines[displayIndex];
+        const opt = topic.options[optInfo.optIndex];
+
+        // Mark as chosen (AGS DFLG_HASBEENCHOSEN)
+        dlg.chosenOptions[this.activeDialog.topicId + '_' + optInfo.optIndex] = true;
+
+        // Show the player's line first, then NPC response
+        if (opt.response) {
+            this.activeDialog.phase = 'response';
+            this.activeDialog.responseText = opt.response;
+            this.activeDialog.pendingAction = opt.action || null;
+            this.activeDialog.pendingNextTopic = opt.nextTopic || null;
+            this.activeDialog.pendingEnd = !!opt.endDialog;
+            this.showTextWindow(opt.response, { color: '#FFFFFF', duration: 0 });
+        } else {
+            // No response text, execute immediately
+            if (opt.action) opt.action(this);
+            if (opt.endDialog) {
+                this.activeDialog = null;
+                this.textWindow = null;
+            } else if (opt.nextTopic) {
+                this.startDialog(this.activeDialog.dialogId, opt.nextTopic);
+            } else {
+                this._showDialogOptions();
+            }
+        }
+    }
+
+    /** Called when text window is dismissed during active dialog. */
+    _advanceDialog() {
+        if (!this.activeDialog) return false;
+
+        if (this.activeDialog.phase === 'greeting') {
+            // Greeting dismissed — show options
+            this.activeDialog.phase = 'options';
+            this._showDialogOptions();
+            return true;
+        }
+
+        if (this.activeDialog.phase === 'response') {
+            // Response dismissed — execute action, then next topic or back to options
+            const ad = this.activeDialog;
+            if (ad.pendingAction) ad.pendingAction(this);
+
+            if (ad.pendingEnd) {
+                this.activeDialog = null;
+                this.textWindow = null;
+            } else if (ad.pendingNextTopic) {
+                this.startDialog(ad.dialogId, ad.pendingNextTopic);
+            } else {
+                this._showDialogOptions();
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    /** Render the dialog options panel (called from render). */
+    _drawDialogOptions(ctx) {
+        if (!this.activeDialog || this.activeDialog.phase !== 'options') return;
+        const lines = this.activeDialog.visibleOptions;
+        if (!lines || lines.length === 0) return;
+
+        const lineH = 18;
+        const pad = 12;
+        const maxW = 440;
+        const boxW = maxW + pad * 2;
+        const boxH = lines.length * lineH + pad * 2 + 4;
+        const boxX = Math.round((this.WIDTH - boxW) / 2);
+        const boxY = Math.round((this.HEIGHT - boxH) / 2 - 20);
+
+        // AGS-style dialog box: dark blue with border
+        ctx.fillStyle = '#000088';
+        ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(boxX + 1, boxY + 1, boxW - 2, boxH - 2);
+        ctx.strokeStyle = '#5555FF';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8);
+
+        ctx.font = '13px "Courier New"';
+        ctx.textAlign = 'left';
+        const startY = boxY + pad + 14;
+        const sel = this.activeDialog.selectedIndex;
+
+        for (let i = 0; i < lines.length; i++) {
+            const isHover = i === sel;
+            const isRead = lines[i].chosen;
+
+            if (isHover) {
+                // AGS highlight color (yellow on hover)
+                ctx.fillStyle = '#FFFF55';
+            } else if (isRead) {
+                // AGS "read" dialog option color (dimmer)
+                ctx.fillStyle = '#888899';
+            } else {
+                // AGS "unread" dialog option color (player's speech color)
+                ctx.fillStyle = '#FFFFFF';
+            }
+
+            ctx.fillText(lines[i].text, boxX + pad + 8, startY + i * lineH);
+        }
+
+        // Detect mouse hover over dialog options
+        const my = this.mouseY;
+        const mx = this.mouseX;
+        if (mx >= boxX && mx <= boxX + boxW && my >= boxY + pad && my <= boxY + pad + lines.length * lineH) {
+            const hoverIdx = Math.floor((my - boxY - pad) / lineH);
+            if (hoverIdx >= 0 && hoverIdx < lines.length) {
+                this.activeDialog.selectedIndex = hoverIdx;
+            }
+        }
+
+        ctx.textAlign = 'left';
+    }
+
     // ---- Update Loop ----
     update(dt) {
         this.animTimer += dt;
@@ -481,21 +1025,30 @@ class GameEngine {
             this.playerTargetY = null;
             this.pendingAction = null;
             this.playerWalking = true;
-            // Determine facing
-            if (arrowLeft) { this.playerFacing = 'left'; this.playerDir = -1; }
+            // Determine facing (AGI-style: 8 directions mapped to 4 loops)
+            if (arrowLeft && arrowUp) { this.playerFacing = 'left'; this.playerDir = -1; }
+            else if (arrowRight && arrowUp) { this.playerFacing = 'right'; this.playerDir = 1; }
+            else if (arrowLeft && arrowDown) { this.playerFacing = 'left'; this.playerDir = -1; }
+            else if (arrowRight && arrowDown) { this.playerFacing = 'right'; this.playerDir = 1; }
+            else if (arrowLeft) { this.playerFacing = 'left'; this.playerDir = -1; }
             else if (arrowRight) { this.playerFacing = 'right'; this.playerDir = 1; }
             else if (arrowUp) { this.playerFacing = 'away'; }
             else if (arrowDown) { this.playerFacing = 'toward'; }
-            // Move X
+            // Move X (AGI-style: check barriers before committing)
             if (arrowLeft || arrowRight) {
                 const newX = Math.max(30, Math.min(610, this.playerX + this.playerSpeed * this.playerDir));
-                if (newX !== this.playerX) this.playerX = newX;
+                if (!this.collidesBarrier(newX, this.playerY)) {
+                    this.playerX = newX;
+                }
             }
-            // Move Y
+            // Move Y (respect horizon like AGI)
             if (arrowUp || arrowDown) {
                 const yDir = arrowUp ? -1 : 1;
-                const newY = Math.max(280, Math.min(370, this.playerY + this.playerSpeed * yDir));
-                if (newY !== this.playerY) this.playerY = newY;
+                const minY = Math.max(this.horizon, 280);
+                const newY = Math.max(minY, Math.min(370, this.playerY + this.playerSpeed * yDir));
+                if (!this.collidesBarrier(this.playerX, newY)) {
+                    this.playerY = newY;
+                }
             }
             this.playerFrameTimer += dt;
             if (this.playerFrameTimer > 140) {
@@ -522,6 +1075,8 @@ class GameEngine {
                     }
                 }
             }
+            // AGI-inspired: check screen edge transitions
+            this.checkEdgeTransitions();
         }
         // Click-target walking
         else if (this.playerWalking && (this.playerTargetX !== null || this.playerTargetY !== null)) {
@@ -551,11 +1106,25 @@ class GameEngine {
                 // Move proportionally
                 const mx = (dx / dist) * this.playerSpeed;
                 const my = (dy / dist) * this.playerSpeed;
-                this.playerX += mx;
-                this.playerY += my;
-                // Clamp
-                this.playerX = Math.max(30, Math.min(610, this.playerX));
-                this.playerY = Math.max(280, Math.min(370, this.playerY));
+                const newPX = Math.max(30, Math.min(610, this.playerX + mx));
+                const minY = Math.max(this.horizon, 280);
+                const newPY = Math.max(minY, Math.min(370, this.playerY + my));
+                // AGI-inspired: check barriers before committing move
+                if (!this.collidesBarrier(newPX, newPY)) {
+                    this.playerX = newPX;
+                    this.playerY = newPY;
+                } else if (!this.collidesBarrier(newPX, this.playerY)) {
+                    // Slide along X only (like AGI allowing partial movement)
+                    this.playerX = newPX;
+                } else if (!this.collidesBarrier(this.playerX, newPY)) {
+                    // Slide along Y only
+                    this.playerY = newPY;
+                } else {
+                    // Completely blocked — stop walking (AGI sets BLOCKED flag)
+                    this.playerWalking = false;
+                    this.playerTargetX = null;
+                    this.playerTargetY = null;
+                }
                 this.playerFrameTimer += dt;
                 if (this.playerFrameTimer > 140) {
                     this.playerFrame = (this.playerFrame + 1) % 4;
@@ -565,10 +1134,46 @@ class GameEngine {
             }
         } else {
             this.playerFrame = 0;
+
+            // AGS-inspired: player idle animation (Character.IdleView / IdleDelay)
+            // When standing still, increment idle timer; after threshold, start idle anim
+            this.idleTimer += dt;
+            if (this.idleTimer >= this.idleDelay && !this.idleActive) {
+                this.idleActive = true;
+                this.idleFrame = 0;
+                this.idleFrameTimer = 0;
+            }
+            if (this.idleActive) {
+                this.idleFrameTimer += dt;
+                if (this.idleFrameTimer >= this.idleCycleSpeed) {
+                    this.idleFrame = (this.idleFrame + 1) % 4;
+                    this.idleFrameTimer = 0;
+                }
+            }
+        }
+
+        // Reset idle timer when player moves (AGS reset_character_idling_time)
+        if (this.playerWalking || arrowLeft || arrowRight || arrowUp || arrowDown) {
+            this.idleTimer = 0;
+            this.idleActive = false;
+            this.idleFrame = 0;
         }
 
         const room = this.rooms[this.currentRoomId];
         if (room && room.onUpdate) room.onUpdate(this, dt);
+
+        // AGI-inspired: update NPCs (motion, cycling, collision)
+        for (const npc of this.npcs) {
+            npc.update(dt, this);
+        }
+
+        // AGI-inspired: dismiss timed text windows
+        if (this.textWindow && this.textWindow.duration > 0) {
+            this.textWindow.timer += dt;
+            if (this.textWindow.timer >= this.textWindow.duration) {
+                this.textWindow = null;
+            }
+        }
 
         // Room transition fade
         if (this.roomTransition > 0) {
@@ -604,7 +1209,38 @@ class GameEngine {
 
         const room = this.rooms[this.currentRoomId];
         if (room && room.draw) room.draw(ctx, this.WIDTH, this.HEIGHT, this);
-        if (this.playerVisible && !this.dead) this.drawPlayer(ctx);
+
+        // === AGI-INSPIRED: Y-SORTED RENDERING (OBJLIST priority system) ===
+        // Collect all drawable entities with Y-positions, sort back-to-front
+        const drawables = [];
+
+        // Player
+        if (this.playerVisible && !this.dead) {
+            drawables.push({ y: this.playerY, draw: () => this.drawPlayer(ctx) });
+        }
+
+        // NPCs
+        for (const npc of this.npcs) {
+            if (npc.visible) {
+                const npcRef = npc;
+                drawables.push({ y: npc.y, draw: () => npcRef.draw(ctx, this) });
+            }
+        }
+
+        // Foreground layers registered by rooms
+        for (const layer of this.foregroundLayers) {
+            const layerRef = layer;
+            drawables.push({ y: layerRef.y, draw: () => layerRef.draw(ctx, this) });
+        }
+
+        // Sort by Y (lower Y = behind, drawn first — AGI's MakeObjList)
+        drawables.sort((a, b) => a.y - b.y);
+
+        // Draw all in sorted order
+        for (const d of drawables) {
+            d.draw();
+        }
+
         this.drawHotspotLabel(ctx, room);
 
         // Current action indicator (Sierra-style menu bar)
@@ -626,6 +1262,12 @@ class GameEngine {
             ctx.fillText(`Score: ${this.score} / ${this.maxScore}`, this.WIDTH - 8, 12);
             ctx.textAlign = 'left';
         }
+
+        // AGI-inspired: Sierra text window overlay
+        this.drawTextWindow(ctx);
+
+        // AGS-inspired: dialog options overlay
+        this._drawDialogOptions(ctx);
 
         if (this.dead) this.drawDeathOverlay(ctx);
         if (this.won) this.drawWinOverlay(ctx);
@@ -915,11 +1557,30 @@ class GameEngine {
         const walking = this.playerWalking;
         const frame = this.playerFrame;
         // Perspective scale: smaller when further away (low Y)
-        const s = 1.85 + (y - 280) / 90 * 0.3;
+        let s = 1.85 + (y - 280) / 90 * 0.3;
+        // AGS-inspired: depth scaling multiplier from walkable area
+        if (this.depthScaling) {
+            s *= this.getDepthScale(y);
+        }
+
+        // AGS-inspired: idle animation fidgets
+        const idlePhase = this.idleActive ? this.idleFrame : -1;
+        // Idle weight shift (slight body sway)
+        const idleShiftX = (idlePhase === 1) ? Math.sin(this.idleFrameTimer * 0.003) * 1.2 * s : 0;
+        // Idle head tilt
+        const idleHeadTilt = (idlePhase === 2) ? Math.sin(this.idleFrameTimer * 0.004) * 0.8 * s : 0;
+        // Idle foot tap
+        const idleFootTap = (idlePhase === 3) ? Math.abs(Math.sin(this.idleFrameTimer * 0.008)) * 2 * s : 0;
 
         // Leg animation
-        const ls = walking ? Math.sin(frame * Math.PI / 2) * 3 * s : 0;
+        const ls = walking ? Math.sin(frame * Math.PI / 2) * 3 * s : (idleFootTap > 0 ? -idleFootTap : 0);
         const as = walking ? Math.cos(frame * Math.PI / 2) * 2 * s : 0;
+
+        // AGS-inspired: apply idle body sway via translate
+        if (idleShiftX !== 0) {
+            ctx.save();
+            ctx.translate(idleShiftX, 0);
+        }
 
         if (facing === 'toward') {
             // ---- FRONT VIEW (facing camera) ----
@@ -1264,6 +1925,29 @@ class GameEngine {
             ctx.fillStyle = '#EEBB77';
             ctx.fillRect(x - 1 * s, y - 11.5 * s, 3 * s, 0.5 * s);
         }
+
+        // AGS-inspired: restore idle body sway translate
+        if (idleShiftX !== 0) {
+            ctx.restore();
+        }
+
+        // AGS-inspired: idle eye blink overlay (phase 0)
+        if (idlePhase === 0) {
+            const blinkCycle = Math.sin(this.idleFrameTimer * 0.006);
+            if (blinkCycle > 0.85) {
+                ctx.fillStyle = '#FFCC88';
+                if (facing === 'toward') {
+                    ctx.fillRect(x - 3 * s, y - 15 * s, 2.5 * s, 2 * s);
+                    ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
+                } else if (facing !== 'away') {
+                    if (dir > 0) {
+                        ctx.fillRect(x + 0 * s, y - 15 * s, 3 * s, 2 * s);
+                    } else {
+                        ctx.fillRect(x - 3 * s, y - 15 * s, 3 * s, 2 * s);
+                    }
+                }
+            }
+        }
     }
 
     // ---- Hotspot Label ----
@@ -1568,5 +2252,272 @@ class GameEngine {
             requestAnimationFrame(loop);
         };
         requestAnimationFrame(loop);
+    }
+}
+
+
+// ============================================================
+// AGI-INSPIRED: ANIMATED NPC CLASS (ANIOBJ)
+// Based on Sierra's original AGI ANIOBJ structure from ANIOBJ.H
+// Supports motion types: NORMAL, WANDER, FOLLOW, MOVETO
+// Supports cycling types: NORMAL, ENDLOOP, REVERSE, STOPPED
+// ============================================================
+
+class AnimatedNPC {
+    /**
+     * Create an animated NPC, modeled after AGI's ANIOBJ struct.
+     * @param {Object} def - NPC definition
+     * @param {string} def.id - Unique identifier
+     * @param {number} def.x - Initial X position
+     * @param {number} def.y - Initial Y position (baseline, like AGI)
+     * @param {Function} def.draw - Draw function: draw(ctx, eng, npc)
+     * @param {string} [def.motionType] - 'normal','wander','follow','moveto'
+     * @param {number} [def.stepSize] - Pixels per step (AGI stepsize)
+     * @param {number} [def.stepTime] - Ms between steps (AGI movefreq scaled)
+     * @param {number} [def.cycleTime] - Ms between animation frames (AGI cyclfreq)
+     * @param {number} [def.celCount] - Number of animation frames
+     * @param {boolean} [def.fixedPriority] - If true, ignores y-sorting
+     * @param {number} [def.priority] - Fixed priority value
+     * @param {boolean} [def.ignoreBarriers] - If true, walks through barriers
+     * @param {boolean} [def.ignoreHorizon] - If true, can go above horizon
+     * @param {Object} [def.motionParams] - Parameters for motion type
+     */
+    constructor(def, engine) {
+        this.id = def.id;
+        this.x = def.x || 0;
+        this.y = def.y || 310;
+        this.drawFn = def.draw;
+        this.visible = def.visible !== false;
+
+        // AGI motion system
+        this.motionType = def.motionType || 'normal';
+        this.stepSize = def.stepSize || 2;
+        this.stepTime = def.stepTime || 200;  // ms between moves
+        this.stepCounter = 0;
+        this.direction = 0; // 0=stopped, 1-8 like AGI (1=N, 2=NE, 3=E, etc.)
+        this.blocked = false;
+        this.stopped = false;
+        this.ignoreBarriers = def.ignoreBarriers || false;
+        this.ignoreHorizon = def.ignoreHorizon || false;
+        this.fixedPriority = def.fixedPriority || false;
+        this.priority = def.priority || 0;
+
+        // AGI facing (auto-select loop based on direction)
+        this.facing = def.facing || 'toward'; // 'left','right','toward','away'
+
+        // AGI animation cycling
+        this.cycleTime = def.cycleTime || 250;  // ms between frames
+        this.cycleCounter = 0;
+        this.cel = 0;                           // current frame
+        this.celCount = def.celCount || 1;      // total frames
+        this.cycleType = def.cycleType || 'normal'; // 'normal','endloop','reverse','stopped'
+
+        // Previous position (for collision/stopped detection)
+        this.prevX = this.x;
+        this.prevY = this.y;
+
+        // Motion parameters (like AGI parms[])
+        this.motionParams = def.motionParams || {};
+
+        // Wander state
+        this._wanderDist = 0;
+        this._wanderDir = 0;
+
+        // Follow/moveto state
+        this._moveTargetX = this.motionParams.targetX || 0;
+        this._moveTargetY = this.motionParams.targetY || 0;
+        this._onArrival = this.motionParams.onArrival || null;
+
+        // Callback for when NPC is clicked
+        this.onClick = def.onClick || null;
+    }
+
+    // AGI direction deltas (0=none, 1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW)
+    static xs = [0, 0, 1, 1, 1, 0, -1, -1, -1];
+    static ys = [0, -1, -1, 0, 1, 1, 1, 0, -1];
+
+    // AGI-style loop selection tables
+    static twoLoop  = [4, 4, 0, 0, 0, 4, 1, 1, 1]; // S,S,R,R,R,S,L,L,L
+    static fourLoop = [4, 3, 0, 0, 0, 2, 1, 1, 1]; // S,B,R,R,R,F,L,L,L
+
+    /** AGI-style: compute direction from current position to target. */
+    static moveDirection(ox, oy, nx, ny, delta) {
+        const newdir = [[8, 1, 2], [7, 0, 3], [6, 5, 4]];
+        const idx = (d, threshold) => d <= -threshold ? 0 : d >= threshold ? 2 : 1;
+        return newdir[idx(ny - oy, delta)][idx(nx - ox, delta)];
+    }
+
+    /** Update the NPC's direction based on motion type (AGI ObjDir). */
+    updateDirection(engine) {
+        switch (this.motionType) {
+            case 'wander':
+                this._wander();
+                break;
+            case 'follow':
+                this._follow(engine);
+                break;
+            case 'moveto':
+                this._moveTo();
+                break;
+        }
+    }
+
+    /** AGI-style wander: pick random direction and distance. */
+    _wander() {
+        if (this._wanderDist <= 0 || this.stopped) {
+            this.direction = Math.floor(Math.random() * 9); // 0-8
+            this._wanderDist = Math.floor(Math.random() * 30) + 5;
+        }
+        this._wanderDist -= this.stepSize;
+    }
+
+    /** AGI-style follow: move toward ego. */
+    _follow(engine) {
+        const endDist = this.motionParams.followDist || 20;
+        const dir = AnimatedNPC.moveDirection(
+            this.x, this.y,
+            engine.playerX, engine.playerY,
+            endDist
+        );
+        if (dir === 0) {
+            // Arrived
+            this.direction = 0;
+            this.motionType = 'normal';
+            if (this._onArrival) this._onArrival(engine, this);
+            return;
+        }
+        if (this.stopped) {
+            // Blocked — try random direction (AGI follow behavior)
+            this.direction = Math.floor(Math.random() * 8) + 1;
+            this._wanderDist = Math.floor(Math.random() * 15) + 5;
+        } else {
+            this.direction = dir;
+        }
+    }
+
+    /** AGI-style moveto: move toward target coordinates. */
+    _moveTo() {
+        this.direction = AnimatedNPC.moveDirection(
+            this.x, this.y,
+            this._moveTargetX, this._moveTargetY,
+            this.stepSize
+        );
+        if (this.direction === 0) {
+            this.motionType = 'normal';
+            if (this._onArrival) this._onArrival(null, this);
+        }
+    }
+
+    /** Start a moveTo motion (like AGI MoveObj). */
+    startMoveTo(x, y, onArrival) {
+        this.motionType = 'moveto';
+        this._moveTargetX = x;
+        this._moveTargetY = y;
+        this._onArrival = onArrival || null;
+    }
+
+    /** Start following ego (like AGI FollowEgo). */
+    startFollow(dist, onArrival) {
+        this.motionType = 'follow';
+        this.motionParams.followDist = dist || 20;
+        this._onArrival = onArrival || null;
+    }
+
+    /** Start wandering (like AGI StartWander). */
+    startWander() {
+        this.motionType = 'wander';
+        this._wanderDist = 0;
+    }
+
+    /** Stop all motion (like AGI StopMotion). */
+    stopMotion() {
+        this.motionType = 'normal';
+        this.direction = 0;
+    }
+
+    /** Update facing based on current direction (AGI loop selection). */
+    updateFacing() {
+        if (this.direction === 0) return;
+        const facings = ['toward', 'away', 'right', 'right', 'right', 'toward', 'left', 'left', 'left'];
+        this.facing = facings[this.direction];
+    }
+
+    /** Advance animation cel (AGI AdvanceCel). */
+    advanceCel() {
+        const last = this.celCount - 1;
+        switch (this.cycleType) {
+            case 'normal':
+                this.cel = (this.cel + 1) > last ? 0 : this.cel + 1;
+                break;
+            case 'endloop':
+                if (this.cel >= last) {
+                    this.cycleType = 'stopped';
+                    this.direction = 0;
+                } else {
+                    this.cel++;
+                }
+                break;
+            case 'reverse':
+                this.cel = this.cel > 0 ? this.cel - 1 : last;
+                break;
+            case 'stopped':
+                break;
+        }
+    }
+
+    /** Main update — called each frame (AGI Animate cycle). */
+    update(dt, engine) {
+        if (!this.visible) return;
+
+        // Step timing (AGI moveclk)
+        this.stepCounter += dt;
+        if (this.stepCounter >= this.stepTime) {
+            this.stepCounter = 0;
+
+            // Save previous position for stopped detection
+            this.prevX = this.x;
+            this.prevY = this.y;
+
+            // Update direction based on motion type
+            this.updateDirection(engine);
+
+            // Move in current direction
+            if (this.direction > 0 && this.direction <= 8) {
+                const nx = this.x + AnimatedNPC.xs[this.direction] * this.stepSize;
+                const ny = this.y + AnimatedNPC.ys[this.direction] * this.stepSize;
+
+                // Border check (AGI MOVEOBJS)
+                const clampedX = Math.max(30, Math.min(610, nx));
+                const horizon = this.ignoreHorizon ? 0 : engine.horizon;
+                const clampedY = Math.max(Math.max(horizon, 280), Math.min(370, ny));
+
+                // Barrier check (AGI CanBHere)
+                if (this.ignoreBarriers || !engine.collidesBarrier(clampedX, clampedY)) {
+                    this.x = clampedX;
+                    this.y = clampedY;
+                }
+            }
+
+            // Stopped detection (AGI STOPPED flag)
+            this.stopped = (this.x === this.prevX && this.y === this.prevY);
+
+            // Update facing from direction
+            this.updateFacing();
+        }
+
+        // Animation cycling (AGI cycleclk)
+        if (this.cycleType !== 'stopped' && this.celCount > 1) {
+            this.cycleCounter += dt;
+            if (this.cycleCounter >= this.cycleTime) {
+                this.cycleCounter = 0;
+                this.advanceCel();
+            }
+        }
+    }
+
+    /** Draw the NPC — delegates to the custom draw function. */
+    draw(ctx, engine) {
+        if (!this.visible || !this.drawFn) return;
+        this.drawFn(ctx, engine, this);
     }
 }
