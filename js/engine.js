@@ -216,7 +216,7 @@ class GameEngine {
             this.keysDown[e.key] = true;
             this.sound.init();
             if (this.cutscene) {
-                if (e.key === ' ' || e.key === 'Escape' || e.key === 'Enter') {
+                if (this.cutscene.onAdvance || e.key === ' ' || e.key === 'Escape' || e.key === 'Enter') {
                     this.skipCutscene();
                 }
                 return;
@@ -462,19 +462,26 @@ class GameEngine {
 
     // ---- Cutscene System ----
     playCutscene(opts) {
-        // opts: { duration, draw(ctx, w, h, progress, elapsed), onEnd() }
+        // opts: { duration, draw(ctx, w, h, progress, elapsed), onEnd(), onAdvance(), skippable }
         this.cutscene = {
             elapsed: 0,
             duration: opts.duration || 3000,
             draw: opts.draw,
             onEnd: opts.onEnd || (() => {}),
+            onAdvance: opts.onAdvance || null,
             skippable: opts.skippable !== false
         };
         this.playerVisible = false;
     }
 
     skipCutscene() {
-        if (this.cutscene && this.cutscene.skippable) {
+        if (!this.cutscene) return;
+        // Phase-advancing cutscenes: click advances instead of skipping
+        if (this.cutscene.onAdvance) {
+            this.cutscene.onAdvance();
+            return;
+        }
+        if (this.cutscene.skippable) {
             const onEnd = this.cutscene.onEnd;
             this.cutscene = null;
             this.playerVisible = true;
@@ -1643,7 +1650,7 @@ class GameEngine {
             else idleHeadOfs = 0;                                   // center
         }
 
-        // Foot tap: discrete 2-frame tap cycle
+        // Foot tap: discrete 2-frame tap — right foot only (impatient)
         let idleFootTap = 0;
         if (idleType === 'feettap') {
             const tapFrame = Math.floor(idleT / 200) % 2; // alternates every 200ms
@@ -1652,26 +1659,33 @@ class GameEngine {
 
         // Blink: eyes close for the duration (drawn later as overlay)
 
-        // Leg animation
-        const ls = walking ? Math.sin(frame * Math.PI / 2) * 3 * s : (idleFootTap > 0 ? -idleFootTap : 0);
+        // Leg animation — separate left/right so only right foot taps
+        let leftLeg = 0, rightLeg = 0;
+        if (walking) {
+            const walkCycle = Math.sin(frame * Math.PI / 2) * 3 * s;
+            leftLeg = walkCycle;
+            rightLeg = -walkCycle;
+        } else if (idleFootTap > 0) {
+            rightLeg = -idleFootTap; // only right foot lifts
+        }
         const as = walking ? Math.cos(frame * Math.PI / 2) * 2 * s : 0;
 
         if (facing === 'toward') {
             // ---- FRONT VIEW (facing camera) ----
             // Legs
             ctx.fillStyle = '#2828AA';
-            ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + ls);
-            ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s - ls);
+            ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + leftLeg);
+            ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s + rightLeg);
             ctx.fillStyle = '#3535BB';
-            ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + ls);
-            ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s - ls);
+            ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + leftLeg);
+            ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s + rightLeg);
             // Boots
             ctx.fillStyle = '#222222';
-            ctx.fillRect(x - 5 * s, y + 9 * s + ls, 4 * s, 3 * s);
-            ctx.fillRect(x, y + 9 * s - ls, 4 * s, 3 * s);
+            ctx.fillRect(x - 5 * s, y + 9 * s + leftLeg, 4 * s, 3 * s);
+            ctx.fillRect(x, y + 9 * s + rightLeg, 4 * s, 3 * s);
             ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(x - 5 * s, y + 11 * s + ls, 5 * s, 1 * s);
-            ctx.fillRect(x, y + 11 * s - ls, 5 * s, 1 * s);
+            ctx.fillRect(x - 5 * s, y + 11 * s + leftLeg, 5 * s, 1 * s);
+            ctx.fillRect(x, y + 11 * s + rightLeg, 5 * s, 1 * s);
             // Body
             ctx.fillStyle = '#4444DD';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
@@ -1778,18 +1792,18 @@ class GameEngine {
             // ---- BACK VIEW (facing away from camera) ----
             // Legs
             ctx.fillStyle = '#2828AA';
-            ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + ls);
-            ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s - ls);
+            ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + leftLeg);
+            ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s + rightLeg);
             ctx.fillStyle = '#2020AA';
-            ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + ls);
-            ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s - ls);
+            ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + leftLeg);
+            ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s + rightLeg);
             // Boots
             ctx.fillStyle = '#222222';
-            ctx.fillRect(x - 5 * s, y + 9 * s + ls, 4 * s, 3 * s);
-            ctx.fillRect(x, y + 9 * s - ls, 4 * s, 3 * s);
+            ctx.fillRect(x - 5 * s, y + 9 * s + leftLeg, 4 * s, 3 * s);
+            ctx.fillRect(x, y + 9 * s + rightLeg, 4 * s, 3 * s);
             ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(x - 5 * s, y + 11 * s + ls, 5 * s, 1 * s);
-            ctx.fillRect(x, y + 11 * s - ls, 5 * s, 1 * s);
+            ctx.fillRect(x - 5 * s, y + 11 * s + leftLeg, 5 * s, 1 * s);
+            ctx.fillRect(x, y + 11 * s + rightLeg, 5 * s, 1 * s);
             // Body (back of uniform, darker)
             ctx.fillStyle = '#3838CC';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
@@ -1843,24 +1857,24 @@ class GameEngine {
             // ---- SIDE VIEW (left or right) ---- [existing sprite]
             // Legs
             ctx.fillStyle = '#2828AA';
-            ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + ls);
-            ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s - ls);
+            ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + leftLeg);
+            ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s + rightLeg);
             ctx.fillStyle = '#3535BB';
-            ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + ls);
-            ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s - ls);
+            ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + leftLeg);
+            ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s + rightLeg);
             ctx.fillStyle = '#2020AA';
-            ctx.fillRect(x - 4 * s, y + 5 * s + Math.max(ls, 0), 3 * s, 1 * s);
-            ctx.fillRect(x + 1 * s, y + 5 * s - Math.min(ls, 0), 3 * s, 1 * s);
+            ctx.fillRect(x - 4 * s, y + 5 * s + Math.max(leftLeg, 0), 3 * s, 1 * s);
+            ctx.fillRect(x + 1 * s, y + 5 * s + Math.max(rightLeg, 0), 3 * s, 1 * s);
             // Boots
             ctx.fillStyle = '#222222';
-            ctx.fillRect(x - 5 * s, y + 9 * s + ls, 4 * s, 3 * s);
-            ctx.fillRect(x, y + 9 * s - ls, 4 * s, 3 * s);
+            ctx.fillRect(x - 5 * s, y + 9 * s + leftLeg, 4 * s, 3 * s);
+            ctx.fillRect(x, y + 9 * s + rightLeg, 4 * s, 3 * s);
             ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(x - 5 * s, y + 11 * s + ls, 5 * s, 1 * s);
-            ctx.fillRect(x, y + 11 * s - ls, 5 * s, 1 * s);
+            ctx.fillRect(x - 5 * s, y + 11 * s + leftLeg, 5 * s, 1 * s);
+            ctx.fillRect(x, y + 11 * s + rightLeg, 5 * s, 1 * s);
             ctx.fillStyle = '#444444';
-            ctx.fillRect(x - 4 * s, y + 9 * s + ls, 2 * s, 1 * s);
-            ctx.fillRect(x + 1 * s, y + 9 * s - ls, 2 * s, 1 * s);
+            ctx.fillRect(x - 4 * s, y + 9 * s + leftLeg, 2 * s, 1 * s);
+            ctx.fillRect(x + 1 * s, y + 9 * s + rightLeg, 2 * s, 1 * s);
             // Body
             ctx.fillStyle = '#4444DD';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);

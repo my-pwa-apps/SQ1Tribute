@@ -207,182 +207,219 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========== INTRO CUTSCENE: WAKING UP + ATTACK ==========
     engine.onGameStart = () => {
+        let introPhase = 0;
+        // Phases: 0=ship info, 1=sleeping, 2=waking up, 3=warning, 4=attack, 5=emergency
+        // Phases 0-2 wait for click/key to advance; 3-5 are timed
+        const phaseWaiting = [true, true, true, false, false, false];
+        let phaseReady = false; // true once current phase text is fully visible
+        let phaseElapsed = 0;  // ms into current phase
+
+        // Helper: draw the real broom closet room
+        function drawRoom(ctx, w, h, alpha) {
+            if (alpha !== undefined && alpha < 1) ctx.globalAlpha = alpha;
+            const room = engine.rooms['broom_closet'];
+            if (room && room.draw) room.draw(ctx, w, h, engine);
+            ctx.globalAlpha = 1;
+        }
+
+        // Helper: draw "click to continue" prompt
+        function drawContinuePrompt(ctx, w, h) {
+            const blink = Math.floor(Date.now() / 500) % 2;
+            if (blink) {
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.font = '9px "Courier New"';
+                ctx.textAlign = 'center';
+                ctx.fillText('[ Click or press any key to continue ]', w / 2, h - 12);
+                ctx.textAlign = 'left';
+            }
+        }
+
         engine.playCutscene({
-            duration: 18000,
-            skippable: true,
+            duration: 999999, // effectively infinite — ended by onAdvance
+            skippable: false,
+            onAdvance: () => {
+                if (phaseWaiting[introPhase] && phaseReady) {
+                    introPhase++;
+                    phaseElapsed = 0;
+                    phaseReady = false;
+                } else if (!phaseWaiting[introPhase]) {
+                    // During timed phases, click skips to end
+                    introPhase = 6;
+                }
+                // End cutscene when past last phase
+                if (introPhase >= 6) {
+                    engine.screenShake = 0;
+                    engine.cutscene = null;
+                    engine.playerVisible = true;
+                    engine.goToRoom('broom_closet', 320, 310);
+                }
+            },
             draw: (ctx, w, h, progress, elapsed) => {
+                // Track per-phase elapsed
+                phaseElapsed += 16.7; // ~60fps approximation
+
                 ctx.fillStyle = '#000';
                 ctx.fillRect(0, 0, w, h);
 
-                // Phase 1 (0-3s): Black screen with ship status text fading in
-                if (elapsed < 3000) {
-                    const fade = Math.min(elapsed / 1500, 1);
-                    ctx.fillStyle = `rgba(85,255,85,${fade * 0.7})`;
-                    ctx.font = '10px "Courier New"';
+                // === PHASE 0: Ship status text on black ===
+                if (introPhase === 0) {
+                    const fade = Math.min(phaseElapsed / 1500, 1);
+                    ctx.fillStyle = `rgba(85,255,85,${fade * 0.8})`;
+                    ctx.font = '12px "Courier New"';
                     ctx.textAlign = 'center';
-                    ctx.fillText('ISS CONSTELLATION  -  DEEP SPACE SURVEY VESSEL', w / 2, 80);
-                    ctx.fillText('CREW: 147  |  MISSION DAY: 2,847', w / 2, 100);
-                    ctx.fillText('SECTOR: GAMMA QUADRANT, UNCHARTED ZONE', w / 2, 120);
-                    if (elapsed > 1500) {
-                        const fade2 = Math.min((elapsed - 1500) / 1000, 1);
-                        ctx.fillStyle = `rgba(170,170,170,${fade2 * 0.6})`;
-                        ctx.font = '8px "Courier New"';
-                        ctx.fillText('SHIP STATUS: ALL SYSTEMS NOMINAL', w / 2, 160);
-                        ctx.fillText('TIME: 03:47 SHIP STANDARD', w / 2, 175);
+                    ctx.fillText('ISS CONSTELLATION', w / 2, 70);
+                    ctx.fillText('DEEP SPACE SURVEY VESSEL', w / 2, 88);
+                    ctx.font = '10px "Courier New"';
+                    ctx.fillStyle = `rgba(85,255,85,${fade * 0.6})`;
+                    ctx.fillText('CREW: 147  |  MISSION DAY: 2,847', w / 2, 120);
+                    ctx.fillText('SECTOR: GAMMA QUADRANT, UNCHARTED ZONE', w / 2, 140);
+
+                    if (phaseElapsed > 1800) {
+                        const fade2 = Math.min((phaseElapsed - 1800) / 1200, 1);
+                        ctx.fillStyle = `rgba(170,170,170,${fade2 * 0.7})`;
+                        ctx.fillText('SHIP STATUS: ALL SYSTEMS NOMINAL', w / 2, 180);
+                        ctx.fillText('TIME: 03:47 SHIP STANDARD', w / 2, 200);
                     }
-                    if (elapsed > 2200) {
-                        const fade3 = Math.min((elapsed - 2200) / 600, 1);
-                        ctx.fillStyle = `rgba(170,170,170,${fade3 * 0.5})`;
-                        ctx.font = '8px "Courier New"';
-                        ctx.fillText('LOCATION: SUPPLY CLOSET J-6', w / 2, 210);
+                    if (phaseElapsed > 3200) {
+                        const fade3 = Math.min((phaseElapsed - 3200) / 800, 1);
+                        ctx.fillStyle = `rgba(170,170,170,${fade3 * 0.6})`;
+                        ctx.fillText('LOCATION: SUPPLY CLOSET J-6', w / 2, 240);
+                    }
+                    if (phaseElapsed > 4200) {
+                        const fade4 = Math.min((phaseElapsed - 4200) / 800, 1);
+                        ctx.fillStyle = `rgba(200,200,200,${fade4 * 0.7})`;
+                        ctx.font = '11px "Courier New"';
+                        ctx.fillText('Another quiet night on the Constellation...', w / 2, 290);
+                        ctx.fillText('Or so you thought.', w / 2, 310);
+                        if (fade4 >= 1) phaseReady = true;
                     }
                     ctx.textAlign = 'left';
+                    if (phaseReady) drawContinuePrompt(ctx, w, h);
                 }
 
-                // Phase 2 (3-7s): Broom closet fades in dimly, character sleeping
-                else if (elapsed < 7000) {
-                    const roomFade = Math.min((elapsed - 3000) / 2000, 1);
-                    ctx.globalAlpha = roomFade * 0.4;
-                    // Simplified broom closet background
-                    ctx.fillStyle = '#38384e';
-                    ctx.fillRect(0, 0, w, 275);
-                    ctx.fillStyle = '#484860';
-                    ctx.fillRect(0, 275, w, 125);
-                    // Door
-                    ctx.fillStyle = '#4e5e72';
-                    ctx.fillRect(270, 42, 100, 233);
-                    ctx.fillStyle = '#5a6e84';
-                    ctx.fillRect(276, 48, 88, 221);
-                    // Shelves
-                    ctx.fillStyle = '#5a5a6e';
-                    ctx.fillRect(25, 88, 190, 6);
-                    ctx.fillRect(25, 155, 190, 6);
-                    // Bucket
-                    ctx.fillStyle = '#606575';
-                    ctx.fillRect(470, 245, 45, 30);
-                    ctx.globalAlpha = 1;
+                // === PHASE 1: Broom closet with sleeping character ===
+                else if (introPhase === 1) {
+                    const roomFade = Math.min(phaseElapsed / 2500, 0.45);
+                    drawRoom(ctx, w, h, roomFade);
 
                     // Sleeping character on floor
-                    const breathe = Math.sin(elapsed / 400) * 1.5;
-                    ctx.fillStyle = `rgba(85,85,170,${roomFade * 0.7})`;
-                    // Body lying down
-                    ctx.fillRect(280, 320 + breathe, 40, 12);
-                    // Head
-                    ctx.fillStyle = `rgba(170,136,102,${roomFade * 0.7})`;
-                    ctx.fillRect(270, 316 + breathe, 14, 14);
-                    // Legs
-                    ctx.fillStyle = `rgba(68,68,119,${roomFade * 0.7})`;
-                    ctx.fillRect(318, 322 + breathe, 24, 8);
+                    const breathe = Math.sin(phaseElapsed / 400) * 1.5;
+                    const sc = 1.85;
+                    // Body lying down (uniform blue)
+                    ctx.fillStyle = '#4444DD';
+                    ctx.fillRect(272, 318 + breathe, 46, 14);
+                    // Head + skin
+                    ctx.fillStyle = '#FFCC88';
+                    ctx.fillRect(260, 314 + breathe, 14, 14);
+                    // Hair
+                    ctx.fillStyle = '#BB7733';
+                    ctx.fillRect(260, 312 + breathe, 14, 5);
+                    // Legs/boots
+                    ctx.fillStyle = '#2828AA';
+                    ctx.fillRect(316, 320 + breathe, 24, 10);
+                    ctx.fillStyle = '#222222';
+                    ctx.fillRect(338, 322 + breathe, 8, 8);
 
                     // "Zzz" text
-                    const zzz = Math.floor(elapsed / 600) % 3;
-                    ctx.fillStyle = `rgba(255,255,255,${roomFade * 0.4})`;
-                    ctx.font = '10px "Courier New"';
-                    ctx.fillText('z', 265, 305 - zzz * 3);
-                    if (zzz > 0) ctx.fillText('z', 258, 295);
-                    if (zzz > 1) ctx.fillText('z', 252, 285);
+                    const zzz = Math.floor(phaseElapsed / 700) % 3;
+                    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                    ctx.font = '12px "Courier New"';
+                    ctx.fillText('z', 252, 304 - zzz * 4);
+                    if (zzz > 0) ctx.fillText('z', 244, 292);
+                    if (zzz > 1) ctx.fillText('z', 237, 280);
 
                     // Narration text
-                    if (elapsed > 4500) {
-                        const txtFade = Math.min((elapsed - 4500) / 800, 1);
-                        ctx.fillStyle = `rgba(255,255,255,${txtFade * 0.8})`;
+                    if (phaseElapsed > 2000) {
+                        const txtFade = Math.min((phaseElapsed - 2000) / 1000, 1);
+                        ctx.fillStyle = `rgba(255,255,255,${txtFade * 0.9})`;
                         ctx.font = '11px "Courier New"';
                         ctx.textAlign = 'center';
-                        ctx.fillText('You are asleep in your favorite spot —', w / 2, 370);
-                        ctx.fillText('the supply closet on deck 6.', w / 2, 385);
+                        ctx.fillText('You are sound asleep in your favorite hiding spot -', w / 2, 368);
+                        ctx.fillText('the supply closet on deck 6. Best napping spot on the ship.', w / 2, 384);
                         ctx.textAlign = 'left';
+                        if (txtFade >= 1) phaseReady = true;
                     }
+                    if (phaseReady) drawContinuePrompt(ctx, w, h);
                 }
 
-                // Phase 3 (7-9.5s): Wake up, yawning, ship info text
-                else if (elapsed < 9500) {
-                    const wakeProg = (elapsed - 7000) / 2500;
-                    // Room getting brighter
-                    ctx.globalAlpha = 0.4 + wakeProg * 0.3;
-                    ctx.fillStyle = '#38384e';
-                    ctx.fillRect(0, 0, w, 275);
-                    ctx.fillStyle = '#484860';
-                    ctx.fillRect(0, 275, w, 125);
-                    ctx.fillStyle = '#4e5e72';
-                    ctx.fillRect(270, 42, 100, 233);
-                    ctx.fillStyle = '#5a6e84';
-                    ctx.fillRect(276, 48, 88, 221);
-                    ctx.fillStyle = '#5a5a6e';
-                    ctx.fillRect(25, 88, 190, 6);
-                    ctx.fillRect(25, 155, 190, 6);
-                    ctx.fillStyle = '#606575';
-                    ctx.fillRect(470, 245, 45, 30);
-                    ctx.globalAlpha = 1;
+                // === PHASE 2: Character wakes up ===
+                else if (introPhase === 2) {
+                    const wakeProg = Math.min(phaseElapsed / 3000, 1);
+                    const roomBright = 0.45 + wakeProg * 0.35;
+                    drawRoom(ctx, w, h, roomBright);
 
                     // Character sitting up / standing
-                    const standProg = Math.min(wakeProg * 2, 1);
-                    const charY = 320 - standProg * 12;
-                    // Body (transitioning from lying to upright)
-                    ctx.fillStyle = '#5555AA';
-                    if (standProg < 0.5) {
-                        // Still half-lying
-                        ctx.fillRect(280, charY, 40 - standProg * 30, 12);
-                        ctx.fillStyle = '#AA8866';
-                        ctx.fillRect(270 + standProg * 10, charY - 4, 14, 14);
-                    } else {
-                        // Sitting/standing
-                        ctx.fillRect(295, charY - 10, 16, 22);
-                        ctx.fillStyle = '#AA8866';
-                        ctx.fillRect(298, charY - 22, 10, 12);
-                        // Arms stretching (yawn)
-                        if (wakeProg < 0.8) {
-                            ctx.fillStyle = '#5555AA';
-                            ctx.fillRect(285, charY - 8, 8, 4);
-                            ctx.fillRect(313, charY - 8, 8, 4);
+                    const standProg = Math.min(wakeProg * 1.5, 1);
+                    const px = 300, baseY = 310;
+                    const sc = 1.85;
+
+                    if (standProg < 0.4) {
+                        // Lying down still, eyes opening
+                        const breathe = Math.sin(phaseElapsed / 400) * 1;
+                        ctx.fillStyle = '#4444DD';
+                        ctx.fillRect(272, 318 + breathe, 46, 14);
+                        ctx.fillStyle = '#FFCC88';
+                        ctx.fillRect(260, 314 + breathe, 14, 14);
+                        ctx.fillStyle = '#BB7733';
+                        ctx.fillRect(260, 312 + breathe, 14, 5);
+                        ctx.fillStyle = '#2828AA';
+                        ctx.fillRect(316, 320 + breathe, 24, 10);
+                        ctx.fillStyle = '#222222';
+                        ctx.fillRect(338, 322 + breathe, 8, 8);
+                        // Eyes opening
+                        if (standProg > 0.2) {
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.fillRect(262, 319 + breathe, 4, 2);
+                            ctx.fillRect(268, 319 + breathe, 4, 2);
                         }
+                    } else if (standProg < 0.7) {
+                        // Sitting up
+                        const sitP = (standProg - 0.4) / 0.3;
+                        ctx.fillStyle = '#4444DD';
+                        ctx.fillRect(285, 310 - sitP * 5, 18, 20);
+                        ctx.fillStyle = '#FFCC88';
+                        ctx.fillRect(288, 298 - sitP * 8, 12, 12);
+                        ctx.fillStyle = '#BB7733';
+                        ctx.fillRect(288, 296 - sitP * 8, 12, 5);
+                        ctx.fillStyle = '#2828AA';
+                        ctx.fillRect(285, 328, 12, 8);
+                        ctx.fillRect(297, 326, 12, 8);
+                    } else {
+                        // Standing up — use drawPlayerBody for proper look
+                        drawPlayerBody(ctx, px, baseY, sc, wakeProg > 0.85 ? 0 : 0.5);
                     }
 
-                    // "Yawwwn" / wake up text
-                    if (elapsed > 7800 && elapsed < 9000) {
-                        const yFade = elapsed < 8500 ? Math.min((elapsed - 7800) / 500, 1) : Math.max(0, 1 - (elapsed - 8500) / 500);
-                        ctx.fillStyle = `rgba(255,255,200,${yFade * 0.7})`;
-                        ctx.font = '10px "Courier New"';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('*yaaawn*... Huh? What time is it...', w / 2, 370);
-                        ctx.textAlign = 'left';
-                    }
-                    if (elapsed > 8800) {
-                        const tFade = Math.min((elapsed - 8800) / 500, 1);
-                        ctx.fillStyle = `rgba(255,255,255,${tFade * 0.8})`;
+                    // Text
+                    if (phaseElapsed > 1200 && phaseElapsed < 3000) {
+                        const yFade = Math.min((phaseElapsed - 1200) / 600, 1);
+                        ctx.fillStyle = `rgba(255,255,200,${yFade * 0.8})`;
                         ctx.font = '11px "Courier New"';
                         ctx.textAlign = 'center';
-                        ctx.fillText('You stretch and look around blearily...', w / 2, 385);
+                        ctx.fillText('*yaaawn*... Huh? What time is it...', w / 2, 368);
                         ctx.textAlign = 'left';
                     }
+                    if (phaseElapsed > 3000) {
+                        const tFade = Math.min((phaseElapsed - 3000) / 800, 1);
+                        ctx.fillStyle = `rgba(255,255,255,${tFade * 0.9})`;
+                        ctx.font = '11px "Courier New"';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('You stretch and blink at the dim closet light.', w / 2, 368);
+                        ctx.fillText('Something feels... off.', w / 2, 384);
+                        ctx.textAlign = 'left';
+                        if (tFade >= 1) phaseReady = true;
+                    }
+                    if (phaseReady) drawContinuePrompt(ctx, w, h);
                 }
 
-                // Phase 4 (9.5-11s): Ship status suddenly changes — warning
-                else if (elapsed < 11000) {
-                    // Room visible
-                    ctx.globalAlpha = 0.7;
-                    ctx.fillStyle = '#38384e';
-                    ctx.fillRect(0, 0, w, 275);
-                    ctx.fillStyle = '#484860';
-                    ctx.fillRect(0, 275, w, 125);
-                    ctx.fillStyle = '#4e5e72';
-                    ctx.fillRect(270, 42, 100, 233);
-                    ctx.fillStyle = '#5a6e84';
-                    ctx.fillRect(276, 48, 88, 221);
-                    ctx.fillStyle = '#5a5a6e';
-                    ctx.fillRect(25, 88, 190, 6);
-                    ctx.fillRect(25, 155, 190, 6);
-                    ctx.fillStyle = '#606575';
-                    ctx.fillRect(470, 245, 45, 30);
-                    ctx.globalAlpha = 1;
+                // === PHASE 3: Warning alert (timed ~4s) ===
+                else if (introPhase === 3) {
+                    drawRoom(ctx, w, h, 0.8);
 
-                    // Standing character
-                    ctx.fillStyle = '#5555AA';
-                    ctx.fillRect(295, 298, 16, 22);
-                    ctx.fillStyle = '#AA8866';
-                    ctx.fillRect(298, 286, 10, 12);
+                    // Player character standing
+                    drawPlayerBody(ctx, 300, 310, 1.85, 0);
 
                     // Warning text flashing
-                    const warn = Math.floor(elapsed / 250) % 2;
+                    const warn = Math.floor(phaseElapsed / 250) % 2;
                     ctx.fillStyle = warn ? '#FF5555' : '#AA0000';
                     ctx.font = '14px "Courier New"';
                     ctx.textAlign = 'center';
@@ -393,198 +430,157 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.fillText('CLASSIFICATION: HOSTILE', w / 2, 85);
                     ctx.textAlign = 'left';
 
-                    // Trigger alarm sound once
-                    if (elapsed > 9500 && elapsed < 9600) {
-                        engine.sound.alarm();
-                    }
-                    if (elapsed > 10200 && elapsed < 10300) {
-                        engine.sound.alarm();
-                    }
+                    // Alarm sounds
+                    if (phaseElapsed > 100 && phaseElapsed < 200) engine.sound.alarm();
+                    if (phaseElapsed > 1000 && phaseElapsed < 1100) engine.sound.alarm();
+                    if (phaseElapsed > 2000 && phaseElapsed < 2100) engine.sound.alarm();
 
-                    if (elapsed > 10200) {
-                        const tFade = Math.min((elapsed - 10200) / 400, 1);
+                    if (phaseElapsed > 1500) {
+                        const tFade = Math.min((phaseElapsed - 1500) / 400, 1);
                         ctx.fillStyle = `rgba(255,255,255,${tFade * 0.9})`;
-                        ctx.font = '11px "Courier New"';
+                        ctx.font = '12px "Courier New"';
                         ctx.textAlign = 'center';
                         ctx.fillText('What the--?!', w / 2, 370);
                         ctx.textAlign = 'left';
                     }
+
+                    // Auto-advance after 3.5s
+                    if (phaseElapsed > 3500) {
+                        introPhase++;
+                        phaseElapsed = 0;
+                    }
                 }
 
-                // Phase 5 (11-14s): ATTACK! Explosion, shaking, red flash
-                else if (elapsed < 14000) {
-                    const attackTime = elapsed - 11000;
-
-                    // Trigger explosion sound and shake at start
-                    if (attackTime < 100) {
+                // === PHASE 4: ATTACK! Explosions, shaking, red flash (timed ~5s) ===
+                else if (introPhase === 4) {
+                    // Trigger explosion + shake at key moments
+                    if (phaseElapsed < 100) {
                         engine.sound.explosion();
                         engine.shake(14);
                     }
-                    // Second hit
-                    if (attackTime > 1200 && attackTime < 1300) {
+                    if (phaseElapsed > 1500 && phaseElapsed < 1600) {
                         engine.sound.explosion();
                         engine.shake(10);
                     }
+                    if (phaseElapsed > 3000 && phaseElapsed < 3100) {
+                        engine.sound.explosion();
+                        engine.shake(8);
+                    }
 
-                    // Red flash on impact
-                    const flashIntensity = attackTime < 300 ? (1 - attackTime / 300) : 0;
-                    const flash2 = (attackTime > 1200 && attackTime < 1500) ? (1 - (attackTime - 1200) / 300) : 0;
-                    const totalFlash = Math.max(flashIntensity, flash2);
+                    // Red flash on impacts
+                    const flash1 = phaseElapsed < 400 ? (1 - phaseElapsed / 400) : 0;
+                    const flash2 = (phaseElapsed > 1500 && phaseElapsed < 1900) ? (1 - (phaseElapsed - 1500) / 400) : 0;
+                    const flash3 = (phaseElapsed > 3000 && phaseElapsed < 3400) ? (1 - (phaseElapsed - 3000) / 400) : 0;
+                    const totalFlash = Math.max(flash1, flash2, flash3);
 
-                    // Room visible with alarm lighting
-                    ctx.globalAlpha = 0.7;
-                    ctx.fillStyle = '#38384e';
-                    ctx.fillRect(0, 0, w, 275);
-                    ctx.fillStyle = '#484860';
-                    ctx.fillRect(0, 275, w, 125);
-                    ctx.fillStyle = '#4e5e72';
-                    ctx.fillRect(270, 42, 100, 233);
-                    ctx.fillStyle = '#5a6e84';
-                    ctx.fillRect(276, 48, 88, 221);
-                    ctx.fillStyle = '#5a5a6e';
-                    ctx.fillRect(25, 88, 190, 6);
-                    ctx.fillRect(25, 155, 190, 6);
-                    ctx.fillStyle = '#606575';
-                    ctx.fillRect(470, 245, 45, 30);
-                    ctx.globalAlpha = 1;
+                    // Room with alarm
+                    drawRoom(ctx, w, h, 0.8);
 
                     // Red flash overlay
                     if (totalFlash > 0) {
-                        ctx.fillStyle = `rgba(255,50,0,${totalFlash * 0.6})`;
+                        ctx.fillStyle = `rgba(255,50,0,${totalFlash * 0.5})`;
                         ctx.fillRect(0, 0, w, h);
                     }
 
-                    // Alarm glow (sparse red pixels like EGA)
-                    if (Math.floor(elapsed / 300) % 2) {
-                        ctx.fillStyle = '#AA0000';
-                        for (let py = 0; py < h; py += 8) {
-                            for (let px = ((py / 8) % 2) * 8; px < w; px += 16) {
-                                ctx.fillRect(px, py, 1, 1);
-                            }
-                        }
-                    }
-
-                    // Alarm light
-                    const alOn = Math.floor(elapsed / 300) % 2;
-                    ctx.fillStyle = alOn ? '#FF5555' : '#AA0000';
-                    ctx.fillRect(305, 18, 22, 10);
+                    // Alarm glow
+                    alarmGlow(ctx, w, h, engine);
 
                     // Character stumbling
-                    const stumble = Math.sin(attackTime / 150) * 8;
-                    ctx.fillStyle = '#5555AA';
-                    ctx.fillRect(295 + stumble, 298, 16, 22);
-                    ctx.fillStyle = '#AA8866';
-                    ctx.fillRect(298 + stumble, 286, 10, 12);
-                    // Arms flailing
-                    ctx.fillStyle = '#5555AA';
-                    ctx.fillRect(285 + stumble, 296 + Math.sin(attackTime / 100) * 4, 8, 4);
-                    ctx.fillRect(313 + stumble, 300 + Math.cos(attackTime / 120) * 4, 8, 4);
+                    const stumble = Math.sin(phaseElapsed / 120) * 10;
+                    const stumbleY = Math.sin(phaseElapsed / 90) * 3;
+                    drawPlayerBody(ctx, 300 + stumble, 310 + stumbleY, 1.85, Math.sin(phaseElapsed / 200) * 0.5 + 0.5);
 
-                    // Sparks / debris
-                    for (let i = 0; i < 6; i++) {
-                        const sx = 100 + ((attackTime * (i + 1) * 7) % 440);
-                        const sy = 50 + ((attackTime * (i + 2) * 3) % 200);
-                        const sparkLife = (attackTime + i * 200) % 600 / 600;
+                    // Sparks / debris falling
+                    for (let i = 0; i < 8; i++) {
+                        const sx = 80 + ((phaseElapsed * (i + 1) * 7) % 480);
+                        const sy = 20 + ((phaseElapsed * (i + 2) * 3) % 220);
+                        const sparkLife = (phaseElapsed + i * 200) % 700 / 700;
                         if (sparkLife < 0.5) {
-                            ctx.fillStyle = `rgba(255,200,50,${0.8 - sparkLife})`;
+                            ctx.fillStyle = `rgba(255,200,50,${0.9 - sparkLife * 1.5})`;
                             ctx.fillRect(sx, sy, 2, 2);
                         }
                     }
 
-                    // Attack narration
-                    if (attackTime > 400 && attackTime < 1200) {
+                    // Impact narration
+                    if (phaseElapsed < 1500) {
                         ctx.fillStyle = 'rgba(255,100,100,0.9)';
-                        ctx.font = '13px "Courier New"';
+                        ctx.font = '16px "Courier New"';
                         ctx.textAlign = 'center';
-                        ctx.fillText('** BOOM!! **', w / 2, 370);
+                        ctx.fillText('** BOOM!! **', w / 2, 368);
                         ctx.textAlign = 'left';
-                    }
-                    if (attackTime > 1500) {
-                        const tFade = Math.min((attackTime - 1500) / 500, 1);
-                        ctx.fillStyle = `rgba(255,200,100,${tFade * 0.9})`;
-                        ctx.font = '13px "Courier New"';
+                    } else if (phaseElapsed > 2000 && phaseElapsed < 3500) {
+                        ctx.fillStyle = 'rgba(255,200,100,0.9)';
+                        ctx.font = '12px "Courier New"';
                         ctx.textAlign = 'center';
-                        ctx.fillText('The ship shudders violently!', w / 2, 370);
+                        ctx.fillText('The ship shudders violently under heavy fire!', w / 2, 368);
+                        ctx.textAlign = 'left';
+                    } else if (phaseElapsed > 3500) {
+                        ctx.fillStyle = 'rgba(255,150,80,0.9)';
+                        ctx.font = '12px "Courier New"';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Sparks rain down. The hull groans.', w / 2, 368);
                         ctx.textAlign = 'left';
                     }
 
                     // Alarm sounds
-                    if (attackTime > 500 && attackTime < 600) engine.sound.alarm();
-                    if (attackTime > 1800 && attackTime < 1900) engine.sound.alarm();
-                    if (attackTime > 2500 && attackTime < 2600) engine.sound.alarm();
+                    if (phaseElapsed > 700 && phaseElapsed < 800) engine.sound.alarm();
+                    if (phaseElapsed > 2200 && phaseElapsed < 2300) engine.sound.alarm();
+                    if (phaseElapsed > 3800 && phaseElapsed < 3900) engine.sound.alarm();
+
+                    // Auto-advance after 5s
+                    if (phaseElapsed > 5000) {
+                        introPhase++;
+                        phaseElapsed = 0;
+                    }
                 }
 
-                // Phase 6 (14-18s): Emergency text, alarms, transition
-                else {
-                    const endTime = elapsed - 14000;
-
+                // === PHASE 5: Emergency — evacuation, fade to gameplay (timed ~5s) ===
+                else if (introPhase === 5) {
                     // Room with alarm
-                    ctx.globalAlpha = 0.7;
-                    ctx.fillStyle = '#38384e';
-                    ctx.fillRect(0, 0, w, 275);
-                    ctx.fillStyle = '#484860';
-                    ctx.fillRect(0, 275, w, 125);
-                    ctx.fillStyle = '#4e5e72';
-                    ctx.fillRect(270, 42, 100, 233);
-                    ctx.fillStyle = '#5a6e84';
-                    ctx.fillRect(276, 48, 88, 221);
-                    ctx.fillStyle = '#5a5a6e';
-                    ctx.fillRect(25, 88, 190, 6);
-                    ctx.fillRect(25, 155, 190, 6);
-                    ctx.fillStyle = '#606575';
-                    ctx.fillRect(470, 245, 45, 30);
-                    ctx.globalAlpha = 1;
+                    drawRoom(ctx, w, h, 0.8);
+                    alarmGlow(ctx, w, h, engine);
 
-                    // Alarm red pixels
-                    if (Math.floor(elapsed / 300) % 2) {
-                        ctx.fillStyle = '#AA0000';
-                        for (let py = 0; py < h; py += 8) {
-                            for (let px = ((py / 8) % 2) * 8; px < w; px += 16) {
-                                ctx.fillRect(px, py, 1, 1);
-                            }
-                        }
-                    }
+                    // Character regained composure, standing
+                    drawPlayerBody(ctx, 300, 310, 1.85, 0);
 
-                    // Alarm light
-                    const alOn = Math.floor(elapsed / 300) % 2;
-                    ctx.fillStyle = alOn ? '#FF5555' : '#AA0000';
-                    ctx.fillRect(305, 18, 22, 10);
-
-                    // Character standing (composure regained)
-                    ctx.fillStyle = '#5555AA';
-                    ctx.fillRect(295, 298, 16, 22);
-                    ctx.fillStyle = '#AA8866';
-                    ctx.fillRect(298, 286, 10, 12);
-
-                    // Emergency info text
+                    // Emergency text
                     ctx.fillStyle = '#FF5555';
-                    ctx.font = '12px "Courier New"';
+                    ctx.font = '13px "Courier New"';
                     ctx.textAlign = 'center';
                     ctx.fillText('!! EMERGENCY - ALL HANDS !!', w / 2, 40);
                     ctx.fillStyle = '#FFFF55';
                     ctx.font = '10px "Courier New"';
                     ctx.fillText('HULL BREACH ON DECKS 3-5', w / 2, 60);
-                    ctx.fillText('LIFE SUPPORT FAILING', w / 2, 75);
+                    ctx.fillText('LIFE SUPPORT SYSTEMS FAILING', w / 2, 75);
                     ctx.fillText('EVACUATION PROTOCOL INITIATED', w / 2, 90);
 
-                    if (endTime > 1000) {
-                        const tFade = Math.min((endTime - 1000) / 500, 1);
-                        ctx.fillStyle = `rgba(255,255,255,${tFade * 0.9})`;
-                        ctx.font = '12px "Courier New"';
-                        ctx.fillText('You need to get out of here. NOW.', w / 2, 370);
+                    if (phaseElapsed > 1200) {
+                        const tFade = Math.min((phaseElapsed - 1200) / 600, 1);
+                        ctx.fillStyle = `rgba(255,255,255,${tFade * 0.95})`;
+                        ctx.font = '13px "Courier New"';
+                        ctx.fillText('You need to get out of here. NOW.', w / 2, 368);
                     }
                     ctx.textAlign = 'left';
 
-                    // Fade to black at the very end
-                    if (endTime > 3000) {
-                        const fadeOut = Math.min((endTime - 3000) / 1000, 1);
+                    // Periodic alarm
+                    if (phaseElapsed > 200 && phaseElapsed < 300) engine.sound.alarm();
+                    if (phaseElapsed > 1500 && phaseElapsed < 1600) engine.sound.alarm();
+                    if (phaseElapsed > 3000 && phaseElapsed < 3100) engine.sound.alarm();
+
+                    // Fade to black
+                    if (phaseElapsed > 3800) {
+                        const fadeOut = Math.min((phaseElapsed - 3800) / 1200, 1);
                         ctx.fillStyle = `rgba(0,0,0,${fadeOut})`;
                         ctx.fillRect(0, 0, w, h);
                     }
 
-                    // Periodic alarm
-                    if (endTime > 300 && endTime < 400) engine.sound.alarm();
-                    if (endTime > 1200 && endTime < 1300) engine.sound.alarm();
+                    // Auto end after 5.5s
+                    if (phaseElapsed > 5500) {
+                        engine.screenShake = 0;
+                        engine.cutscene = null;
+                        engine.playerVisible = true;
+                        engine.goToRoom('broom_closet', 320, 310);
+                    }
                 }
             },
             onEnd: () => {
@@ -652,14 +648,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function alarmGlow(ctx, w, h, eng) {
-        // AGI-style: sparse red pixels instead of rgba overlay
-        if (Math.floor(eng.animTimer / 500) % 2) {
-            ctx.fillStyle = '#AA0000';
-            for (let py = 0; py < h; py += 8) {
-                for (let px = ((py / 8) % 2) * 8; px < w; px += 16) {
-                    ctx.fillRect(px, py, 1, 1);
-                }
-            }
+        const pulse = Math.floor(eng.animTimer / 500) % 2;
+        if (pulse) {
+            ctx.fillStyle = 'rgba(255,0,0,0.12)';
+            ctx.fillRect(0, 0, w, h);
         }
     }
 
@@ -667,8 +659,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const on = Math.floor(eng.animTimer / 500) % 2;
         ctx.fillStyle = on ? '#FF5555' : '#AA0000';
         ctx.fillRect(x, y, 22, 10);
-        ctx.fillStyle = on ? '#FF5555' : '#AA0000';
         ctx.fillRect(x + 2, y - 3, 18, 3);
+        if (on) {
+            ctx.fillStyle = 'rgba(255,50,50,0.15)';
+            ctx.beginPath();
+            ctx.arc(x + 11, y + 5, 30, 0, Math.PI * 2);
+            ctx.fill();
+        }
     }
 
     function gradientRect(ctx, x, y, w, h, c1, c2, vertical) {
