@@ -2854,7 +2854,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // AGI-inspired barriers: crashed pod wreckage, rock formation
             e.addBarrier(80, 275, 130, 30);    // Crashed pod hull
-            e.addBarrier(370, 280, 100, 15);   // Rock formation base
+            e.addBarrier(370, 265, 100, 15);   // Rock formation base
 
             // Edge transitions (AGI EGOEDGE): block east/west like original SQ1 desert
             e.setEdgeTransition('left', (eng) => {
@@ -3056,7 +3056,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 use: (e) => e.showMessage('The pod is beyond repair. Time to find another way off this rock.')
             },
             {
-                name: 'Rock Formation', x: 365, y: 150, w: 110, h: 75, isExit: true, walkToX: 420, walkToY: 285,
+                name: 'Rock Formation', x: 365, y: 150, w: 110, h: 75, isExit: true, walkToX: 420, walkToY: 282,
                 description: 'A rocky outcropping in the distance. Is that an opening?',
                 look: (e) => e.showMessage('A cluster of large rocks to the north. There seems to be a dark opening between them — a cave, perhaps? Shelter from the suns would be very welcome.'),
                 onExit: (e) => {
@@ -3382,7 +3382,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 get: (e) => e.showMessage('You cup your hands and drink some water. It has a slight mineral taste but seems safe enough.')
             },
             {
-                name: 'Tunnel', x: 535, y: 220, w: 90, h: 120, isExit: true, walkToX: 560,
+                name: 'Tunnel', x: 535, y: 220, w: 90, h: 120, isExit: true, walkToX: 560, walkToY: 330,
                 description: 'A dark tunnel leading deeper underground.',
                 look: (e) => e.showMessage('A tunnel stretches into darkness, but you can see faint warm light at the far end. It seems to lead somewhere inhabited. Could there be a settlement on this planet?'),
                 onExit: (e) => {
@@ -4310,7 +4310,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 use: (e) => e.showMessage('You can\'t reach the ceiling fan. Probably for the best — the last time you "fixed" a fan, it launched a blade through a wall.')
             },
             {
-                name: 'Exit', x: 0, y: 95, w: 28, h: 190, isExit: true, walkToX: 20,
+                name: 'Exit', x: 0, y: 95, w: 28, h: 190, isExit: true, walkToX: 35,
                 description: 'Exit back to the outpost street.',
                 onExit: (e) => e.goToRoom('outpost', 95, 310)
             }
@@ -4755,7 +4755,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 talk: (e) => e.showMessage('"What about exchanges—" you begin. "READ THE SIGN," Tiny snarls. You read it again. Fair enough.')
             },
             {
-                name: 'Exit', x: 0, y: 95, w: 28, h: 195, isExit: true, walkToX: 20,
+                name: 'Exit', x: 0, y: 95, w: 28, h: 195, isExit: true, walkToX: 35,
                 description: 'Exit back to the outpost.',
                 onExit: (e) => e.goToRoom('outpost', 305, 310)
             }
@@ -5668,7 +5668,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             {
-                name: 'Airlock', x: 0, y: 75, w: 32, h: 190, isExit: true, walkToX: 25,
+                name: 'Airlock', x: 0, y: 75, w: 32, h: 190, isExit: true, walkToX: 35,
                 description: 'The airlock back to your shuttle.',
                 look: (e) => e.showMessage('The airlock where you docked your shuttle. You could leave... but leaving without the Quantum Drive would mean this was all for nothing.'),
                 get: (e) => e.showMessage('You can\'t "get" an airlock. That\'s not how airlocks work. That\'s not how any of this works.'),
