@@ -2564,7 +2564,7 @@ document.addEventListener('DOMContentLoaded', () => {
         onEnter: (e) => {
             e.sound.startAmbient('ship_hum');
             // AGI-inspired barriers: control panel
-            e.addBarrier(440, 280, 100, 40);   // Launch control panel
+            e.addBarrier(440, 290, 80, 30);    // Launch control panel (narrower, doesn't block pod path)
 
             // Edge transition: left back to corridor
             e.setEdgeTransition('left', (eng) => {
@@ -2739,7 +2739,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         hotspots: [
             {
-                name: 'Escape Pod', x: 500, y: 40, w: 120, h: 200, isExit: true, walkToX: 510, walkToY: 285,
+                name: 'Escape Pod', x: 500, y: 40, w: 120, h: 200, isExit: true, walkToX: 550, walkToY: 280,
                 description: 'The last remaining escape pod.',
                 look: (e) => {
                     if (e.getFlag('pod_launched')) {
