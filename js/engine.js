@@ -171,19 +171,12 @@ class GameEngine {
             // AGS-inspired: dialog options click handling
             if (this.activeDialog && this.activeDialog.phase === 'options') {
                 const coords = this.getCanvasCoords(e);
-                // Check if click is within the dialog options box
-                const lines = this.activeDialog.visibleOptions;
-                if (lines && lines.length > 0) {
-                    const lineH = 18;
-                    const pad = 12;
-                    const maxW = 440;
-                    const boxW = maxW + pad * 2;
-                    const boxH = lines.length * lineH + pad * 2 + 4;
-                    const boxX = Math.round((this.WIDTH - boxW) / 2);
-                    const boxY = Math.round((this.HEIGHT - boxH) / 2 - 20);
-                    if (coords.x >= boxX && coords.x <= boxX + boxW &&
-                        coords.y >= boxY + pad && coords.y <= boxY + pad + lines.length * lineH) {
-                        const idx = Math.floor((coords.y - boxY - pad) / lineH);
+                const r = this._getDialogBoxRect();
+                if (r) {
+                    const lines = this.activeDialog.visibleOptions;
+                    if (coords.x >= r.boxX && coords.x <= r.boxX + r.boxW &&
+                        coords.y >= r.boxY + r.pad && coords.y <= r.boxY + r.pad + lines.length * r.lineH) {
+                        const idx = Math.floor((coords.y - r.boxY - r.pad) / r.lineH);
                         if (idx >= 0 && idx < lines.length) {
                             this.sound.uiClick();
                             this.selectDialogOption(idx);
@@ -752,6 +745,11 @@ class GameEngine {
         this.textWindow = null;
         this.activeDialog = null;
         this.depthScaling = null;
+        // Reset idle animation so it starts fresh in new room
+        this.idleTimer = 0;
+        this.idleActive = false;
+        this.idleFrame = 0;
+        this.idleFrameTimer = 0;
     }
 
     // === AGS-INSPIRED: DEPTH SCALING (WalkableArea.ScalingNear/Far) ===
@@ -936,64 +934,78 @@ class GameEngine {
         return false;
     }
 
+    /** Compute the dialog options box layout (shared by draw + click). */
+    _getDialogBoxRect() {
+        if (!this.activeDialog || !this.activeDialog.visibleOptions) return null;
+        const lines = this.activeDialog.visibleOptions;
+        if (lines.length === 0) return null;
+        const lineH = 18;
+        const pad = 12;
+        // Auto-size width based on longest option text
+        this.ctx.font = '13px "Courier New"';
+        let maxTextW = 200;
+        for (const line of lines) {
+            const tw = this.ctx.measureText(line.text).width;
+            if (tw > maxTextW) maxTextW = tw;
+        }
+        const boxW = Math.min(560, Math.round(maxTextW) + pad * 2 + 24);
+        const boxH = lines.length * lineH + pad * 2 + 4;
+        const boxX = Math.round((this.WIDTH - boxW) / 2);
+        const boxY = Math.round((this.HEIGHT - boxH) / 2 - 20);
+        return { boxX, boxY, boxW, boxH, lineH, pad, startY: boxY + pad + 14 };
+    }
+
     /** Render the dialog options panel (called from render). */
     _drawDialogOptions(ctx) {
         if (!this.activeDialog || this.activeDialog.phase !== 'options') return;
         const lines = this.activeDialog.visibleOptions;
         if (!lines || lines.length === 0) return;
-
-        const lineH = 18;
-        const pad = 12;
-        const maxW = 440;
-        const boxW = maxW + pad * 2;
-        const boxH = lines.length * lineH + pad * 2 + 4;
-        const boxX = Math.round((this.WIDTH - boxW) / 2);
-        const boxY = Math.round((this.HEIGHT - boxH) / 2 - 20);
+        const r = this._getDialogBoxRect();
+        if (!r) return;
 
         // AGS-style dialog box: dark blue with border
         ctx.fillStyle = '#000088';
-        ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.fillRect(r.boxX, r.boxY, r.boxW, r.boxH);
         ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 2;
-        ctx.strokeRect(boxX + 1, boxY + 1, boxW - 2, boxH - 2);
+        ctx.strokeRect(r.boxX + 1, r.boxY + 1, r.boxW - 2, r.boxH - 2);
         ctx.strokeStyle = '#5555FF';
         ctx.lineWidth = 1;
-        ctx.strokeRect(boxX + 4, boxY + 4, boxW - 8, boxH - 8);
+        ctx.strokeRect(r.boxX + 4, r.boxY + 4, r.boxW - 8, r.boxH - 8);
 
         ctx.font = '13px "Courier New"';
         ctx.textAlign = 'left';
-        const startY = boxY + pad + 14;
         const sel = this.activeDialog.selectedIndex;
 
         for (let i = 0; i < lines.length; i++) {
             const isHover = i === sel;
             const isRead = lines[i].chosen;
 
+            // Highlight bar behind selected option
             if (isHover) {
-                // AGS highlight color (yellow on hover)
+                ctx.fillStyle = 'rgba(80, 80, 200, 0.5)';
+                ctx.fillRect(r.boxX + 6, r.startY + i * r.lineH - 13, r.boxW - 12, r.lineH);
+            }
+
+            if (isHover) {
                 ctx.fillStyle = '#FFFF55';
             } else if (isRead) {
-                // AGS "read" dialog option color (dimmer)
                 ctx.fillStyle = '#888899';
             } else {
-                // AGS "unread" dialog option color (player's speech color)
                 ctx.fillStyle = '#FFFFFF';
             }
 
-            ctx.fillText(lines[i].text, boxX + pad + 8, startY + i * lineH);
+            ctx.fillText(lines[i].text, r.boxX + r.pad + 8, r.startY + i * r.lineH);
         }
 
         // Detect mouse hover over dialog options
-        const my = this.mouseY;
-        const mx = this.mouseX;
-        if (mx >= boxX && mx <= boxX + boxW && my >= boxY + pad && my <= boxY + pad + lines.length * lineH) {
-            const hoverIdx = Math.floor((my - boxY - pad) / lineH);
+        if (this.mouseX >= r.boxX && this.mouseX <= r.boxX + r.boxW &&
+            this.mouseY >= r.boxY + r.pad && this.mouseY <= r.boxY + r.pad + lines.length * r.lineH) {
+            const hoverIdx = Math.floor((this.mouseY - r.boxY - r.pad) / r.lineH);
             if (hoverIdx >= 0 && hoverIdx < lines.length) {
                 this.activeDialog.selectedIndex = hoverIdx;
             }
         }
-
-        ctx.textAlign = 'left';
     }
 
     // ---- Update Loop ----
@@ -1035,8 +1047,11 @@ class GameEngine {
             else if (arrowUp) { this.playerFacing = 'away'; }
             else if (arrowDown) { this.playerFacing = 'toward'; }
             // Move X (AGI-style: check barriers before committing)
+            // AGS-inspired: scale walk speed by depth for perspective realism
+            const depthSpd = this.depthScaling ? this.getDepthScale(this.playerY) : 1;
+            const spd = this.playerSpeed * depthSpd;
             if (arrowLeft || arrowRight) {
-                const newX = Math.max(30, Math.min(610, this.playerX + this.playerSpeed * this.playerDir));
+                const newX = Math.max(30, Math.min(610, this.playerX + spd * this.playerDir));
                 if (!this.collidesBarrier(newX, this.playerY)) {
                     this.playerX = newX;
                 }
@@ -1045,7 +1060,7 @@ class GameEngine {
             if (arrowUp || arrowDown) {
                 const yDir = arrowUp ? -1 : 1;
                 const minY = Math.max(this.horizon, 280);
-                const newY = Math.max(minY, Math.min(370, this.playerY + this.playerSpeed * yDir));
+                const newY = Math.max(minY, Math.min(370, this.playerY + spd * yDir));
                 if (!this.collidesBarrier(this.playerX, newY)) {
                     this.playerY = newY;
                 }
@@ -1083,7 +1098,10 @@ class GameEngine {
             const dx = this.playerTargetX !== null ? this.playerTargetX - this.playerX : 0;
             const dy = this.playerTargetY !== null ? this.playerTargetY - this.playerY : 0;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < this.playerSpeed + 1) {
+            // AGS-inspired: scale walk speed by depth for perspective realism
+            const depthSpd = this.depthScaling ? this.getDepthScale(this.playerY) : 1;
+            const spd = this.playerSpeed * depthSpd;
+            if (dist < spd + 1) {
                 if (this.playerTargetX !== null) this.playerX = this.playerTargetX;
                 if (this.playerTargetY !== null) this.playerY = this.playerTargetY;
                 this.playerWalking = false;
@@ -1104,8 +1122,8 @@ class GameEngine {
                     this.playerFacing = dy < 0 ? 'away' : 'toward';
                 }
                 // Move proportionally
-                const mx = (dx / dist) * this.playerSpeed;
-                const my = (dy / dist) * this.playerSpeed;
+                const mx = (dx / dist) * spd;
+                const my = (dy / dist) * spd;
                 const newPX = Math.max(30, Math.min(610, this.playerX + mx));
                 const minY = Math.max(this.horizon, 280);
                 const newPY = Math.max(minY, Math.min(370, this.playerY + my));
@@ -1133,6 +1151,8 @@ class GameEngine {
                 }
             }
         } else {
+            // No arrow keys and no click-walk target — player is standing still
+            this.playerWalking = false;
             this.playerFrame = 0;
 
             // AGS-inspired: player idle animation (Character.IdleView / IdleDelay)
@@ -1565,12 +1585,11 @@ class GameEngine {
 
         // AGS-inspired: idle animation fidgets
         const idlePhase = this.idleActive ? this.idleFrame : -1;
-        // Idle weight shift (slight body sway)
-        const idleShiftX = (idlePhase === 1) ? Math.sin(this.idleFrameTimer * 0.003) * 1.2 * s : 0;
-        // Idle head tilt
-        const idleHeadTilt = (idlePhase === 2) ? Math.sin(this.idleFrameTimer * 0.004) * 0.8 * s : 0;
-        // Idle foot tap
-        const idleFootTap = (idlePhase === 3) ? Math.abs(Math.sin(this.idleFrameTimer * 0.008)) * 2 * s : 0;
+        // Use animTimer (never resets) for smooth continuous sine effects
+        const idleShiftX = (idlePhase === 1) ? Math.sin(this.animTimer * 0.003) * 1.2 * s : 0;
+        // Idle look-around: slight head offset (phase 2)
+        const idleHeadOfs = (idlePhase === 2) ? Math.round(Math.sin(this.animTimer * 0.002) * 1.5 * s) : 0;
+        const idleFootTap = (idlePhase === 3) ? Math.abs(Math.sin(this.animTimer * 0.008)) * 2 * s : 0;
 
         // Leg animation
         const ls = walking ? Math.sin(frame * Math.PI / 2) * 3 * s : (idleFootTap > 0 ? -idleFootTap : 0);
@@ -1594,10 +1613,10 @@ class GameEngine {
             // Boots
             ctx.fillStyle = '#222222';
             ctx.fillRect(x - 5 * s, y + 9 * s + ls, 4 * s, 3 * s);
-            ctx.fillRect(x + 0 * s, y + 9 * s - ls, 4 * s, 3 * s);
+            ctx.fillRect(x, y + 9 * s - ls, 4 * s, 3 * s);
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(x - 5 * s, y + 11 * s + ls, 5 * s, 1 * s);
-            ctx.fillRect(x + 0 * s, y + 11 * s - ls, 5 * s, 1 * s);
+            ctx.fillRect(x, y + 11 * s - ls, 5 * s, 1 * s);
             // Body
             ctx.fillStyle = '#4444DD';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
@@ -1680,16 +1699,16 @@ class GameEngine {
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(x - 3 * s, y - 15 * s, 2.5 * s, 2 * s);
             ctx.fillStyle = '#4477CC';
-            ctx.fillRect(x - 2.5 * s, y - 15 * s, 1.5 * s, 2 * s);
+            ctx.fillRect(x - 2.5 * s + idleHeadOfs, y - 15 * s, 1.5 * s, 2 * s);
             ctx.fillStyle = '#111133';
-            ctx.fillRect(x - 2 * s, y - 14.5 * s, 1 * s, 1 * s);
+            ctx.fillRect(x - 2 * s + idleHeadOfs, y - 14.5 * s, 1 * s, 1 * s);
             // Right eye
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
             ctx.fillStyle = '#4477CC';
-            ctx.fillRect(x + 1 * s, y - 15 * s, 1.5 * s, 2 * s);
+            ctx.fillRect(x + 1 * s + idleHeadOfs, y - 15 * s, 1.5 * s, 2 * s);
             ctx.fillStyle = '#111133';
-            ctx.fillRect(x + 1 * s, y - 14.5 * s, 1 * s, 1 * s);
+            ctx.fillRect(x + 1 * s + idleHeadOfs, y - 14.5 * s, 1 * s, 1 * s);
             // Nose (centered, small)
             ctx.fillStyle = '#EEBB77';
             ctx.fillRect(x - 0.5 * s, y - 14 * s, 1 * s, 2 * s);
@@ -1712,10 +1731,10 @@ class GameEngine {
             // Boots
             ctx.fillStyle = '#222222';
             ctx.fillRect(x - 5 * s, y + 9 * s + ls, 4 * s, 3 * s);
-            ctx.fillRect(x + 0 * s, y + 9 * s - ls, 4 * s, 3 * s);
+            ctx.fillRect(x, y + 9 * s - ls, 4 * s, 3 * s);
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(x - 5 * s, y + 11 * s + ls, 5 * s, 1 * s);
-            ctx.fillRect(x + 0 * s, y + 11 * s - ls, 5 * s, 1 * s);
+            ctx.fillRect(x, y + 11 * s - ls, 5 * s, 1 * s);
             // Body (back of uniform, darker)
             ctx.fillStyle = '#3838CC';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
@@ -1752,7 +1771,7 @@ class GameEngine {
             // Hair texture lines
             ctx.fillStyle = '#AA6622';
             ctx.fillRect(x - 3 * s, y - 18 * s, 1 * s, 7 * s);
-            ctx.fillRect(x + 0 * s, y - 17 * s, 1 * s, 6 * s);
+            ctx.fillRect(x, y - 17 * s, 1 * s, 6 * s);
             ctx.fillRect(x + 2 * s, y - 18 * s, 1 * s, 7 * s);
             // Hair highlight
             ctx.fillStyle = '#CC8844';
@@ -1780,10 +1799,10 @@ class GameEngine {
             // Boots
             ctx.fillStyle = '#222222';
             ctx.fillRect(x - 5 * s, y + 9 * s + ls, 4 * s, 3 * s);
-            ctx.fillRect(x + 0 * s, y + 9 * s - ls, 4 * s, 3 * s);
+            ctx.fillRect(x, y + 9 * s - ls, 4 * s, 3 * s);
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(x - 5 * s, y + 11 * s + ls, 5 * s, 1 * s);
-            ctx.fillRect(x + 0 * s, y + 11 * s - ls, 5 * s, 1 * s);
+            ctx.fillRect(x, y + 11 * s - ls, 5 * s, 1 * s);
             ctx.fillStyle = '#444444';
             ctx.fillRect(x - 4 * s, y + 9 * s + ls, 2 * s, 1 * s);
             ctx.fillRect(x + 1 * s, y + 9 * s - ls, 2 * s, 1 * s);
@@ -1887,25 +1906,25 @@ class GameEngine {
             // Eyebrow
             ctx.fillStyle = '#996622';
             if (dir > 0) {
-                ctx.fillRect(x + 0 * s, y - 16 * s, 3 * s, 1 * s);
+                ctx.fillRect(x, y - 16 * s, 3 * s, 1 * s);
             } else {
                 ctx.fillRect(x - 3 * s, y - 16 * s, 3 * s, 1 * s);
             }
             // Eye
             if (dir > 0) {
                 ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(x + 0 * s, y - 15 * s, 3 * s, 2 * s);
+                ctx.fillRect(x, y - 15 * s, 3 * s, 2 * s);
                 ctx.fillStyle = '#4477CC';
                 ctx.fillRect(x + 1 * s, y - 15 * s, 2 * s, 2 * s);
                 ctx.fillStyle = '#111133';
-                ctx.fillRect(x + 2 * s, y - 14.5 * s, 1 * s, 1 * s);
+                ctx.fillRect(x + 2 * s + idleHeadOfs * 0.5, y - 14.5 * s, 1 * s, 1 * s);
             } else {
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(x - 3 * s, y - 15 * s, 3 * s, 2 * s);
                 ctx.fillStyle = '#4477CC';
                 ctx.fillRect(x - 3 * s, y - 15 * s, 2 * s, 2 * s);
                 ctx.fillStyle = '#111133';
-                ctx.fillRect(x - 3 * s, y - 14.5 * s, 1 * s, 1 * s);
+                ctx.fillRect(x - 3 * s + idleHeadOfs * 0.5, y - 14.5 * s, 1 * s, 1 * s);
             }
             // Nose
             ctx.fillStyle = '#EEBB77';
@@ -1933,7 +1952,7 @@ class GameEngine {
 
         // AGS-inspired: idle eye blink overlay (phase 0)
         if (idlePhase === 0) {
-            const blinkCycle = Math.sin(this.idleFrameTimer * 0.006);
+            const blinkCycle = Math.sin(this.animTimer * 0.006);
             if (blinkCycle > 0.85) {
                 ctx.fillStyle = '#FFCC88';
                 if (facing === 'toward') {
@@ -1941,7 +1960,7 @@ class GameEngine {
                     ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
                 } else if (facing !== 'away') {
                     if (dir > 0) {
-                        ctx.fillRect(x + 0 * s, y - 15 * s, 3 * s, 2 * s);
+                        ctx.fillRect(x, y - 15 * s, 3 * s, 2 * s);
                     } else {
                         ctx.fillRect(x - 3 * s, y - 15 * s, 3 * s, 2 * s);
                     }

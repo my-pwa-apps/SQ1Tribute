@@ -37,26 +37,29 @@ document.addEventListener('DOMContentLoaded', () => {
                         once: true
                     },
                     {
-                        text: 'I\'d like a Keronian Ale.',
-                        response: '"Sure thing. That\'ll be 10 buckazoids."',
+                        text: 'I\'d like a Keronian Ale. (10 buckazoids)',
+                        response: '"Sure thing, smoothskin." The bartender pours you a shimmering green Keronian Ale and slides it across the bar. "Don\'t drink it all at once."',
                         action: (eng) => {
                             const cr = eng.getFlag('credits_amount') || 0;
-                            if (cr >= 10 && !eng.hasItem('drink')) {
-                                if (typeof engine !== 'undefined' && engine.sound) engine.sound.sell();
-                                eng.setFlag('credits_amount', cr - 10);
-                                eng.items['credits'].name = 'Buckazoids (' + (cr - 10) + ')';
-                                eng.items['credits'].description = 'A credit chip with ' + (cr - 10) + ' buckazoids remaining.';
-                                if (cr - 10 <= 0) eng.removeFromInventory('credits');
-                                eng.addToInventory('drink');
-                                eng.updateInventoryUI();
-                                eng.showMessage('"Here ya go, smoothskin. One Keronian Ale." The bartender slides a shimmering green drink across the bar.');
-                            } else if (eng.hasItem('drink')) {
-                                eng.showMessage('"You already got a drink. Don\'t be greedy."');
-                            } else {
-                                eng.showMessage('"Can\'t pour what you can\'t pay for. 10 buckazoids, smoothskin."');
-                            }
+                            eng.sound.sell();
+                            eng.setFlag('credits_amount', cr - 10);
+                            eng.items['credits'].name = 'Buckazoids (' + (cr - 10) + ')';
+                            eng.items['credits'].description = 'A credit chip with ' + (cr - 10) + ' buckazoids remaining.';
+                            if (cr - 10 <= 0) eng.removeFromInventory('credits');
+                            eng.addToInventory('drink');
+                            eng.updateInventoryUI();
                         },
-                        condition: (eng) => eng.hasItem('credits')
+                        condition: (eng) => eng.hasItem('credits') && !eng.hasItem('drink') && (eng.getFlag('credits_amount') || 0) >= 10
+                    },
+                    {
+                        text: 'I\'d like a Keronian Ale.',
+                        response: '"Can\'t pour what you can\'t pay for. 10 buckazoids, smoothskin."',
+                        condition: (eng) => eng.hasItem('credits') && !eng.hasItem('drink') && (eng.getFlag('credits_amount') || 0) < 10
+                    },
+                    {
+                        text: 'I\'d like another ale.',
+                        response: '"You already got a drink. Don\'t be greedy, smoothskin."',
+                        condition: (eng) => eng.hasItem('drink')
                     },
                     {
                         text: 'Know anything about the Draknoids?',
@@ -113,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         response: '"For ME?! You\'re a saint among smoothskins!"',
                         condition: (eng) => eng.hasItem('drink') && !eng.getFlag('pilot_has_drink'),
                         action: (eng) => {
-                            if (typeof engine !== 'undefined' && engine.sound) engine.sound.drink();
+                            eng.sound.drink();
                             eng.removeFromInventory('drink');
                             eng.setFlag('pilot_has_drink');
                             eng.updateInventoryUI();
