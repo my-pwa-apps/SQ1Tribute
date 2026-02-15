@@ -75,6 +75,9 @@ class GameEngine {
         this.roomTransition = 0;
         this.exitCooldown = 0;
 
+        // Reusable drawables array for Y-sorted rendering (avoid per-frame allocation)
+        this._drawables = [];
+
         // CRT scanline overlay (pre-rendered for performance)
         this.scanlineCanvas = document.createElement('canvas');
         this.scanlineCanvas.width = this.WIDTH;
@@ -84,6 +87,20 @@ class GameEngine {
         for (let y = 0; y < this.HEIGHT; y += 2) {
             slCtx.fillRect(0, y, this.WIDTH, 1);
         }
+
+        // CRT vignette overlay (pre-rendered for performance)
+        this.vignetteCanvas = document.createElement('canvas');
+        this.vignetteCanvas.width = this.WIDTH;
+        this.vignetteCanvas.height = this.HEIGHT;
+        const vigCtx = this.vignetteCanvas.getContext('2d');
+        const vig = vigCtx.createRadialGradient(
+            this.WIDTH / 2, this.HEIGHT / 2, this.HEIGHT * 0.35,
+            this.WIDTH / 2, this.HEIGHT / 2, this.WIDTH * 0.7
+        );
+        vig.addColorStop(0, 'rgba(0,0,0,0)');
+        vig.addColorStop(1, 'rgba(0,0,0,0.3)');
+        vigCtx.fillStyle = vig;
+        vigCtx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
 
         this.sound = new SoundEngine();
 
@@ -119,11 +136,6 @@ class GameEngine {
 
         // Sierra-style text window (drawn on canvas, AGI PRINT/TEXTWIN)
         this.textWindow = null; // { text, x, y, w, h, timer, duration }
-
-        // Step-based movement timing (AGI movefreq / moveclk)
-        this.stepSize = 3;       // pixels per step (AGI default: 1, scaled up for our 640px)
-        this.stepTime = 1;       // animation cycles between steps
-        this.stepCounter = 0;    // counts down like AGI moveclk
 
         // === AGS-INSPIRED SYSTEMS ===
 
@@ -169,13 +181,7 @@ class GameEngine {
                 return;
             }
             if (this.titleScreen) {
-                this.titleScreen = false;
-                this.sound.gameStart();
-                if (this.onGameStart) {
-                    this.onGameStart();
-                } else {
-                    this.goToRoom('broom_closet', 320, 310);
-                }
+                this.startNewGame();
                 return;
             }
             if (this.dead || this.won) return;
@@ -274,6 +280,7 @@ class GameEngine {
             if (e.key === 'F5') { e.preventDefault(); this.openSaveModal('save'); }
             if (e.key === 'F7') { e.preventDefault(); this.openSaveModal('load'); }
             if (e.key === 'Escape') this.closeSaveModal();
+            if (this.dom.saveModal.classList.contains('open')) return;
             if (e.key === 'l') this.setAction('look');
             if (e.key === 'g') this.setAction('get');
             if (e.key === 'u') this.setAction('use');
@@ -289,6 +296,11 @@ class GameEngine {
 
         document.addEventListener('keyup', (e) => {
             delete this.keysDown[e.key];
+        });
+
+        // Clear stuck keys when window loses focus
+        window.addEventListener('blur', () => {
+            this.keysDown = {};
         });
 
         this.dom.btnSave.addEventListener('click', () => this.openSaveModal('save'));
@@ -310,36 +322,41 @@ class GameEngine {
             e.preventDefault();
             this.sound.init();
             const touch = e.touches[0];
-            const rect = this.canvas.getBoundingClientRect();
-            const scaleX = this.WIDTH / rect.width;
-            const scaleY = this.HEIGHT / rect.height;
-            const cx = (touch.clientX - rect.left) * scaleX;
-            const cy = (touch.clientY - rect.top) * scaleY;
-            this.mouseX = cx;
-            this.mouseY = cy;
+            const coords = this.getCanvasCoords(touch);
+            this.mouseX = coords.x;
+            this.mouseY = coords.y;
             if (this.cutscene) { this.skipCutscene(); return; }
             if (this.titleScreen) {
-                this.titleScreen = false;
-                this.sound.gameStart();
-                if (this.onGameStart) {
-                    this.onGameStart();
-                } else {
-                    this.goToRoom('broom_closet', 320, 310);
-                }
+                this.startNewGame();
                 return;
             }
             if (this.dead || this.won) return;
-            this.handleClick(cx, cy);
+            // Handle dialog options (same as click handler)
+            if (this.activeDialog && this.activeDialog.phase === 'options') {
+                const r = this._getDialogBoxRect();
+                if (r) {
+                    const lines = this.activeDialog.visibleOptions;
+                    if (coords.x >= r.boxX && coords.x <= r.boxX + r.boxW &&
+                        coords.y >= r.boxY + r.pad && coords.y <= r.boxY + r.pad + lines.length * r.lineH) {
+                        const idx = Math.floor((coords.y - r.boxY - r.pad) / r.lineH);
+                        if (idx >= 0 && idx < lines.length) {
+                            this.sound.uiClick();
+                            this.selectDialogOption(idx);
+                        }
+                    }
+                }
+                return;
+            }
+            if (this.textWindow) { this.dismissTextWindow(); return; }
+            this.handleClick(coords.x, coords.y);
         }, { passive: false });
 
         this.canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
             const touch = e.touches[0];
-            const rect = this.canvas.getBoundingClientRect();
-            const scaleX = this.WIDTH / rect.width;
-            const scaleY = this.HEIGHT / rect.height;
-            this.mouseX = (touch.clientX - rect.left) * scaleX;
-            this.mouseY = (touch.clientY - rect.top) * scaleY;
+            const coords = this.getCanvasCoords(touch);
+            this.mouseX = coords.x;
+            this.mouseY = coords.y;
         }, { passive: false });
 
         // D-pad touch controls
@@ -374,6 +391,16 @@ class GameEngine {
     // ---- Room Management ----
     registerRoom(room) { this.rooms[room.id] = room; }
     registerItem(item) { this.items[item.id] = item; }
+
+    startNewGame() {
+        this.titleScreen = false;
+        this.sound.gameStart();
+        if (this.onGameStart) {
+            this.onGameStart();
+        } else {
+            this.goToRoom('broom_closet', 320, 310);
+        }
+    }
 
     goToRoom(roomId, px, py) {
         const room = this.rooms[roomId];
@@ -450,7 +477,7 @@ class GameEngine {
     }
 
     setFlag(f, v) { this.flags[f] = (v === undefined) ? true : v; }
-    getFlag(f) { return this.flags[f] || false; }
+    getFlag(f) { return this.flags[f] ?? false; }
 
     // ---- Messages ----
     showMessage(text) {
@@ -520,7 +547,10 @@ class GameEngine {
         this.screenShake = 0;
         this.playerVisible = true;
         this.playerFacing = 'toward';
+        this.playerTargetX = null;
         this.playerTargetY = null;
+        this.playerWalking = false;
+        this.pendingAction = null;
         this.sound.stopAmbient();
         this.setAction('walk');
         this.updateInventoryUI();
@@ -1057,6 +1087,9 @@ class GameEngine {
 
         if (this.dead || this.won || this.titleScreen) return;
 
+        // Decrement exit cooldown unconditionally
+        if (this.exitCooldown > 0) this.exitCooldown -= dt;
+
         // Arrow key walking
         const arrowLeft = this.keysDown['ArrowLeft'];
         const arrowRight = this.keysDown['ArrowRight'];
@@ -1103,7 +1136,6 @@ class GameEngine {
                 if (this.playerFrame % 2 === 0) this.sound.footstep();
             }
             // Check if player walked into an exit hotspot at its walk-to position
-            if (this.exitCooldown > 0) this.exitCooldown -= dt;
             const room = this.rooms[this.currentRoomId];
             if (this.exitCooldown <= 0 && room && room.hotspots) {
                 for (let i = room.hotspots.length - 1; i >= 0; i--) {
@@ -1286,33 +1318,33 @@ class GameEngine {
 
         // === AGI-INSPIRED: Y-SORTED RENDERING (OBJLIST priority system) ===
         // Collect all drawable entities with Y-positions, sort back-to-front
-        const drawables = [];
+        this._drawables.length = 0;
 
         // Player
         if (this.playerVisible && !this.dead) {
-            drawables.push({ y: this.playerY, draw: () => this.drawPlayer(ctx) });
+            this._drawables.push({ y: this.playerY, type: 'player' });
         }
 
         // NPCs
         for (const npc of this.npcs) {
             if (npc.visible) {
-                const npcRef = npc;
-                drawables.push({ y: npc.y, draw: () => npcRef.draw(ctx, this) });
+                this._drawables.push({ y: npc.y, type: 'npc', ref: npc });
             }
         }
 
         // Foreground layers registered by rooms
         for (const layer of this.foregroundLayers) {
-            const layerRef = layer;
-            drawables.push({ y: layerRef.y, draw: () => layerRef.draw(ctx, this) });
+            this._drawables.push({ y: layer.y, type: 'layer', ref: layer });
         }
 
         // Sort by Y (lower Y = behind, drawn first — AGI's MakeObjList)
-        drawables.sort((a, b) => a.y - b.y);
+        this._drawables.sort((a, b) => a.y - b.y);
 
         // Draw all in sorted order
-        for (const d of drawables) {
-            d.draw();
+        for (const d of this._drawables) {
+            if (d.type === 'player') this.drawPlayer(ctx);
+            else if (d.type === 'npc') d.ref.draw(ctx, this);
+            else d.ref.draw(ctx, this);
         }
 
         this.drawHotspotLabel(ctx, room);
@@ -1401,15 +1433,8 @@ class GameEngine {
         // CRT scanline overlay
         ctx.drawImage(this.scanlineCanvas, 0, 0);
 
-        // CRT vignette (darker edges)
-        const vig = ctx.createRadialGradient(
-            this.WIDTH / 2, this.HEIGHT / 2, this.HEIGHT * 0.35,
-            this.WIDTH / 2, this.HEIGHT / 2, this.WIDTH * 0.7
-        );
-        vig.addColorStop(0, 'rgba(0,0,0,0)');
-        vig.addColorStop(1, 'rgba(0,0,0,0.3)');
-        ctx.fillStyle = vig;
-        ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
+        // CRT vignette (pre-rendered)
+        ctx.drawImage(this.vignetteCanvas, 0, 0);
     }
 
     // ---- Title Screen ----
@@ -2032,7 +2057,7 @@ class GameEngine {
 
     // ---- Hotspot Label ----
     drawHotspotLabel(ctx, room) {
-        if (!room || !room.hotspots) return;
+        if (!room || !room.hotspots || this.dead || this.won) return;
         for (let i = room.hotspots.length - 1; i >= 0; i--) {
             const hs = room.hotspots[i];
             if (hs.hidden) continue;
@@ -2219,6 +2244,7 @@ class GameEngine {
             this.pendingAction = null;
             this.playerDir = data.playerDir || 1;
             this.playerFacing = data.playerFacing || 'toward';
+            this.screenShake = 0;
             // Restore modified item names/descriptions
             if (data.itemNames) {
                 for (const [id, info] of Object.entries(data.itemNames)) {
@@ -2239,13 +2265,13 @@ class GameEngine {
     }
 
     deleteSave(slot) {
-        localStorage.removeItem(this.getSaveKey(slot));
+        try { localStorage.removeItem(this.getSaveKey(slot)); } catch { /* storage unavailable */ }
     }
 
     getSlotInfo(slot) {
-        const raw = localStorage.getItem(this.getSaveKey(slot));
-        if (!raw) return null;
         try {
+            const raw = localStorage.getItem(this.getSaveKey(slot));
+            if (!raw) return null;
             const data = JSON.parse(raw);
             const room = this.rooms[data.currentRoomId];
             const date = new Date(data.timestamp);
@@ -2258,7 +2284,6 @@ class GameEngine {
     }
 
     openSaveModal(mode) {
-        this.saveModalMode = mode;
         const modal = this.dom.saveModal;
         this.dom.modalTitle.textContent = mode === 'save' ? 'Save Game' : 'Load Game';
         const list = this.dom.slotList;
@@ -2437,7 +2462,7 @@ class AnimatedNPC {
                 this._follow(engine);
                 break;
             case 'moveto':
-                this._moveTo();
+                this._moveTo(engine);
                 break;
         }
     }
@@ -2476,7 +2501,7 @@ class AnimatedNPC {
     }
 
     /** AGI-style moveto: move toward target coordinates. */
-    _moveTo() {
+    _moveTo(engine) {
         this.direction = AnimatedNPC.moveDirection(
             this.x, this.y,
             this._moveTargetX, this._moveTargetY,
@@ -2484,7 +2509,7 @@ class AnimatedNPC {
         );
         if (this.direction === 0) {
             this.motionType = 'normal';
-            if (this._onArrival) this._onArrival(null, this);
+            if (this._onArrival) this._onArrival(engine, this);
         }
     }
 

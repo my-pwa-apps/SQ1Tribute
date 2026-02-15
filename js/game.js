@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Phases 0-2 wait for click/key to advance; 3-5 are timed
         const phaseWaiting = [true, true, true, false, false, false];
         let phaseReady = false; // true once current phase text is fully visible
-        let phaseElapsed = 0;  // ms into current phase
+        let phaseStartTime = 0; // elapsed time when current phase started
 
         // Helper: draw the real broom closet room
         function drawRoom(ctx, w, h, alpha) {
@@ -240,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
             onAdvance: () => {
                 if (phaseWaiting[introPhase] && phaseReady) {
                     introPhase++;
-                    phaseElapsed = 0;
+                    phaseStartTime = engine.cutscene ? engine.cutscene.elapsed : 0;
                     phaseReady = false;
                 } else if (!phaseWaiting[introPhase]) {
                     // During timed phases, click skips to end
@@ -255,8 +255,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             draw: (ctx, w, h, progress, elapsed) => {
-                // Track per-phase elapsed
-                phaseElapsed += 16.7; // ~60fps approximation
+                // Track per-phase elapsed from real time
+                const phaseElapsed = elapsed - phaseStartTime;
 
                 ctx.fillStyle = '#000';
                 ctx.fillRect(0, 0, w, h);
@@ -304,7 +304,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Sleeping character on floor
                     const breathe = Math.sin(phaseElapsed / 400) * 1.5;
-                    const sc = 1.85;
                     // Body lying down (uniform blue)
                     ctx.fillStyle = '#4444DD';
                     ctx.fillRect(272, 318 + breathe, 46, 14);
@@ -351,7 +350,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Character sitting up / standing
                     const standProg = Math.min(wakeProg * 1.5, 1);
                     const px = 300, baseY = 310;
-                    const sc = 1.85;
 
                     if (standProg < 0.4) {
                         // Lying down still, eyes opening
@@ -447,7 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Auto-advance after 3.5s
                     if (phaseElapsed > 3500) {
                         introPhase++;
-                        phaseElapsed = 0;
+                        phaseStartTime = elapsed;
                     }
                 }
 
@@ -530,7 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Auto-advance after 5s
                     if (phaseElapsed > 5000) {
                         introPhase++;
-                        phaseElapsed = 0;
+                        phaseStartTime = elapsed;
                     }
                 }
 
@@ -592,14 +590,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========== DRAWING HELPERS ==========
 
-    // EGA 16-color palette reference (classic Sierra colors)
-    const EGA = {
-        black:   '#000000', blue:    '#0000AA', green:   '#00AA00', cyan:    '#00AAAA',
-        red:     '#AA0000', magenta: '#AA00AA', brown:   '#AA5500', lgray:   '#AAAAAA',
-        dgray:   '#555555', lblue:   '#5555FF', lgreen:  '#55FF55', lcyan:   '#55FFFF',
-        lred:    '#FF5555', lmagenta:'#FF55FF', yellow:  '#FFFF55', white:   '#FFFFFF'
-    };
-
     /** Draw a dithered rectangle (checkerboard pattern of two colors — classic EGA look) */
     function ditherRect(ctx, x, y, w, h, c1, c2, patternSize) {
         const ps = patternSize || 2;
@@ -614,11 +604,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function stars(ctx, w, h, seed, count) {
+    function stars(ctx, w, h, seed, count, yFraction) {
         let r = seed || 54321;
+        const maxY = h * (yFraction || 1);
         const next = () => { r = (r * 16807) % 2147483647; return (r & 0xFFFF) / 0xFFFF; };
         for (let i = 0; i < (count || 90); i++) {
-            const x = next() * w, y = next() * h * 0.65;
+            const x = next() * w, y = next() * maxY;
             const b = 130 + Math.floor(next() * 125);
             ctx.fillStyle = `rgb(${b},${b},${b + 15})`;
             ctx.fillRect(x, y, next() > 0.85 ? 2 : 1, 1);
@@ -678,18 +669,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ========== CUTSCENE DRAWING FUNCTIONS ==========
-
-    // Seeded RNG for consistent starfields in cutscenes
-    function seededStars(ctx, w, h, seed, count) {
-        let r = seed || 99999;
-        const next = () => { r = (r * 16807) % 2147483647; return (r & 0xFFFF) / 0xFFFF; };
-        for (let i = 0; i < (count || 150); i++) {
-            const x = next() * w, y = next() * h;
-            const b = 130 + Math.floor(next() * 125);
-            ctx.fillStyle = `rgb(${b},${b},${b + 15})`;
-            ctx.fillRect(x, y, next() > 0.85 ? 2 : 1, 1);
-        }
-    }
 
     function drawShipSilhouette(ctx, x, y, scale) {
         ctx.save();
@@ -820,7 +799,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Background: space
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, w, h);
-        seededStars(ctx, w, h, 12345, 200);
+        stars(ctx, w, h, 12345, 200);
 
         if (progress < 0.2) {
             // Phase 1: Ship in space, pod ejects
@@ -879,7 +858,7 @@ document.addEventListener('DOMContentLoaded', () => {
             skyG.addColorStop(1, `rgba(${Math.floor(200 * p)},${Math.floor(120 * p)},${Math.floor(40 * p)},${p * 0.8})`);
             ctx.fillStyle = skyG;
             ctx.fillRect(0, 0, w, h);
-            seededStars(ctx, w, h, 12345, Math.floor(200 * (1 - p)));
+            stars(ctx, w, h, 12345, Math.floor(200 * (1 - p)));
             // Pod descending
             const podX = w * 0.5;
             const podY = h * 0.2 + p * h * 0.4;
@@ -982,7 +961,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function cutsceneShuttleFlight(ctx, w, h, progress, elapsed) {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, w, h);
-        seededStars(ctx, w, h, 77777, 200);
+        stars(ctx, w, h, 77777, 200);
 
         if (progress < 0.25) {
             // Phase 1: Liftoff from outpost
@@ -1141,7 +1120,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (progress < 0.5) {
             // Phase 2: Shuttle launching from flagship
             const p = (progress - 0.25) / 0.25;
-            seededStars(ctx, w, h, 33333, 180);
+            stars(ctx, w, h, 33333, 180);
             // Draknoid ship
             drawDraknoidShip(ctx, w * 0.5 + p * 100, h * 0.5, 3 - p);
             // Shuttle breaking away
@@ -1162,7 +1141,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (progress < 0.75) {
             // Phase 3: Chase - Draknoid ship pursuing
             const p = (progress - 0.5) / 0.25;
-            seededStars(ctx, w, h, 33333, 180);
+            stars(ctx, w, h, 33333, 180);
             // Speed lines
             for (let i = 0; i < 10; i++) {
                 const sy = 30 + (i * 53 + Math.floor(elapsed * 0.12)) % (h - 40);
@@ -2510,14 +2489,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: 'A small data cartridge plugged into the terminal.',
                 look: (e) => e.showMessage('A data cartridge is plugged into the terminal\'s data port. The label reads "QUANTUM DRIVE v3.1". This must be what the attackers were after!'),
                 get: (e) => {
-                    if (!e.getFlag('got_cartridge')) {
-                        e.showMessage('You carefully eject the data cartridge and pocket it. This contains the Quantum Drive specifications — the most valuable data on the ship!');
-                        e.addToInventory('cartridge');
-                        e.setFlag('got_cartridge');
-                        e.addScore(15);
-                    } else {
-                        e.showMessage('You already took the cartridge.');
-                    }
+                    e.showMessage('You carefully eject the data cartridge and pocket it. This contains the Quantum Drive specifications — the most valuable data on the ship!');
+                    e.addToInventory('cartridge');
+                    e.setFlag('got_cartridge');
+                    e.addScore(15);
                 }
             },
             {
@@ -2722,7 +2697,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.rect(221, 16, 198, 68);
             ctx.clip();
             ctx.translate(220, 15);
-            stars(ctx, 200, 70, 777, 30);
+            stars(ctx, 200, 70, 777, 30, 0.65);
             ctx.restore();
             // A planet visible
             ctx.fillStyle = '#AA8855';
@@ -3505,7 +3480,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ditherRect(ctx, 0, 80, w, 80, '#AA00AA', '#AA00AA', 2);
 
             // Stars in twilight sky
-            stars(ctx, w, 160, 31337, 40);
+            stars(ctx, w, 160, 31337, 40, 0.65);
 
             // Moons
             ctx.fillStyle = '#CCBBDD';
@@ -4196,11 +4171,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.setFlag('pilot_has_drink');
                         e.showMessage('"For me?! You\'re a saint!" Zorthak grabs the ale and downs half of it in one gulp. His eyes light up. "Alright, alright, I promised info and Zorthak keeps his word..."');
                         // Pilot gives you the nav chip via short cutscene delay
+                        const savedPX = engine.playerX, savedPY = engine.playerY;
                         e.playCutscene({
                             duration: 3000,
                             skippable: true,
                             draw: (ctx, w, h, progress) => {
                                 miniAnimRedrawRoom(ctx, w, h);
+                                // Draw player character at their position
+                                drawPlayerBody(ctx, savedPX, savedPY, 1.85, 0);
                                 // Pilot drinking animation
                                 const pilotX = 430, pilotY = 208;
                                 // Arm lifting drink
@@ -4477,99 +4455,99 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.font = '7px "Courier New"';
             ctx.fillText('200 BUCKS', 349, 146);
 
-            // Merchant - tall lanky alien with robe
+            // Merchant - tall lanky alien with robe (positioned behind counter)
             // Body / robe
             ctx.fillStyle = '#AA8844';
-            ctx.fillRect(468, 130, 40, 72);
+            ctx.fillRect(378, 130, 40, 72);
             // Robe detail - hem
             ctx.fillStyle = '#997733';
-            ctx.fillRect(468, 195, 40, 7);
+            ctx.fillRect(378, 195, 40, 7);
             // Robe pattern (diamond shapes)
             ctx.fillStyle = '#BBAA55';
-            ctx.fillRect(478, 145, 4, 4);
-            ctx.fillRect(492, 160, 4, 4);
-            ctx.fillRect(478, 175, 4, 4);
+            ctx.fillRect(388, 145, 4, 4);
+            ctx.fillRect(402, 160, 4, 4);
+            ctx.fillRect(388, 175, 4, 4);
             // Robe sash/belt
             ctx.fillStyle = '#BB4422';
-            ctx.fillRect(468, 165, 40, 4);
+            ctx.fillRect(378, 165, 40, 4);
             ctx.fillStyle = '#CC5533';
-            ctx.fillRect(495, 163, 8, 8); // sash knot
+            ctx.fillRect(405, 163, 8, 8); // sash knot
             // Head
             ctx.fillStyle = '#CC9955';
-            ctx.fillRect(474, 92, 30, 38);
+            ctx.fillRect(384, 92, 30, 38);
             // Head shape - slightly elongated
             ctx.fillStyle = '#CC9955';
-            ctx.fillRect(477, 85, 24, 10);
+            ctx.fillRect(387, 85, 24, 10);
             // Big alien eyes (detailed with iris rings)
             ctx.fillStyle = '#113322';
-            ctx.beginPath(); ctx.arc(484, 108, 7, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(499, 108, 7, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(394, 108, 7, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(409, 108, 7, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#22FF44';
-            ctx.beginPath(); ctx.arc(484, 108, 5, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(499, 108, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(394, 108, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(409, 108, 5, 0, Math.PI * 2); ctx.fill();
             // Eye highlight
             ctx.fillStyle = '#88FF88';
-            ctx.beginPath(); ctx.arc(482, 106, 2, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(497, 106, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(392, 106, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(407, 106, 2, 0, Math.PI * 2); ctx.fill();
             // Pupil slits
             ctx.fillStyle = '#001100';
-            ctx.fillRect(483, 105, 2, 6);
-            ctx.fillRect(498, 105, 2, 6);
+            ctx.fillRect(393, 105, 2, 6);
+            ctx.fillRect(408, 105, 2, 6);
             // Alien nostrils (slits)
             ctx.fillStyle = '#AA7733';
-            ctx.fillRect(489, 118, 2, 3);
-            ctx.fillRect(493, 118, 2, 3);
+            ctx.fillRect(399, 118, 2, 3);
+            ctx.fillRect(403, 118, 2, 3);
             // Mouth - thin alien lips with knowing smile
             ctx.fillStyle = '#996633';
-            ctx.fillRect(485, 123, 14, 2);
+            ctx.fillRect(395, 123, 14, 2);
             ctx.fillStyle = '#AA7744';
-            ctx.fillRect(498, 122, 2, 1); // smile upturn
+            ctx.fillRect(408, 122, 2, 1); // smile upturn
             // Merchant hat - elaborate
             ctx.fillStyle = '#773322';
-            ctx.fillRect(466, 84, 46, 6);
-            ctx.fillRect(472, 72, 34, 14);
+            ctx.fillRect(376, 84, 46, 6);
+            ctx.fillRect(382, 72, 34, 14);
             // Hat band
             ctx.fillStyle = '#CCAA44';
-            ctx.fillRect(472, 80, 34, 3);
+            ctx.fillRect(382, 80, 34, 3);
             // Hat jewel
             ctx.fillStyle = '#FF4444';
-            ctx.fillRect(487, 75, 4, 4);
+            ctx.fillRect(397, 75, 4, 4);
             ctx.fillStyle = '#FF8888';
-            ctx.fillRect(488, 76, 2, 2);
+            ctx.fillRect(398, 76, 2, 2);
             // Ears (long pointed alien ears)
             ctx.fillStyle = '#CC9955';
-            ctx.fillRect(470, 98, 4, 20);
-            ctx.fillRect(504, 98, 4, 20);
+            ctx.fillRect(380, 98, 4, 20);
+            ctx.fillRect(414, 98, 4, 20);
             ctx.fillStyle = '#BB8844';
-            ctx.fillRect(471, 100, 2, 15);
-            ctx.fillRect(505, 100, 2, 15);
+            ctx.fillRect(381, 100, 2, 15);
+            ctx.fillRect(415, 100, 2, 15);
             // Necklace / pendant
             ctx.fillStyle = '#DDCC44';
-            ctx.fillRect(485, 130, 8, 2);
+            ctx.fillRect(395, 130, 8, 2);
             ctx.fillStyle = '#FFDD55';
-            ctx.fillRect(488, 131, 3, 4);
+            ctx.fillRect(398, 131, 3, 4);
             // Arms - long & thin
             ctx.fillStyle = '#AA8844';
-            ctx.fillRect(458, 140, 10, 55);
-            ctx.fillRect(508, 140, 10, 55);
+            ctx.fillRect(368, 140, 10, 55);
+            ctx.fillRect(418, 140, 10, 55);
             // Sleeve cuffs
             ctx.fillStyle = '#CCAA44';
-            ctx.fillRect(458, 140, 10, 3);
-            ctx.fillRect(508, 140, 10, 3);
+            ctx.fillRect(368, 140, 10, 3);
+            ctx.fillRect(418, 140, 10, 3);
             // Hands on counter - with rings
             ctx.fillStyle = '#CC9955';
-            ctx.fillRect(456, 194, 14, 8);
-            ctx.fillRect(506, 194, 14, 8);
+            ctx.fillRect(366, 194, 14, 8);
+            ctx.fillRect(416, 194, 14, 8);
             // Finger detail
             ctx.fillStyle = '#BB8844';
-            ctx.fillRect(458, 200, 3, 2);
-            ctx.fillRect(462, 200, 3, 2);
-            ctx.fillRect(508, 200, 3, 2);
-            ctx.fillRect(512, 200, 3, 2);
+            ctx.fillRect(368, 200, 3, 2);
+            ctx.fillRect(372, 200, 3, 2);
+            ctx.fillRect(418, 200, 3, 2);
+            ctx.fillRect(422, 200, 3, 2);
             // Rings
             ctx.fillStyle = '#FFDD44';
-            ctx.fillRect(460, 198, 2, 2);
-            ctx.fillRect(514, 198, 2, 2);
+            ctx.fillRect(370, 198, 2, 2);
+            ctx.fillRect(424, 198, 2, 2);
 
             // Sign on wall
             ctx.fillStyle = '#554433';
@@ -4648,7 +4626,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         hotspots: [
             {
-                name: 'Merchant', x: 455, y: 75, w: 70, h: 140,
+                name: 'Merchant', x: 365, y: 75, w: 70, h: 140,
                 description: 'The alien shopkeeper called Tiny (ironically).',
                 look: (e) => e.showMessage('A tall, lean alien with huge green eyes and a merchant\'s hat. Despite the name "Tiny" on the sign, he\'s actually quite imposing. He watches you with those huge, unblinking eyes.'),
                 talk: (e) => {
@@ -4780,6 +4758,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillStyle = '#1a3a1a';
                 ctx.fillRect(248, 280, 145, 3);
             });
+
+            // Edge transitions — ship is a dead end, only airlock exit to the left
+            e.setEdgeTransition('right', (eng) => {
+                eng.showMessage('The corridor leads deeper into the ship — swarming with Draknoids. Going that way alone would be suicide.');
+            });
+        },
+        onUpdate: (e) => {
+            // Set guard_anim_done flag once the 7.5s defeat animation finishes
+            const shootStart = e.getFlag('guard_shoot_start');
+            if (shootStart && !e.getFlag('guard_anim_done') && e.animTimer - shootStart >= 7500) {
+                e.setFlag('guard_anim_done');
+                e.showMessage('The guard collapses in a heap of sparking armor. The path to the console is clear!');
+            }
         },
         draw: (ctx, w, h, eng) => {
             // Dark alien ship interior
@@ -5510,7 +5501,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: 'Console', x: 455, y: 145, w: 110, h: 100,
                 description: 'A Draknoid computer console.',
                 look: (e) => {
-                    if (!e.getFlag('guard_defeated')) {
+                    if (!e.getFlag('guard_anim_done')) {
                         e.showMessage('You can\'t get a good look with that guard pointing a gun at you.');
                     } else if (e.getFlag('field_down')) {
                         e.showMessage('The console shows "FORCE FIELD OFFLINE". The data cartridge is still plugged in.');
@@ -5519,7 +5510,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 },
                 use: (e) => {
-                    if (!e.getFlag('guard_defeated')) {
+                    if (!e.getFlag('guard_anim_done')) {
                         e.showMessage('Deal with the guard first!');
                     } else if (e.getFlag('field_down')) {
                         e.showMessage('The force field is already down.');
@@ -5533,7 +5524,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 },
                 useItem: (e, itemId) => {
-                    if (!e.getFlag('guard_defeated')) {
+                    if (!e.getFlag('guard_anim_done')) {
                         e.showMessage('The guard won\'t let you near the console!');
                     } else if (itemId === 'cartridge' && !e.getFlag('field_down')) {
                         e.showMessage('You slot the data cartridge into the console. The Draknoid system reads the Quantum Drive specs and, thinking it\'s an authorized maintenance override, disables the force field! Brilliant!');
@@ -5551,7 +5542,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: 'Quantum Drive', x: 275, y: 150, w: 90, h: 110,
                 description: 'The stolen Quantum Drive prototype!',
                 look: (e) => {
-                    if (!e.getFlag('guard_defeated')) {
+                    if (!e.getFlag('guard_anim_done')) {
                         e.showMessage('Through the force field shimmer, you can see the Quantum Drive prototype. Its core pulses with incredible energy. This is what they stole from the Constellation. But first — that guard.');
                     } else if (!e.getFlag('field_down')) {
                         e.showMessage('The Quantum Drive sits tantalizingly close, but the force field blocks you. You need to find a way to shut it down — the console on the right might help.');
@@ -5560,7 +5551,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 },
                 get: (e) => {
-                    if (!e.getFlag('guard_defeated')) {
+                    if (!e.getFlag('guard_anim_done')) {
                         e.showMessage('You can\'t get past the guard, let alone the force field!');
                     } else if (!e.getFlag('field_down')) {
                         e.showMessage('ZAP! The force field shocks you as you reach for it. You need to disable the field first!');
@@ -5578,7 +5569,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 },
                 use: (e) => {
-                    if (!e.getFlag('guard_defeated')) {
+                    if (!e.getFlag('guard_anim_done')) {
                         e.showMessage('You can\'t get past the guard!');
                     } else if (!e.getFlag('field_down')) {
                         e.showMessage('ZAP! The force field blocks you!');
@@ -5600,11 +5591,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 get hidden() { return engine.getFlag('field_down'); },
                 description: 'A shimmering energy force field.',
                 look: (e) => {
-                    if (e.getFlag('field_down')) {
-                        e.showMessage('The force field generators are dark. The way to the Quantum Drive is clear!');
-                    } else {
-                        e.showMessage('A powerful energy force field surrounds the Quantum Drive platform. It hums with lethal voltage. You\'ll need to find a way to shut it off — brute force won\'t work.');
-                    }
+                    e.showMessage('A powerful energy force field surrounds the Quantum Drive platform. It hums with lethal voltage. You\'ll need to find a way to shut it off — brute force won\'t work.');
                 },
                 use: (e) => {
                     if (!e.getFlag('field_down')) {
