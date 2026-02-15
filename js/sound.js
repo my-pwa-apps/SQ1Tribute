@@ -297,4 +297,150 @@ class SoundEngine {
         const t = this._t();
         this._osc('sine', 700, t, 0.035, 0.03);
     }
+
+    // ================================================================
+    // AMBIENT / LOOPING SOUND SYSTEM
+    // Procedural background audio that loops per-room
+    // ================================================================
+
+    /** Stop any currently playing ambient sound */
+    stopAmbient() {
+        if (this._ambientTimer) {
+            clearInterval(this._ambientTimer);
+            this._ambientTimer = null;
+        }
+        if (this._ambientNodes) {
+            this._ambientNodes.forEach(n => { try { n.stop(); } catch(e) {} });
+            this._ambientNodes = [];
+        }
+        this._ambientType = null;
+    }
+
+    /** Start a looping ambient sound for the given room type */
+    startAmbient(type) {
+        if (!this.ctx) return;
+        this.stopAmbient();
+        this._ambientType = type;
+        this._ambientNodes = [];
+
+        switch (type) {
+            case 'ship_alarm':
+                // Ship interior: low engine hum + periodic alarm klaxon
+                this._ambientTimer = setInterval(() => {
+                    if (this.muted || !this.ctx) return;
+                    const t = this._t();
+                    // Low engine rumble
+                    this._osc('sine', 45 + Math.random() * 5, t, 1.8, 0.025);
+                    this._osc('sine', 90, t + 0.3, 1.2, 0.015);
+                    // Alarm wail (two-tone)
+                    this._osc('square', 780, t + 0.1, 0.15, 0.02);
+                    this._osc('square', 580, t + 0.25, 0.15, 0.02);
+                    this._osc('square', 780, t + 0.8, 0.15, 0.02);
+                    this._osc('square', 580, t + 0.95, 0.15, 0.02);
+                }, 2000);
+                break;
+
+            case 'cantina_music':
+                // Alien jazz: repeating pattern of funky notes + rhythm
+                this._ambientTimer = setInterval(() => {
+                    if (this.muted || !this.ctx) return;
+                    const t = this._t();
+                    // Bass line
+                    const bassNotes = [110, 130, 147, 110, 165, 130, 147, 123];
+                    bassNotes.forEach((f, i) => {
+                        this._osc('triangle', f, t + i * 0.25, 0.22, 0.025);
+                    });
+                    // Melody - alien pentatonic
+                    const melody = [440, 520, 587, 440, 660, 520, 587, 784];
+                    melody.forEach((f, i) => {
+                        if (Math.random() > 0.3) {
+                            this._osc('sine', f + Math.random() * 10, t + i * 0.25 + 0.05, 0.15, 0.015);
+                        }
+                    });
+                    // Percussion - light taps
+                    for (let i = 0; i < 8; i++) {
+                        if (i % 2 === 0 || Math.random() > 0.5) {
+                            this._noise(t + i * 0.25, 0.04, 0.015, 2000 + Math.random() * 2000);
+                        }
+                    }
+                }, 2200);
+                break;
+
+            case 'desert_wind':
+                // Desert: wind howls + sand rustling
+                this._ambientTimer = setInterval(() => {
+                    if (this.muted || !this.ctx) return;
+                    const t = this._t();
+                    this._noise(t, 2.5, 0.02, 400 + Math.random() * 200);
+                    // Occasional stronger gust
+                    if (Math.random() > 0.5) {
+                        this._noise(t + 0.5, 1.5, 0.03, 300 + Math.random() * 300);
+                    }
+                }, 2800);
+                break;
+
+            case 'cave_drip':
+                // Cave: echoing drips + distant rumble
+                this._ambientTimer = setInterval(() => {
+                    if (this.muted || !this.ctx) return;
+                    const t = this._t();
+                    // Low cavern resonance
+                    this._osc('sine', 55, t, 2.0, 0.012);
+                    // Random drips
+                    const numDrips = 2 + Math.floor(Math.random() * 3);
+                    for (let i = 0; i < numDrips; i++) {
+                        const dt = Math.random() * 2;
+                        this._osc('sine', 800 + Math.random() * 400, t + dt, 0.06, 0.015);
+                    }
+                }, 2500);
+                break;
+
+            case 'outpost_crowd':
+                // Outpost: crowd murmur + alien chatter
+                this._ambientTimer = setInterval(() => {
+                    if (this.muted || !this.ctx) return;
+                    const t = this._t();
+                    // Crowd murmur (low noise)
+                    this._noise(t, 2.0, 0.015, 300);
+                    // Random alien speech snippets
+                    for (let i = 0; i < 3; i++) {
+                        const dt = Math.random() * 1.5;
+                        const base = 120 + Math.random() * 100;
+                        this._osc('sawtooth', base, t + dt, 0.04, 0.008);
+                    }
+                }, 2200);
+                break;
+
+            case 'ship_hum':
+                // Generic ship interior: just engine hum, no alarm
+                this._ambientTimer = setInterval(() => {
+                    if (this.muted || !this.ctx) return;
+                    const t = this._t();
+                    this._osc('sine', 48, t, 2.0, 0.02);
+                    this._osc('sine', 96, t + 0.2, 1.5, 0.01);
+                    // Occasional electronic blip
+                    if (Math.random() > 0.6) {
+                        this._osc('sine', 600 + Math.random() * 400, t + Math.random() * 1.5, 0.05, 0.008);
+                    }
+                }, 2200);
+                break;
+
+            case 'draknoid_ship':
+                // Alien ship: deep ominous drone + electronic pulses
+                this._ambientTimer = setInterval(() => {
+                    if (this.muted || !this.ctx) return;
+                    const t = this._t();
+                    this._osc('sawtooth', 38, t, 2.2, 0.02);
+                    this._osc('sine', 76, t + 0.1, 1.8, 0.015);
+                    // Ominous pulse
+                    this._osc('sine', 150, t + 0.5, 0.3, 0.012);
+                    this._osc('sine', 150, t + 1.3, 0.3, 0.012);
+                    // Electronic hiss
+                    if (Math.random() > 0.4) {
+                        this._noise(t + Math.random() * 1.5, 0.2, 0.01, 1500);
+                    }
+                }, 2400);
+                break;
+        }
+    }
 }

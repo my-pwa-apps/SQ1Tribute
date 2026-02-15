@@ -87,6 +87,10 @@ class GameEngine {
 
         this.sound = new SoundEngine();
 
+        // Screen shake (intensity decays over time)
+        this.screenShake = 0;
+        this.screenShakeDecay = 0.003; // per ms
+
         // VR state
         this.vrActive = false;
         this.vr = null;
@@ -124,13 +128,16 @@ class GameEngine {
         // === AGS-INSPIRED SYSTEMS ===
 
         // Player idle animation (AGS Character.IdleView / IdleDelay)
-        // When player stands still for idleDelay ms, idle animation triggers
+        // After standing still for idleDelay ms, a random idle anim plays,
+        // then a random pause before the next one. Limited to blink/feettap/eyeroll.
         this.idleTimer = 0;          // ms since player last moved
-        this.idleDelay = 4000;       // ms before idle kicks in (AGS default ~20 game loops)
-        this.idleActive = false;     // whether idle anim is currently playing
-        this.idleFrame = 0;          // current idle animation frame
-        this.idleFrameTimer = 0;     // timer for idle frame cycling
-        this.idleCycleSpeed = 600;   // ms per idle frame
+        this.idleDelay = 4000;       // ms before first idle anim
+        this.idleActive = false;     // whether an idle anim is currently playing
+        this.idleType = null;        // 'blink' | 'feettap' | 'eyeroll'
+        this.idleElapsed = 0;        // ms into the current idle animation
+        this.idlePauseTimer = 0;     // ms remaining in pause between idles
+        this.idleTypes = ['blink', 'feettap', 'eyeroll'];
+        this.idleDurations = { blink: 250, feettap: 1800, eyeroll: 1400 };
 
         // Dialog tree system (AGS Dialog / DialogTopic / DialogOptions)
         this.dialogs = {};           // registered dialog trees { id: DialogTree }
@@ -164,7 +171,11 @@ class GameEngine {
             if (this.titleScreen) {
                 this.titleScreen = false;
                 this.sound.gameStart();
-                this.goToRoom('broom_closet', 320, 310);
+                if (this.onGameStart) {
+                    this.onGameStart();
+                } else {
+                    this.goToRoom('broom_closet', 320, 310);
+                }
                 return;
             }
             if (this.dead || this.won) return;
@@ -310,7 +321,11 @@ class GameEngine {
             if (this.titleScreen) {
                 this.titleScreen = false;
                 this.sound.gameStart();
-                this.goToRoom('broom_closet', 320, 310);
+                if (this.onGameStart) {
+                    this.onGameStart();
+                } else {
+                    this.goToRoom('broom_closet', 320, 310);
+                }
                 return;
             }
             if (this.dead || this.won) return;
@@ -366,6 +381,7 @@ class GameEngine {
         this.roomTransition = 1.0; // Start fade-in
         this.exitCooldown = 500; // Prevent immediate re-exit when spawning near an exit
         this.sound.roomTransition();
+        this.sound.stopAmbient(); // Stop ambient from previous room
         this.clearRoomState(); // AGI-inspired: clear per-room state
         this.currentRoomId = roomId;
         if (px !== undefined) this.playerX = px;
@@ -466,6 +482,11 @@ class GameEngine {
         }
     }
 
+    /** Trigger screen shake with given intensity (pixels of max offset) */
+    shake(intensity) {
+        this.screenShake = intensity || 8;
+    }
+
     // ---- Death & Victory ----
     die(msg) {
         this.dead = true;
@@ -489,9 +510,11 @@ class GameEngine {
         this.selectedItem = null;
         this.cutscene = null;
         this.roomTransition = 0;
+        this.screenShake = 0;
         this.playerVisible = true;
         this.playerFacing = 'toward';
         this.playerTargetY = null;
+        this.sound.stopAmbient();
         this.setAction('walk');
         this.updateInventoryUI();
         this.goToRoom('broom_closet', 320, 310);
@@ -748,8 +771,9 @@ class GameEngine {
         // Reset idle animation so it starts fresh in new room
         this.idleTimer = 0;
         this.idleActive = false;
-        this.idleFrame = 0;
-        this.idleFrameTimer = 0;
+        this.idleType = null;
+        this.idleElapsed = 0;
+        this.idlePauseTimer = 0;
     }
 
     // === AGS-INSPIRED: DEPTH SCALING (WalkableArea.ScalingNear/Far) ===
@@ -1155,19 +1179,26 @@ class GameEngine {
             this.playerWalking = false;
             this.playerFrame = 0;
 
-            // AGS-inspired: player idle animation (Character.IdleView / IdleDelay)
-            // When standing still, increment idle timer; after threshold, start idle anim
+            // AGS-inspired: player idle animation (randomized one-shot with pauses)
             this.idleTimer += dt;
-            if (this.idleTimer >= this.idleDelay && !this.idleActive) {
-                this.idleActive = true;
-                this.idleFrame = 0;
-                this.idleFrameTimer = 0;
-            }
             if (this.idleActive) {
-                this.idleFrameTimer += dt;
-                if (this.idleFrameTimer >= this.idleCycleSpeed) {
-                    this.idleFrame = (this.idleFrame + 1) % 4;
-                    this.idleFrameTimer = 0;
+                // Currently playing an idle animation — advance it
+                this.idleElapsed += dt;
+                if (this.idleElapsed >= this.idleDurations[this.idleType]) {
+                    // Animation finished — enter random pause before next
+                    this.idleActive = false;
+                    this.idleType = null;
+                    this.idlePauseTimer = 3000 + Math.random() * 5000; // 3-8s pause
+                }
+            } else if (this.idleTimer >= this.idleDelay) {
+                // Idle delay met, but in pause between anims
+                if (this.idlePauseTimer > 0) {
+                    this.idlePauseTimer -= dt;
+                } else {
+                    // Pick a random idle animation and start it
+                    this.idleActive = true;
+                    this.idleType = this.idleTypes[Math.floor(Math.random() * this.idleTypes.length)];
+                    this.idleElapsed = 0;
                 }
             }
         }
@@ -1176,7 +1207,9 @@ class GameEngine {
         if (this.playerWalking || arrowLeft || arrowRight || arrowUp || arrowDown) {
             this.idleTimer = 0;
             this.idleActive = false;
-            this.idleFrame = 0;
+            this.idleType = null;
+            this.idleElapsed = 0;
+            this.idlePauseTimer = 0;
         }
 
         const room = this.rooms[this.currentRoomId];
@@ -1199,12 +1232,25 @@ class GameEngine {
         if (this.roomTransition > 0) {
             this.roomTransition = Math.max(0, this.roomTransition - dt * 0.002);
         }
+
+        // Screen shake decay
+        if (this.screenShake > 0) {
+            this.screenShake = Math.max(0, this.screenShake - dt * this.screenShakeDecay);
+        }
     }
 
     // ---- Render ----
     render() {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.WIDTH, this.HEIGHT);
+
+        // Apply screen shake offset
+        if (this.screenShake > 0) {
+            const shakeX = (Math.random() - 0.5) * this.screenShake * 2;
+            const shakeY = (Math.random() - 0.5) * this.screenShake * 2;
+            ctx.save();
+            ctx.translate(shakeX, shakeY);
+        }
 
         // Cutscene rendering
         if (this.cutscene) {
@@ -1219,6 +1265,7 @@ class GameEngine {
                 ctx.fillText('Click to skip', this.WIDTH - 10, this.HEIGHT - 8);
                 ctx.textAlign = 'left';
             }
+            if (this.screenShake > 0) ctx.restore();
             return;
         }
 
@@ -1265,19 +1312,19 @@ class GameEngine {
 
         // Current action indicator (Sierra-style menu bar)
         if (!this.dead && !this.won) {
-            // Solid bar across top
-            ctx.fillStyle = '#14142c';
+            // Solid bar across top (EGA black)
+            ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, this.WIDTH, 16);
-            ctx.fillStyle = '#334';
+            ctx.fillStyle = '#555555';
             ctx.fillRect(0, 16, this.WIDTH, 1);
             const actionLabel = this.selectedItem
                 ? `Use ${this.items[this.selectedItem]?.name || '?'} on...`
                 : this.currentAction.charAt(0).toUpperCase() + this.currentAction.slice(1);
             ctx.font = 'bold 11px "Courier New"';
-            ctx.fillStyle = '#ddeeff';
+            ctx.fillStyle = '#FFFFFF';
             ctx.fillText(actionLabel, 8, 12);
             // Score in the bar
-            ctx.fillStyle = '#ffdd55';
+            ctx.fillStyle = '#FFFF55';
             ctx.textAlign = 'right';
             ctx.fillText(`Score: ${this.score} / ${this.maxScore}`, this.WIDTH - 8, 12);
             ctx.textAlign = 'left';
@@ -1340,6 +1387,9 @@ class GameEngine {
             ctx.fillStyle = `rgba(0,0,0,${this.roomTransition})`;
             ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
         }
+
+        // Restore screen shake transform before overlays
+        if (this.screenShake > 0) ctx.restore();
 
         // CRT scanline overlay
         ctx.drawImage(this.scanlineCanvas, 0, 0);
@@ -1516,23 +1566,20 @@ class GameEngine {
         // "STAR SWEEPER" main title with shadow
         ctx.font = 'bold 44px "Courier New"';
         // Drop shadow
-        ctx.fillStyle = '#000033';
+        ctx.fillStyle = '#0000AA';
         ctx.fillText('STAR SWEEPER', W / 2 + 3, 58);
-        // Main text with pulsing glow
-        const glow = Math.sin(t / 600) * 0.2 + 0.8;
-        ctx.fillStyle = `rgba(255,255,85,${glow})`;
+        // Main text (AGI-style: 2-frame blink between yellow and white)
+        const titleBlink = Math.floor(t / 600) % 2;
+        ctx.fillStyle = titleBlink ? '#FFFF55' : '#FFFFFF';
         ctx.fillText('STAR SWEEPER', W / 2, 55);
-        // Highlight on top edge
-        ctx.fillStyle = `rgba(255,255,200,${glow * 0.4})`;
-        ctx.fillText('STAR SWEEPER', W / 2, 54);
 
         // Subtitle
         ctx.font = '15px "Courier New"';
-        ctx.fillStyle = '#55AAFF';
+        ctx.fillStyle = '#55FFFF';
         ctx.fillText('A   S P A C E   A D V E N T U R E', W / 2, 78);
 
         // Thin decorative line under subtitle
-        ctx.strokeStyle = 'rgba(85,170,255,0.3)';
+        ctx.strokeStyle = '#5555FF';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(160, 86);
@@ -1545,11 +1592,11 @@ class GameEngine {
         ctx.fillText('A tribute to Sierra On-Line adventure games', W / 2, H - 90);
 
         ctx.font = '11px "Courier New"';
-        ctx.fillStyle = '#6688AA';
+        ctx.fillStyle = '#5555FF';
         ctx.fillText('Inspired by Space Quest: The Sarien Encounter (1986)', W / 2, H - 72);
 
         ctx.font = '10px "Courier New"';
-        ctx.fillStyle = '#556677';
+        ctx.fillStyle = '#555555';
         ctx.fillText('Procedural pixel art  \u2022  No sprites  \u2022  Pure JavaScript', W / 2, H - 54);
 
         // ---- Blinking prompt ----
@@ -1562,7 +1609,7 @@ class GameEngine {
 
         // Copyright
         ctx.font = '9px "Courier New"';
-        ctx.fillStyle = '#333344';
+        ctx.fillStyle = '#555555';
         ctx.fillText('\u00A9 2025-2026', W / 2, H - 6);
 
         ctx.textAlign = 'left';
@@ -1583,23 +1630,31 @@ class GameEngine {
             s *= this.getDepthScale(y);
         }
 
-        // AGS-inspired: idle animation fidgets
-        const idlePhase = this.idleActive ? this.idleFrame : -1;
-        // Use animTimer (never resets) for smooth continuous sine effects
-        const idleShiftX = (idlePhase === 1) ? Math.sin(this.animTimer * 0.003) * 1.2 * s : 0;
-        // Idle look-around: slight head offset (phase 2)
-        const idleHeadOfs = (idlePhase === 2) ? Math.round(Math.sin(this.animTimer * 0.002) * 1.5 * s) : 0;
-        const idleFootTap = (idlePhase === 3) ? Math.abs(Math.sin(this.animTimer * 0.008)) * 2 * s : 0;
+        // Idle animation effects (blink, feettap, eyeroll)
+        const idleType = this.idleActive ? this.idleType : null;
+        const idleT = this.idleElapsed || 0; // ms into current idle
+
+        // Eye-roll: pupils shift left-then-right-then-center over duration
+        let idleHeadOfs = 0;
+        if (idleType === 'eyeroll') {
+            const p = idleT / this.idleDurations.eyeroll; // 0..1
+            if (p < 0.3) idleHeadOfs = Math.round(-1.5 * s);       // look left
+            else if (p < 0.6) idleHeadOfs = Math.round(1.5 * s);   // look right
+            else idleHeadOfs = 0;                                   // center
+        }
+
+        // Foot tap: discrete 2-frame tap cycle
+        let idleFootTap = 0;
+        if (idleType === 'feettap') {
+            const tapFrame = Math.floor(idleT / 200) % 2; // alternates every 200ms
+            idleFootTap = tapFrame === 0 ? 2 * s : 0;
+        }
+
+        // Blink: eyes close for the duration (drawn later as overlay)
 
         // Leg animation
         const ls = walking ? Math.sin(frame * Math.PI / 2) * 3 * s : (idleFootTap > 0 ? -idleFootTap : 0);
         const as = walking ? Math.cos(frame * Math.PI / 2) * 2 * s : 0;
-
-        // AGS-inspired: apply idle body sway via translate
-        if (idleShiftX !== 0) {
-            ctx.save();
-            ctx.translate(idleShiftX, 0);
-        }
 
         if (facing === 'toward') {
             // ---- FRONT VIEW (facing camera) ----
@@ -1945,25 +2000,17 @@ class GameEngine {
             ctx.fillRect(x - 1 * s, y - 11.5 * s, 3 * s, 0.5 * s);
         }
 
-        // AGS-inspired: restore idle body sway translate
-        if (idleShiftX !== 0) {
-            ctx.restore();
-        }
-
-        // AGS-inspired: idle eye blink overlay (phase 0)
-        if (idlePhase === 0) {
-            const blinkCycle = Math.sin(this.animTimer * 0.006);
-            if (blinkCycle > 0.85) {
-                ctx.fillStyle = '#FFCC88';
-                if (facing === 'toward') {
-                    ctx.fillRect(x - 3 * s, y - 15 * s, 2.5 * s, 2 * s);
-                    ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
-                } else if (facing !== 'away') {
-                    if (dir > 0) {
-                        ctx.fillRect(x, y - 15 * s, 3 * s, 2 * s);
-                    } else {
-                        ctx.fillRect(x - 3 * s, y - 15 * s, 3 * s, 2 * s);
-                    }
+        // Idle eye blink overlay — covers eyes with skin color
+        if (idleType === 'blink') {
+            ctx.fillStyle = '#FFCC88';
+            if (facing === 'toward') {
+                ctx.fillRect(x - 3 * s, y - 15 * s, 2.5 * s, 2 * s);
+                ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
+            } else if (facing !== 'away') {
+                if (dir > 0) {
+                    ctx.fillRect(x, y - 15 * s, 3 * s, 2 * s);
+                } else {
+                    ctx.fillRect(x - 3 * s, y - 15 * s, 3 * s, 2 * s);
                 }
             }
         }
@@ -2068,8 +2115,8 @@ class GameEngine {
 
         ctx.textAlign = 'center';
         ctx.font = 'bold 30px "Courier New"';
-        const glow = Math.sin(this.animTimer / 400) * 0.3 + 0.7;
-        ctx.fillStyle = `rgba(255,255,85,${glow})`;
+        const congratsBlink = Math.floor(this.animTimer / 400) % 2;
+        ctx.fillStyle = congratsBlink ? '#FFFF55' : '#FFFFFF';
         ctx.fillText('CONGRATULATIONS!', this.WIDTH / 2, by + 55);
 
         ctx.font = '16px "Courier New"';

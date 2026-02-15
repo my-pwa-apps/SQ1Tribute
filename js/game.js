@@ -205,6 +205,395 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
     });
 
+    // ========== INTRO CUTSCENE: WAKING UP + ATTACK ==========
+    engine.onGameStart = () => {
+        engine.playCutscene({
+            duration: 18000,
+            skippable: true,
+            draw: (ctx, w, h, progress, elapsed) => {
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, w, h);
+
+                // Phase 1 (0-3s): Black screen with ship status text fading in
+                if (elapsed < 3000) {
+                    const fade = Math.min(elapsed / 1500, 1);
+                    ctx.fillStyle = `rgba(85,255,85,${fade * 0.7})`;
+                    ctx.font = '10px "Courier New"';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('ISS CONSTELLATION  -  DEEP SPACE SURVEY VESSEL', w / 2, 80);
+                    ctx.fillText('CREW: 147  |  MISSION DAY: 2,847', w / 2, 100);
+                    ctx.fillText('SECTOR: GAMMA QUADRANT, UNCHARTED ZONE', w / 2, 120);
+                    if (elapsed > 1500) {
+                        const fade2 = Math.min((elapsed - 1500) / 1000, 1);
+                        ctx.fillStyle = `rgba(170,170,170,${fade2 * 0.6})`;
+                        ctx.font = '8px "Courier New"';
+                        ctx.fillText('SHIP STATUS: ALL SYSTEMS NOMINAL', w / 2, 160);
+                        ctx.fillText('TIME: 03:47 SHIP STANDARD', w / 2, 175);
+                    }
+                    if (elapsed > 2200) {
+                        const fade3 = Math.min((elapsed - 2200) / 600, 1);
+                        ctx.fillStyle = `rgba(170,170,170,${fade3 * 0.5})`;
+                        ctx.font = '8px "Courier New"';
+                        ctx.fillText('LOCATION: SUPPLY CLOSET J-6', w / 2, 210);
+                    }
+                    ctx.textAlign = 'left';
+                }
+
+                // Phase 2 (3-7s): Broom closet fades in dimly, character sleeping
+                else if (elapsed < 7000) {
+                    const roomFade = Math.min((elapsed - 3000) / 2000, 1);
+                    ctx.globalAlpha = roomFade * 0.4;
+                    // Simplified broom closet background
+                    ctx.fillStyle = '#38384e';
+                    ctx.fillRect(0, 0, w, 275);
+                    ctx.fillStyle = '#484860';
+                    ctx.fillRect(0, 275, w, 125);
+                    // Door
+                    ctx.fillStyle = '#4e5e72';
+                    ctx.fillRect(270, 42, 100, 233);
+                    ctx.fillStyle = '#5a6e84';
+                    ctx.fillRect(276, 48, 88, 221);
+                    // Shelves
+                    ctx.fillStyle = '#5a5a6e';
+                    ctx.fillRect(25, 88, 190, 6);
+                    ctx.fillRect(25, 155, 190, 6);
+                    // Bucket
+                    ctx.fillStyle = '#606575';
+                    ctx.fillRect(470, 245, 45, 30);
+                    ctx.globalAlpha = 1;
+
+                    // Sleeping character on floor
+                    const breathe = Math.sin(elapsed / 400) * 1.5;
+                    ctx.fillStyle = `rgba(85,85,170,${roomFade * 0.7})`;
+                    // Body lying down
+                    ctx.fillRect(280, 320 + breathe, 40, 12);
+                    // Head
+                    ctx.fillStyle = `rgba(170,136,102,${roomFade * 0.7})`;
+                    ctx.fillRect(270, 316 + breathe, 14, 14);
+                    // Legs
+                    ctx.fillStyle = `rgba(68,68,119,${roomFade * 0.7})`;
+                    ctx.fillRect(318, 322 + breathe, 24, 8);
+
+                    // "Zzz" text
+                    const zzz = Math.floor(elapsed / 600) % 3;
+                    ctx.fillStyle = `rgba(255,255,255,${roomFade * 0.4})`;
+                    ctx.font = '10px "Courier New"';
+                    ctx.fillText('z', 265, 305 - zzz * 3);
+                    if (zzz > 0) ctx.fillText('z', 258, 295);
+                    if (zzz > 1) ctx.fillText('z', 252, 285);
+
+                    // Narration text
+                    if (elapsed > 4500) {
+                        const txtFade = Math.min((elapsed - 4500) / 800, 1);
+                        ctx.fillStyle = `rgba(255,255,255,${txtFade * 0.8})`;
+                        ctx.font = '11px "Courier New"';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('You are asleep in your favorite spot —', w / 2, 370);
+                        ctx.fillText('the supply closet on deck 6.', w / 2, 385);
+                        ctx.textAlign = 'left';
+                    }
+                }
+
+                // Phase 3 (7-9.5s): Wake up, yawning, ship info text
+                else if (elapsed < 9500) {
+                    const wakeProg = (elapsed - 7000) / 2500;
+                    // Room getting brighter
+                    ctx.globalAlpha = 0.4 + wakeProg * 0.3;
+                    ctx.fillStyle = '#38384e';
+                    ctx.fillRect(0, 0, w, 275);
+                    ctx.fillStyle = '#484860';
+                    ctx.fillRect(0, 275, w, 125);
+                    ctx.fillStyle = '#4e5e72';
+                    ctx.fillRect(270, 42, 100, 233);
+                    ctx.fillStyle = '#5a6e84';
+                    ctx.fillRect(276, 48, 88, 221);
+                    ctx.fillStyle = '#5a5a6e';
+                    ctx.fillRect(25, 88, 190, 6);
+                    ctx.fillRect(25, 155, 190, 6);
+                    ctx.fillStyle = '#606575';
+                    ctx.fillRect(470, 245, 45, 30);
+                    ctx.globalAlpha = 1;
+
+                    // Character sitting up / standing
+                    const standProg = Math.min(wakeProg * 2, 1);
+                    const charY = 320 - standProg * 12;
+                    // Body (transitioning from lying to upright)
+                    ctx.fillStyle = '#5555AA';
+                    if (standProg < 0.5) {
+                        // Still half-lying
+                        ctx.fillRect(280, charY, 40 - standProg * 30, 12);
+                        ctx.fillStyle = '#AA8866';
+                        ctx.fillRect(270 + standProg * 10, charY - 4, 14, 14);
+                    } else {
+                        // Sitting/standing
+                        ctx.fillRect(295, charY - 10, 16, 22);
+                        ctx.fillStyle = '#AA8866';
+                        ctx.fillRect(298, charY - 22, 10, 12);
+                        // Arms stretching (yawn)
+                        if (wakeProg < 0.8) {
+                            ctx.fillStyle = '#5555AA';
+                            ctx.fillRect(285, charY - 8, 8, 4);
+                            ctx.fillRect(313, charY - 8, 8, 4);
+                        }
+                    }
+
+                    // "Yawwwn" / wake up text
+                    if (elapsed > 7800 && elapsed < 9000) {
+                        const yFade = elapsed < 8500 ? Math.min((elapsed - 7800) / 500, 1) : Math.max(0, 1 - (elapsed - 8500) / 500);
+                        ctx.fillStyle = `rgba(255,255,200,${yFade * 0.7})`;
+                        ctx.font = '10px "Courier New"';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('*yaaawn*... Huh? What time is it...', w / 2, 370);
+                        ctx.textAlign = 'left';
+                    }
+                    if (elapsed > 8800) {
+                        const tFade = Math.min((elapsed - 8800) / 500, 1);
+                        ctx.fillStyle = `rgba(255,255,255,${tFade * 0.8})`;
+                        ctx.font = '11px "Courier New"';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('You stretch and look around blearily...', w / 2, 385);
+                        ctx.textAlign = 'left';
+                    }
+                }
+
+                // Phase 4 (9.5-11s): Ship status suddenly changes — warning
+                else if (elapsed < 11000) {
+                    // Room visible
+                    ctx.globalAlpha = 0.7;
+                    ctx.fillStyle = '#38384e';
+                    ctx.fillRect(0, 0, w, 275);
+                    ctx.fillStyle = '#484860';
+                    ctx.fillRect(0, 275, w, 125);
+                    ctx.fillStyle = '#4e5e72';
+                    ctx.fillRect(270, 42, 100, 233);
+                    ctx.fillStyle = '#5a6e84';
+                    ctx.fillRect(276, 48, 88, 221);
+                    ctx.fillStyle = '#5a5a6e';
+                    ctx.fillRect(25, 88, 190, 6);
+                    ctx.fillRect(25, 155, 190, 6);
+                    ctx.fillStyle = '#606575';
+                    ctx.fillRect(470, 245, 45, 30);
+                    ctx.globalAlpha = 1;
+
+                    // Standing character
+                    ctx.fillStyle = '#5555AA';
+                    ctx.fillRect(295, 298, 16, 22);
+                    ctx.fillStyle = '#AA8866';
+                    ctx.fillRect(298, 286, 10, 12);
+
+                    // Warning text flashing
+                    const warn = Math.floor(elapsed / 250) % 2;
+                    ctx.fillStyle = warn ? '#FF5555' : '#AA0000';
+                    ctx.font = '14px "Courier New"';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('!! WARNING - PROXIMITY ALERT !!', w / 2, 50);
+                    ctx.fillStyle = '#FFFF55';
+                    ctx.font = '10px "Courier New"';
+                    ctx.fillText('UNIDENTIFIED VESSEL DETECTED', w / 2, 70);
+                    ctx.fillText('CLASSIFICATION: HOSTILE', w / 2, 85);
+                    ctx.textAlign = 'left';
+
+                    // Trigger alarm sound once
+                    if (elapsed > 9500 && elapsed < 9600) {
+                        engine.sound.alarm();
+                    }
+                    if (elapsed > 10200 && elapsed < 10300) {
+                        engine.sound.alarm();
+                    }
+
+                    if (elapsed > 10200) {
+                        const tFade = Math.min((elapsed - 10200) / 400, 1);
+                        ctx.fillStyle = `rgba(255,255,255,${tFade * 0.9})`;
+                        ctx.font = '11px "Courier New"';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('What the--?!', w / 2, 370);
+                        ctx.textAlign = 'left';
+                    }
+                }
+
+                // Phase 5 (11-14s): ATTACK! Explosion, shaking, red flash
+                else if (elapsed < 14000) {
+                    const attackTime = elapsed - 11000;
+
+                    // Trigger explosion sound and shake at start
+                    if (attackTime < 100) {
+                        engine.sound.explosion();
+                        engine.shake(14);
+                    }
+                    // Second hit
+                    if (attackTime > 1200 && attackTime < 1300) {
+                        engine.sound.explosion();
+                        engine.shake(10);
+                    }
+
+                    // Red flash on impact
+                    const flashIntensity = attackTime < 300 ? (1 - attackTime / 300) : 0;
+                    const flash2 = (attackTime > 1200 && attackTime < 1500) ? (1 - (attackTime - 1200) / 300) : 0;
+                    const totalFlash = Math.max(flashIntensity, flash2);
+
+                    // Room visible with alarm lighting
+                    ctx.globalAlpha = 0.7;
+                    ctx.fillStyle = '#38384e';
+                    ctx.fillRect(0, 0, w, 275);
+                    ctx.fillStyle = '#484860';
+                    ctx.fillRect(0, 275, w, 125);
+                    ctx.fillStyle = '#4e5e72';
+                    ctx.fillRect(270, 42, 100, 233);
+                    ctx.fillStyle = '#5a6e84';
+                    ctx.fillRect(276, 48, 88, 221);
+                    ctx.fillStyle = '#5a5a6e';
+                    ctx.fillRect(25, 88, 190, 6);
+                    ctx.fillRect(25, 155, 190, 6);
+                    ctx.fillStyle = '#606575';
+                    ctx.fillRect(470, 245, 45, 30);
+                    ctx.globalAlpha = 1;
+
+                    // Red flash overlay
+                    if (totalFlash > 0) {
+                        ctx.fillStyle = `rgba(255,50,0,${totalFlash * 0.6})`;
+                        ctx.fillRect(0, 0, w, h);
+                    }
+
+                    // Alarm glow (sparse red pixels like EGA)
+                    if (Math.floor(elapsed / 300) % 2) {
+                        ctx.fillStyle = '#AA0000';
+                        for (let py = 0; py < h; py += 8) {
+                            for (let px = ((py / 8) % 2) * 8; px < w; px += 16) {
+                                ctx.fillRect(px, py, 1, 1);
+                            }
+                        }
+                    }
+
+                    // Alarm light
+                    const alOn = Math.floor(elapsed / 300) % 2;
+                    ctx.fillStyle = alOn ? '#FF5555' : '#AA0000';
+                    ctx.fillRect(305, 18, 22, 10);
+
+                    // Character stumbling
+                    const stumble = Math.sin(attackTime / 150) * 8;
+                    ctx.fillStyle = '#5555AA';
+                    ctx.fillRect(295 + stumble, 298, 16, 22);
+                    ctx.fillStyle = '#AA8866';
+                    ctx.fillRect(298 + stumble, 286, 10, 12);
+                    // Arms flailing
+                    ctx.fillStyle = '#5555AA';
+                    ctx.fillRect(285 + stumble, 296 + Math.sin(attackTime / 100) * 4, 8, 4);
+                    ctx.fillRect(313 + stumble, 300 + Math.cos(attackTime / 120) * 4, 8, 4);
+
+                    // Sparks / debris
+                    for (let i = 0; i < 6; i++) {
+                        const sx = 100 + ((attackTime * (i + 1) * 7) % 440);
+                        const sy = 50 + ((attackTime * (i + 2) * 3) % 200);
+                        const sparkLife = (attackTime + i * 200) % 600 / 600;
+                        if (sparkLife < 0.5) {
+                            ctx.fillStyle = `rgba(255,200,50,${0.8 - sparkLife})`;
+                            ctx.fillRect(sx, sy, 2, 2);
+                        }
+                    }
+
+                    // Attack narration
+                    if (attackTime > 400 && attackTime < 1200) {
+                        ctx.fillStyle = 'rgba(255,100,100,0.9)';
+                        ctx.font = '13px "Courier New"';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('** BOOM!! **', w / 2, 370);
+                        ctx.textAlign = 'left';
+                    }
+                    if (attackTime > 1500) {
+                        const tFade = Math.min((attackTime - 1500) / 500, 1);
+                        ctx.fillStyle = `rgba(255,200,100,${tFade * 0.9})`;
+                        ctx.font = '13px "Courier New"';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('The ship shudders violently!', w / 2, 370);
+                        ctx.textAlign = 'left';
+                    }
+
+                    // Alarm sounds
+                    if (attackTime > 500 && attackTime < 600) engine.sound.alarm();
+                    if (attackTime > 1800 && attackTime < 1900) engine.sound.alarm();
+                    if (attackTime > 2500 && attackTime < 2600) engine.sound.alarm();
+                }
+
+                // Phase 6 (14-18s): Emergency text, alarms, transition
+                else {
+                    const endTime = elapsed - 14000;
+
+                    // Room with alarm
+                    ctx.globalAlpha = 0.7;
+                    ctx.fillStyle = '#38384e';
+                    ctx.fillRect(0, 0, w, 275);
+                    ctx.fillStyle = '#484860';
+                    ctx.fillRect(0, 275, w, 125);
+                    ctx.fillStyle = '#4e5e72';
+                    ctx.fillRect(270, 42, 100, 233);
+                    ctx.fillStyle = '#5a6e84';
+                    ctx.fillRect(276, 48, 88, 221);
+                    ctx.fillStyle = '#5a5a6e';
+                    ctx.fillRect(25, 88, 190, 6);
+                    ctx.fillRect(25, 155, 190, 6);
+                    ctx.fillStyle = '#606575';
+                    ctx.fillRect(470, 245, 45, 30);
+                    ctx.globalAlpha = 1;
+
+                    // Alarm red pixels
+                    if (Math.floor(elapsed / 300) % 2) {
+                        ctx.fillStyle = '#AA0000';
+                        for (let py = 0; py < h; py += 8) {
+                            for (let px = ((py / 8) % 2) * 8; px < w; px += 16) {
+                                ctx.fillRect(px, py, 1, 1);
+                            }
+                        }
+                    }
+
+                    // Alarm light
+                    const alOn = Math.floor(elapsed / 300) % 2;
+                    ctx.fillStyle = alOn ? '#FF5555' : '#AA0000';
+                    ctx.fillRect(305, 18, 22, 10);
+
+                    // Character standing (composure regained)
+                    ctx.fillStyle = '#5555AA';
+                    ctx.fillRect(295, 298, 16, 22);
+                    ctx.fillStyle = '#AA8866';
+                    ctx.fillRect(298, 286, 10, 12);
+
+                    // Emergency info text
+                    ctx.fillStyle = '#FF5555';
+                    ctx.font = '12px "Courier New"';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('!! EMERGENCY - ALL HANDS !!', w / 2, 40);
+                    ctx.fillStyle = '#FFFF55';
+                    ctx.font = '10px "Courier New"';
+                    ctx.fillText('HULL BREACH ON DECKS 3-5', w / 2, 60);
+                    ctx.fillText('LIFE SUPPORT FAILING', w / 2, 75);
+                    ctx.fillText('EVACUATION PROTOCOL INITIATED', w / 2, 90);
+
+                    if (endTime > 1000) {
+                        const tFade = Math.min((endTime - 1000) / 500, 1);
+                        ctx.fillStyle = `rgba(255,255,255,${tFade * 0.9})`;
+                        ctx.font = '12px "Courier New"';
+                        ctx.fillText('You need to get out of here. NOW.', w / 2, 370);
+                    }
+                    ctx.textAlign = 'left';
+
+                    // Fade to black at the very end
+                    if (endTime > 3000) {
+                        const fadeOut = Math.min((endTime - 3000) / 1000, 1);
+                        ctx.fillStyle = `rgba(0,0,0,${fadeOut})`;
+                        ctx.fillRect(0, 0, w, h);
+                    }
+
+                    // Periodic alarm
+                    if (endTime > 300 && endTime < 400) engine.sound.alarm();
+                    if (endTime > 1200 && endTime < 1300) engine.sound.alarm();
+                }
+            },
+            onEnd: () => {
+                engine.screenShake = 0;
+                engine.goToRoom('broom_closet', 320, 310);
+            }
+        });
+    };
+
     // ========== DRAWING HELPERS ==========
 
     // EGA 16-color palette reference (classic Sierra colors)
@@ -263,17 +652,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function alarmGlow(ctx, w, h, eng) {
+        // AGI-style: sparse red pixels instead of rgba overlay
         if (Math.floor(eng.animTimer / 500) % 2) {
-            ctx.fillStyle = 'rgba(255,30,0,0.06)';
-            ctx.fillRect(0, 0, w, h);
+            ctx.fillStyle = '#AA0000';
+            for (let py = 0; py < h; py += 8) {
+                for (let px = ((py / 8) % 2) * 8; px < w; px += 16) {
+                    ctx.fillRect(px, py, 1, 1);
+                }
+            }
         }
     }
 
     function alarmLight(ctx, x, y, eng) {
         const on = Math.floor(eng.animTimer / 500) % 2;
-        ctx.fillStyle = on ? '#FF2200' : '#551100';
+        ctx.fillStyle = on ? '#FF5555' : '#AA0000';
         ctx.fillRect(x, y, 22, 10);
-        ctx.fillStyle = on ? '#FF4400' : '#331100';
+        ctx.fillStyle = on ? '#FF5555' : '#AA0000';
         ctx.fillRect(x + 2, y - 3, 18, 3);
     }
 
@@ -728,12 +1122,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Arms swinging
             ctx.fillStyle = '#ddb088';
             ctx.fillRect(px + 6, h * 0.65 - 30 + runFrame * 4, 3, 10);
-            // Holding Quantum Drive (glowing)
-            ctx.fillStyle = '#4af';
-            ctx.shadowColor = '#4af';
-            ctx.shadowBlur = 8;
+            // Holding Quantum Drive (AGI-style: solid color halo)
+            ctx.fillStyle = '#55FFFF';
+            ctx.fillRect(px + 6, h * 0.65 - 30 + runFrame * 4 - 2, 10, 10);
+            ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(px + 8, h * 0.65 - 28 + runFrame * 4, 6, 6);
-            ctx.shadowBlur = 0;
             // Red alarm flashing
             if (Math.floor(elapsed / 250) % 2) {
                 ctx.fillStyle = 'rgba(255,0,0,0.1)';
@@ -791,11 +1184,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const bx = dsx - 80 - ((elapsed * 0.5 + i * 200) % 400);
                 const by = h * 0.5 + Math.sin(elapsed * 0.004 + i) * 15;
                 if (bx > 100) {
-                    ctx.fillStyle = '#4f4';
-                    ctx.shadowColor = '#4f4';
-                    ctx.shadowBlur = 6;
+                    // AGI-style: solid halo instead of shadowBlur
+                    ctx.fillStyle = '#55FF55';
+                    ctx.fillRect(bx - 8, by - 3, 16, 6);
+                    ctx.fillStyle = '#FFFFFF';
                     ctx.fillRect(bx - 6, by - 1, 12, 2);
-                    ctx.shadowBlur = 0;
                 }
             }
             // Shuttle ahead, evading
@@ -912,6 +1305,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'Broom Closet',
         description: 'You wake up groggy in the ship\'s broom closet — your favorite napping spot. Alarms wail. Red lights flash. Something terrible has happened aboard the ISS Constellation.',
         onEnter: (e) => {
+            e.sound.startAmbient('ship_alarm');
             // AGI-inspired barriers: shelves, mop bucket, door area
             e.addBarrier(25, 280, 195, 10);   // Lower shelf base blocks walking through it
             e.addBarrier(465, 275, 65, 25);    // Mop bucket
@@ -1554,6 +1948,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'Ship Corridor',
         description: 'The main corridor of the ISS Constellation. Emergency lights cast an eerie red glow over devastation. Blast marks scar the walls. The ship has been attacked.',
         onEnter: (e) => {
+            e.sound.startAmbient('ship_alarm');
             // AGI-inspired barriers: fallen crew member, debris
             e.addBarrier(320, 325, 65, 20);    // Dr. Chen's body
             e.addBarrier(230, 315, 25, 15);    // Debris cluster left
@@ -1585,15 +1980,15 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.moveTo(640, 0); ctx.lineTo(440, 55); ctx.lineTo(440, 255); ctx.lineTo(640, 275);
             ctx.closePath(); ctx.fill();
             // Floor
-            ctx.fillStyle = '#383855';
+            ctx.fillStyle = '#0000AA';
             ctx.beginPath();
             ctx.moveTo(0, 275); ctx.lineTo(200, 255); ctx.lineTo(440, 255);
             ctx.lineTo(640, 275); ctx.lineTo(640, 400); ctx.lineTo(0, 400);
             ctx.closePath(); ctx.fill();
             // Dithered floor texture (EGA-style)
-            ditherRect(ctx, 0, 340, w, 60, '#383855', '#2d2d48', 4);
+            ditherRect(ctx, 0, 340, w, 60, '#0000AA', '#000000', 4);
             // Floor lines
-            ctx.strokeStyle = '#2d2d48';
+            ctx.strokeStyle = '#000000';
             for (let i = 0; i < 10; i++) {
                 const y = 275 + i * 14;
                 ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(640, y); ctx.stroke();
@@ -1638,14 +2033,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#88AACC';
             ctx.fillText('ESCAPE', 548, 120);
             ctx.fillText(' PODS', 548, 133);
-            // Keycard reader
-            if (!eng.hasItem('keycard')) {
-                ctx.fillStyle = '#AA2222';
-                ctx.fillRect(530, 150, 6, 10);
-            } else {
-                ctx.fillStyle = '#22AA22';
-                ctx.fillRect(530, 150, 6, 10);
-            }
+            // Keycard reader — only turns green after actually swiping
+            ctx.fillStyle = eng.getFlag('pod_bay_unlocked') ? '#22AA22' : '#AA2222';
+            ctx.fillRect(530, 150, 6, 10);
 
             // Back corridor label
             ctx.fillStyle = '#556688';
@@ -1798,6 +2188,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 onExit: (e) => {
                     if (e.hasItem('keycard')) {
+                        e.setFlag('pod_bay_unlocked');
                         e.showMessage('You swipe Dr. Chen\'s keycard. The reader beeps green and the door slides open...');
                         e.goToRoom('pod_bay', 100, 310);
                     } else {
@@ -1868,6 +2259,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'Science Lab',
         description: 'The ship\'s science lab. Equipment is smashed and overturned, but some computers still flicker with power. The attackers were looking for something specific.',
         onEnter: (e) => {
+            e.sound.startAmbient('ship_alarm');
             // AGI-inspired barriers: lab table legs, overturned chair
             e.addBarrier(245, 280, 180, 8);    // Lab table base spans walkable area
             e.addBarrier(195, 285, 35, 25);    // Overturned chair
@@ -2097,6 +2489,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'Escape Pod Bay',
         description: 'The Escape Pod Bay. Most pods have already launched. One remains — your ticket off this doomed ship.',
         onEnter: (e) => {
+            e.sound.startAmbient('ship_hum');
             // AGI-inspired barriers: control panel
             e.addBarrier(440, 280, 100, 40);   // Launch control panel
 
@@ -2107,7 +2500,8 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         draw: (ctx, w, h, eng) => {
             // Bay walls - larger, industrial feel
-            gradientRect(ctx, 0, 0, w, 270, '#252545', '#2a2a50');
+            // Pod bay walls (EGA dark blue dithered)
+            ditherRect(ctx, 0, 0, w, 270, '#000000', '#0000AA', 2);
             metalFloor(ctx, 270, w, 130, '#3a3a55', '#303048');
 
             // Ceiling
@@ -2377,6 +2771,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'Desert Planet',
         description: 'Your pod crashlands on a scorching desert planet. Twin suns blaze overhead. The air is dry as dust. You need to find shelter — fast.',
         onEnter: (e) => {
+            e.sound.startAmbient('desert_wind');
             if (!e.getFlag('desert_entered')) {
                 e.setFlag('desert_entered');
                 e.setFlag('desert_timer', 0);
@@ -2407,10 +2802,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         draw: (ctx, w, h, eng) => {
-            // Sky gradient with EGA-style dithered bands
-            gradientRect(ctx, 0, 0, w, 100, '#CC6622', '#DD8833');
-            ditherRect(ctx, 0, 100, w, 50, '#DD8833', '#EEAA44', 2);
-            gradientRect(ctx, 0, 150, w, 50, '#EEAA44', '#FFAA44');
+            // Sky with EGA-style dithered bands
+            ctx.fillStyle = '#AA5500';
+            ctx.fillRect(0, 0, w, 50);
+            ditherRect(ctx, 0, 50, w, 50, '#AA5500', '#AA5500', 2);
+            ditherRect(ctx, 0, 100, w, 50, '#AA5500', '#FFFF55', 2);
+            ditherRect(ctx, 0, 150, w, 50, '#FFFF55', '#FFFF55', 2);
 
             // Twin suns
             ctx.fillStyle = '#FFEE88';
@@ -2423,9 +2820,13 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#FFEEAA';
             ctx.beginPath(); ctx.arc(540, 90, 15, 0, Math.PI * 2); ctx.fill();
 
-            // Sun rays
-            ctx.fillStyle = 'rgba(255,230,150,0.08)';
-            ctx.fillRect(0, 0, w, 200);
+            // Sun rays (AGI-style: sparse yellow pixels instead of rgba overlay)
+            ctx.fillStyle = '#FFFF55';
+            for (let py = 0; py < 200; py += 6) {
+                for (let px = ((py / 6) % 2) * 6; px < w; px += 12) {
+                    ctx.fillRect(px, py, 1, 1);
+                }
+            }
 
             // Distant mountains
             ctx.fillStyle = '#AA7744';
@@ -2438,8 +2839,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.closePath(); ctx.fill();
 
             // Sand with dithered edge
-            ditherRect(ctx, 0, 190, w, 20, '#D4A855', '#C49845', 2);
-            gradientRect(ctx, 0, 210, w, 190, '#C49845', '#C09838');
+            ditherRect(ctx, 0, 190, w, 20, '#AA5500', '#AA5500', 2);
+            // Sand ground (EGA brown)
+            ctx.fillStyle = '#AA5500';
+            ctx.fillRect(0, 210, w, 190);
 
             // Sand dunes
             ctx.fillStyle = '#CCAA55';
@@ -2636,6 +3039,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'Underground Cave',
         description: 'A cool underground cave — blessed relief from the desert heat. Crystalline formations glitter on the walls. A tunnel leads deeper underground.',
         onEnter: (e) => {
+            e.sound.startAmbient('cave_drip');
             // AGS-inspired: depth scaling — cave has mild perspective
             e.setDepthScaling(270, 365, 0.75, 1.0);
 
@@ -2659,19 +3063,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 eng.goToRoom('desert', 430, 305);
             });
             e.setEdgeTransition('right', (eng) => {
-                // Only if player has explored enough
-                if (eng.getFlag('cave_visited')) {
-                    eng.goToRoom('outpost', 100, 310);
-                } else {
-                    eng.setFlag('cave_visited');
-                    eng.addScore(5);
-                    eng.goToRoom('outpost', 100, 310);
+                if (!eng.getFlag('reached_outpost')) {
+                    eng.setFlag('reached_outpost');
+                    eng.addScore(10);
                 }
+                eng.goToRoom('outpost', 100, 310);
             });
         },
         draw: (ctx, w, h, eng) => {
-            // Cave background with dithered dark-to-darker transition
-            ditherRect(ctx, 0, 0, w, h, '#1a1208', '#0d0a06', 2);
+            // Cave background (EGA dark brown/black dithered)
+            ditherRect(ctx, 0, 0, w, h, '#000000', '#AA5500', 2);
 
             // Rock ceiling
             ctx.fillStyle = '#2a1e14';
@@ -2965,6 +3366,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'Frontier Outpost',
         description: 'A ramshackle alien frontier town — Ulence Flats. Odd buildings line a dusty street. A cantina, a trading post, and a landing pad are visible.',
         onEnter: (e) => {
+            e.sound.startAmbient('outpost_crowd');
             // AGS-inspired: depth scaling — outdoor town perspective
             e.setDepthScaling(265, 365, 0.7, 1.0);
 
@@ -3025,7 +3427,9 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         draw: (ctx, w, h, eng) => {
             // Sky
-            gradientRect(ctx, 0, 0, w, 160, '#442266', '#774488');
+            // Outpost sky (EGA dithered magenta-to-black)
+            ditherRect(ctx, 0, 0, w, 80, '#000000', '#AA00AA', 2);
+            ditherRect(ctx, 0, 80, w, 80, '#AA00AA', '#AA00AA', 2);
 
             // Stars in twilight sky
             stars(ctx, w, 160, 31337, 40);
@@ -3040,7 +3444,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath(); ctx.arc(550, 35, 8, 0, Math.PI * 2); ctx.fill();
 
             // Ground
-            gradientRect(ctx, 0, 155, w, 245, '#665533', '#554422');
+            // Outpost ground (EGA dithered brown)
+            ditherRect(ctx, 0, 155, w, 245, '#AA5500', '#555555', 2);
 
             // Road/path
             ctx.fillStyle = '#5a4a32';
@@ -3295,7 +3700,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 onExit: (e) => e.goToRoom('cave', 560, 310)
             },
             {
-                name: 'Alien Creature', x: 410, y: 252, w: 25, h: 55,
+                name: 'Alien Creature',
+                // Dynamic hotspot that tracks the wandering NPC position
+                get x() { const npc = engine.getNPC('outpost_alien'); return npc ? npc.x - 12 : 410; },
+                get y() { const npc = engine.getNPC('outpost_alien'); return npc ? npc.y - 40 : 252; },
+                w: 25, h: 55,
                 description: 'A small alien creature loitering nearby.',
                 look: (e) => e.showMessage('A small, slug-like alien with two bobbing antennae and bulbous compound eyes. It seems to be loitering near the landing pad with no particular purpose. Relatable.'),
                 get: (e) => e.showMessage('You reach for the creature. It hisses and slaps your hand with an antenna. "OW!" It goes back to loitering, smugly.'),
@@ -3331,6 +3740,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'Cantina',
         description: 'The cantina is smoky and dim. Alien music plays from somewhere. A few patrons sit at tables. A bartender polishes glasses behind the bar.',
         onEnter: (e) => {
+            e.sound.startAmbient('cantina_music');
             // AGI-inspired barriers: bar counter, tables, stools
             e.addBarrier(20, 250, 320, 20);    // Bar counter front face
             e.addBarrier(415, 280, 85, 12);    // Table 1
@@ -3354,7 +3764,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(0, 0, w, h);
 
             // Back wall
-            gradientRect(ctx, 0, 0, w, 250, '#301828', '#281420');
+            // Cantina walls (EGA dark red/black dithered)
+            ditherRect(ctx, 0, 0, w, 250, '#000000', '#AA0000', 2);
 
             // Floor
             ctx.fillStyle = '#1e1018';
@@ -3571,16 +3982,17 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(530, 260, 80, 6);
             ctx.fillRect(560, 266, 6, 40);
 
-            // Ambiance - neon sign on wall
-            const glow = Math.sin(eng.animTimer / 500) * 0.3 + 0.7;
-            ctx.fillStyle = `rgba(255,100,50,${glow * 0.6})`;
+            // Ambiance - neon sign on wall (AGI-style: 2-frame blink)
+            const signOn = Math.floor(eng.animTimer / 500) % 2;
+            ctx.fillStyle = signOn ? '#FF5555' : '#AA0000';
             ctx.font = '14px "Courier New"';
             ctx.fillText('LIVE MUSIC', 400, 50);
-            // Music notes
-            ctx.fillStyle = `rgba(255,200,50,${glow * 0.4})`;
-            ctx.font = '16px serif';
-            ctx.fillText('♪', 380 + Math.sin(eng.animTimer / 700) * 10, 55);
-            ctx.fillText('♫', 530 + Math.sin(eng.animTimer / 900) * 8, 45);
+            // Music notes (AGI-style: discrete 2-position steps)
+            ctx.fillStyle = signOn ? '#FFFF55' : '#AA5500';
+            ctx.font = '16px "Courier New"';
+            const notePos = Math.floor(eng.animTimer / 700) % 2;
+            ctx.fillText('♪', 380 + notePos * 6, 55);
+            ctx.fillText('♫', 530 - notePos * 5, 45);
 
             // Exit door
             ctx.fillStyle = '#3a2030';
@@ -3590,11 +4002,13 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#CCAA33';
             ctx.fillRect(18, 190, 3, 3);
 
-            // Smoke effect - layered
-            ctx.fillStyle = 'rgba(100,80,80,0.04)';
-            ctx.fillRect(0, 0, w, 120);
-            ctx.fillStyle = 'rgba(90,70,70,0.03)';
-            ctx.fillRect(0, 40, w, 80);
+            // Smoke effect (AGI-style: sparse gray pixels)
+            ctx.fillStyle = '#555555';
+            for (let py = 0; py < 120; py += 10) {
+                for (let px = ((py / 10) % 2) * 10; px < w; px += 20) {
+                    ctx.fillRect(px, py, 1, 1);
+                }
+            }
 
             // Ceiling fan
             const fanAngle = eng.animTimer / 100;
@@ -3836,6 +4250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'Trading Post',
         description: 'The interior of the trading post. An alien merchant stands behind a counter displaying various goods — weapons, tools, and curiosities from across the galaxy.',
         onEnter: (e) => {
+            e.sound.startAmbient('outpost_crowd');
             // AGI-inspired barriers: shop counter
             e.addBarrier(40, 255, 420, 15);    // Counter front edge
 
@@ -3854,7 +4269,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Walls
             ctx.fillStyle = '#2a2a1a';
             ctx.fillRect(0, 0, w, h);
-            gradientRect(ctx, 0, 0, w, 260, '#332e22', '#2a2518');
+            // Shop walls (EGA dark brown dithered)
+            ditherRect(ctx, 0, 0, w, 260, '#000000', '#AA5500', 2);
 
             // Floor
             ctx.fillStyle = '#22201a';
@@ -4279,6 +4695,7 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'Draknoid Flagship',
         description: 'You\'ve infiltrated the Draknoid flagship. A massive chamber houses the stolen Quantum Drive prototype, protected by a shimmering force field. A Draknoid guard stands watch.',
         onEnter: (e) => {
+            e.sound.startAmbient('draknoid_ship');
             // AGI-inspired barriers: central platform, guard (when alive)
             e.addBarrier(240, 280, 160, 10);   // Central platform base
             if (!e.getFlag('guard_defeated')) {
@@ -4293,7 +4710,8 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         draw: (ctx, w, h, eng) => {
             // Dark alien ship interior
-            gradientRect(ctx, 0, 0, w, h, '#0a150a', '#081008');
+            // Draknoid ship interior (EGA dark green dithered)
+            ditherRect(ctx, 0, 0, w, h, '#000000', '#00AA00', 2);
 
             // Ceiling
             ctx.fillStyle = '#0c180c';
@@ -4698,14 +5116,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.arc(px + 12, 295, 2, 0, Math.PI * 2);
                         ctx.fill();
                     }
-                    // Energy bolt
-                    ctx.shadowColor = '#4af';
-                    ctx.shadowBlur = 12;
-                    ctx.fillStyle = '#8cf';
+                    // Energy bolt (AGI-style: solid halo instead of shadowBlur)
+                    ctx.fillStyle = '#55FFFF';
+                    ctx.fillRect(boltX - 12, boltY - 4, 24, 8);
+                    ctx.fillStyle = '#FFFFFF';
                     ctx.fillRect(boltX - 10, boltY - 2, 20, 4);
-                    ctx.fillStyle = '#fff';
+                    ctx.fillStyle = '#FFFFFF';
                     ctx.fillRect(boltX - 6, boltY - 1, 12, 2);
-                    ctx.shadowBlur = 0;
                     // Trail
                     for (let i = 1; i < 4; i++) {
                         ctx.fillStyle = `rgba(100,180,255,${0.4 - i * 0.1})`;
