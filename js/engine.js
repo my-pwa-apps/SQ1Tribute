@@ -1690,9 +1690,10 @@ class GameEngine {
             const walkCycle = Math.sin(frame * Math.PI / 2) * 3 * s;
             leftLeg = walkCycle;
             rightLeg = -walkCycle;
-        } else if (idleFootTap > 0) {
-            rightLeg = -idleFootTap; // only right foot lifts
         }
+        // Boot offset — foot tap only moves the boot, not the leg
+        let leftBoot = leftLeg, rightBoot = rightLeg;
+        if (idleFootTap > 0) rightBoot = -idleFootTap;
         const as = walking ? Math.cos(frame * Math.PI / 2) * 2 * s : 0;
 
         if (facing === 'toward') {
@@ -1706,11 +1707,11 @@ class GameEngine {
             ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s + rightLeg);
             // Boots
             ctx.fillStyle = '#222222';
-            ctx.fillRect(x - 5 * s, y + 9 * s + leftLeg, 4 * s, 3 * s);
-            ctx.fillRect(x, y + 9 * s + rightLeg, 4 * s, 3 * s);
+            ctx.fillRect(x - 5 * s, y + 9 * s + leftBoot, 4 * s, 3 * s);
+            ctx.fillRect(x, y + 9 * s + rightBoot, 4 * s, 3 * s);
             ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(x - 5 * s, y + 11 * s + leftLeg, 5 * s, 1 * s);
-            ctx.fillRect(x, y + 11 * s + rightLeg, 5 * s, 1 * s);
+            ctx.fillRect(x - 5 * s, y + 11 * s + leftBoot, 5 * s, 1 * s);
+            ctx.fillRect(x, y + 11 * s + rightBoot, 5 * s, 1 * s);
             // Body
             ctx.fillStyle = '#4444DD';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
