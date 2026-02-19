@@ -411,6 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // === PHASE 3: Warning alert (timed ~4s) ===
                 else if (introPhase === 3) {
+                    if (phaseElapsed === 0 || !engine.getFlag('alarm_active')) engine.setFlag('alarm_active');
                     drawRoom(ctx, w, h, 0.8);
 
                     // Player character standing
@@ -1282,6 +1283,7 @@ document.addEventListener('DOMContentLoaded', () => {
         description: 'You wake up groggy in the ship\'s broom closet — your favorite napping spot. Alarms wail. Red lights flash. Something terrible has happened aboard the ISS Constellation.',
         onEnter: (e) => {
             e.sound.startAmbient('ship_alarm');
+            e.setFlag('alarm_active');
             // AGI-inspired barriers: shelves, mop bucket, door area
             e.addBarrier(25, 280, 195, 10);   // Lower shelf base blocks walking through it
             e.addBarrier(465, 275, 65, 25);    // Mop bucket
@@ -1556,9 +1558,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillText('J-6', 297, 148);
             }
 
-            // Alarm
-            alarmLight(ctx, 305, 18, eng);
-            alarmGlow(ctx, w, h, eng);
+            // Alarm (only when ship is under attack)
+            if (eng.getFlag('alarm_active')) {
+                alarmLight(ctx, 305, 18, eng);
+                alarmGlow(ctx, w, h, eng);
+            }
 
             // Floor details - grating pattern
             ctx.fillStyle = '#3e3e55';
