@@ -325,6 +325,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (cb) cb(elapsed);
                     return;
                 }
+                // Click during early phases with no box: skip fade-in, jump to narration
+                if (introPhase < 3) {
+                    phaseStartTime = elapsed - pauseAccum - 9999;
+                    return;
+                }
                 // Click with no box during action phases = skip to end
                 if (introPhase >= 3) endIntro();
             },
