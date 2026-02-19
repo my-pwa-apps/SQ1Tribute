@@ -1766,6 +1766,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         const px = engine.playerX, py = engine.playerY;
                         const sc = 1.85 + (py - 280) / 90 * 0.3;
+                        // Hide the wall mop while it's being used in the animation
+                        engine.setFlag('has_mop_handle');
                         e.playCutscene({
                             duration: 2800,
                             skippable: true,
@@ -1777,8 +1779,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const curY = py;
                                 if (progress < 0.25) {
                                     // Walking to mop
-                                    const frame = Math.floor(progress * 20) % 4;
-                                    const ls = Math.sin(frame * Math.PI / 2) * 3 * sc;
                                     drawPlayerBody(ctx, curX, curY, sc, 0);
                                 } else if (progress < 0.35) {
                                     // Pick up mop - arms raise
@@ -1789,15 +1789,19 @@ document.addEventListener('DOMContentLoaded', () => {
                                     const mopP = (progress - 0.35) / 0.45;
                                     const sweep = Math.sin(mopP * Math.PI * 4) * 30;
                                     drawPlayerBody(ctx, mopX + sweep * 0.3, curY, sc, 0.6);
-                                    // Mop in hands
+                                    // Mop in hands — matching wall art: handle + head pad + strings
+                                    const mx = mopX + sweep;
+                                    const handleTop = curY - 14 * sc;
                                     ctx.fillStyle = '#AA8844';
-                                    ctx.fillRect(mopX + sweep - 2, curY - 4 * sc, 4, 20 * sc);
+                                    ctx.fillRect(mx - 2, handleTop, 4, 22 * sc);
                                     ctx.fillStyle = '#CCCCAA';
-                                    ctx.fillRect(mopX + sweep - 8, curY + 8 * sc, 16, 6);
+                                    ctx.fillRect(mx - 11, curY + 8 * sc, 22, 10);
+                                    ctx.fillStyle = '#BBBB99';
+                                    for (let i = 0; i < 5; i++) ctx.fillRect(mx - 9 + i * 4, curY + 18 * sc, 2, 5);
                                     // Wet streak on floor
                                     ctx.fillStyle = 'rgba(120,130,150,0.15)';
                                     ctx.beginPath();
-                                    ctx.ellipse(mopX + sweep, curY + 12 * sc, 12, 3, 0, 0, Math.PI * 2);
+                                    ctx.ellipse(mx, curY + 22 * sc, 12, 3, 0, 0, Math.PI * 2);
                                     ctx.fill();
                                 } else {
                                     // Put mop back, walk back
@@ -1807,6 +1811,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             },
                             onEnd: () => {
+                                // Restore the mop to the wall — player just used it, didn't take it
+                                engine.flags.delete('has_mop_handle');
                                 engine.playerX = px;
                                 engine.playerY = py;
                                 e.showMessage('You give the floor a half-hearted mop stroke. Old habits die hard. But somehow you don\'t think mopping is going to fix THIS mess. Maybe the handle would be useful, though...');
