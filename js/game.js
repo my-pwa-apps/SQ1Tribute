@@ -1815,11 +1815,21 @@ document.addEventListener('DOMContentLoaded', () => {
                                     const retP = (progress - 0.8) / 0.2;
                                     const retX = mopX + (px - mopX) * retP;
                                     drawPlayerBody(ctx, retX, curY, sc, (1 - retP) * 0.4);
+                                    // Carry mop back in hand until reaching the bucket
+                                    if (retP < 0.7) {
+                                        const mx = retX + 8;
+                                        ctx.fillStyle = '#AA8844';
+                                        ctx.fillRect(mx - 2, curY - 14 * sc, 4, 22 * sc);
+                                        ctx.fillStyle = '#CCCCAA';
+                                        ctx.fillRect(mx - 11, curY + 8 * sc, 22, 10);
+                                        ctx.fillStyle = '#BBBB99';
+                                        for (let i = 0; i < 5; i++) ctx.fillRect(mx - 9 + i * 4, curY + 18 * sc, 2, 5);
+                                    }
                                 }
                             },
                             onEnd: () => {
                                 // Restore the mop to the wall — player just used it, didn't take it
-                                engine.flags.delete('has_mop_handle');
+                                delete engine.flags['has_mop_handle'];
                                 engine.playerX = px;
                                 engine.playerY = py;
                                 e.showMessage('You give the floor a half-hearted mop stroke. Old habits die hard. But somehow you don\'t think mopping is going to fix THIS mess. Maybe the handle would be useful, though...');
