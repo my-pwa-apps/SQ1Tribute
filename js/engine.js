@@ -1722,27 +1722,6 @@ class GameEngine {
             // Gold collar
             ctx.fillStyle = '#CCAA44';
             ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
-            // V-neck
-            ctx.fillStyle = '#EEDDCC';
-            ctx.fillRect(x - 1 * s, y - 10 * s, 2 * s, 2 * s);
-            // Shoulder patches
-            ctx.fillStyle = '#CC2222';
-            ctx.fillRect(x - 5 * s, y - 9 * s, 2 * s, 2 * s);
-            ctx.fillRect(x + 3 * s, y - 9 * s, 2 * s, 2 * s);
-            ctx.fillStyle = '#FFDD44';
-            ctx.fillRect(x - 4.5 * s, y - 8.5 * s, 1 * s, 1 * s);
-            ctx.fillRect(x + 3.5 * s, y - 8.5 * s, 1 * s, 1 * s);
-            // Name tag
-            ctx.fillStyle = '#EEEEEE';
-            ctx.fillRect(x - 4 * s, y - 6 * s, 4 * s, 2 * s);
-            ctx.fillStyle = '#3333AA';
-            ctx.font = `${Math.max(4, s * 1.5)}px "Courier New"`;
-            ctx.fillText('WILKINS', x - 4 * s, y - 4.5 * s);
-            // Chest pocket
-            ctx.fillStyle = '#3838CC';
-            ctx.fillRect(x + 1 * s, y - 7 * s, 3 * s, 3 * s);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x + 3 * s, y - 8 * s, 0.5 * s, 2 * s);
             // Belt
             ctx.fillStyle = '#666666';
             ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
@@ -1764,54 +1743,22 @@ class GameEngine {
             ctx.fillRect(x - 4 * s, y - 18 * s, 8 * s, 8 * s);
             ctx.fillStyle = '#EEBB77';
             ctx.fillRect(x - 4 * s, y - 11 * s, 8 * s, 1 * s);
-            // Cheek blush (both sides visible)
-            ctx.fillStyle = 'rgba(255,150,120,0.25)';
-            ctx.fillRect(x - 4 * s, y - 13 * s, 2 * s, 2 * s);
-            ctx.fillRect(x + 2 * s, y - 13 * s, 2 * s, 2 * s);
-            // Ears (both visible)
-            ctx.fillStyle = '#EEBB77';
-            ctx.fillRect(x - 5 * s, y - 15 * s, 1 * s, 3 * s);
-            ctx.fillRect(x + 4 * s, y - 15 * s, 1 * s, 3 * s);
             // Hair
             ctx.fillStyle = '#BB7733';
             ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 4 * s);
             ctx.fillStyle = '#CC8844';
             ctx.fillRect(x - 2 * s, y - 19 * s, 4 * s, 1 * s);
-            // Sideburns (both)
-            ctx.fillStyle = '#BB7733';
-            ctx.fillRect(x - 5 * s, y - 19 * s, 1 * s, 5 * s);
-            ctx.fillRect(x + 4 * s, y - 19 * s, 1 * s, 5 * s);
-            ctx.fillStyle = '#AA6622';
-            ctx.fillRect(x - 5 * s, y - 14 * s, 1 * s, 1 * s);
-            ctx.fillRect(x + 4 * s, y - 14 * s, 1 * s, 1 * s);
-            // Eyebrows (both)
-            ctx.fillStyle = '#996622';
-            ctx.fillRect(x - 3 * s, y - 16 * s, 2 * s, 1 * s);
-            ctx.fillRect(x + 1 * s, y - 16 * s, 2 * s, 1 * s);
-            // Eyes (both visible!) — the key feature
+            // Eyes (both visible!)
             // Left eye
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(x - 3 * s, y - 15 * s, 2.5 * s, 2 * s);
             ctx.fillStyle = '#4477CC';
             ctx.fillRect(x - 2.5 * s + idleHeadOfs, y - 15 * s, 1.5 * s, 2 * s);
-            ctx.fillStyle = '#111133';
-            ctx.fillRect(x - 2 * s + idleHeadOfs, y - 14.5 * s, 1 * s, 1 * s);
             // Right eye
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
             ctx.fillStyle = '#4477CC';
             ctx.fillRect(x + 1 * s + idleHeadOfs, y - 15 * s, 1.5 * s, 2 * s);
-            ctx.fillStyle = '#111133';
-            ctx.fillRect(x + 1 * s + idleHeadOfs, y - 14.5 * s, 1 * s, 1 * s);
-            // Nose (centered, small)
-            ctx.fillStyle = '#EEBB77';
-            ctx.fillRect(x - 0.5 * s, y - 14 * s, 1 * s, 2 * s);
-            // Mouth (centered smile)
-            ctx.fillStyle = '#CC8866';
-            ctx.fillRect(x - 1.5 * s, y - 12 * s, 3 * s, 1 * s);
-            // Smile corners
-            ctx.fillRect(x - 2 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
-            ctx.fillRect(x + 1.5 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
 
         } else if (facing === 'away') {
             // ---- BACK VIEW (facing away from camera) ----
@@ -1841,10 +1788,6 @@ class GameEngine {
             // Gold collar (back)
             ctx.fillStyle = '#CCAA44';
             ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
-            // Shoulder patches (back view)
-            ctx.fillStyle = '#CC2222';
-            ctx.fillRect(x - 5 * s, y - 9 * s, 2 * s, 2 * s);
-            ctx.fillRect(x + 3 * s, y - 9 * s, 2 * s, 2 * s);
             // Belt
             ctx.fillStyle = '#666666';
             ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
@@ -1913,26 +1856,6 @@ class GameEngine {
             ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 2 * s);
             ctx.fillStyle = '#CCAA44';
             ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
-            ctx.fillStyle = '#EEDDCC';
-            ctx.fillRect(x - 1 * s, y - 10 * s, 2 * s, 2 * s);
-            // Patches
-            ctx.fillStyle = '#CC2222';
-            ctx.fillRect(x - 5 * s, y - 9 * s, 2 * s, 2 * s);
-            ctx.fillRect(x + 3 * s, y - 9 * s, 2 * s, 2 * s);
-            ctx.fillStyle = '#FFDD44';
-            ctx.fillRect(x - 4.5 * s, y - 8.5 * s, 1 * s, 1 * s);
-            ctx.fillRect(x + 3.5 * s, y - 8.5 * s, 1 * s, 1 * s);
-            // Pocket
-            ctx.fillStyle = '#3838CC';
-            ctx.fillRect(x + 1 * s, y - 7 * s, 3 * s, 3 * s);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x + 3 * s, y - 8 * s, 0.5 * s, 2 * s);
-            // Name tag
-            ctx.fillStyle = '#EEEEEE';
-            ctx.fillRect(x - 4 * s, y - 6 * s, 4 * s, 2 * s);
-            ctx.fillStyle = '#3333AA';
-            ctx.font = `${Math.max(4, s * 1.5)}px "Courier New"`;
-            ctx.fillText('WILKINS', x - 4 * s, y - 4.5 * s);
             // Belt
             ctx.fillStyle = '#666666';
             ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
@@ -1965,20 +1888,6 @@ class GameEngine {
             ctx.fillRect(x - 4 * s, y - 18 * s, 8 * s, 8 * s);
             ctx.fillStyle = '#EEBB77';
             ctx.fillRect(x - 4 * s, y - 11 * s, 8 * s, 1 * s);
-            // Cheek blush
-            ctx.fillStyle = 'rgba(255,150,120,0.25)';
-            if (dir > 0) {
-                ctx.fillRect(x + 2 * s, y - 13 * s, 2 * s, 2 * s);
-            } else {
-                ctx.fillRect(x - 4 * s, y - 13 * s, 2 * s, 2 * s);
-            }
-            // Ear
-            ctx.fillStyle = '#EEBB77';
-            if (dir > 0) {
-                ctx.fillRect(x - 5 * s, y - 15 * s, 1 * s, 3 * s);
-            } else {
-                ctx.fillRect(x + 4 * s, y - 15 * s, 1 * s, 3 * s);
-            }
             // Hair
             ctx.fillStyle = '#BB7733';
             ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 4 * s);
@@ -1997,46 +1906,18 @@ class GameEngine {
             }
             ctx.fillStyle = '#AA6622';
             ctx.fillRect(x - 3 * s, y - 18 * s, 6 * s, 1 * s);
-            // Eyebrow
-            ctx.fillStyle = '#996622';
-            if (dir > 0) {
-                ctx.fillRect(x, y - 16 * s, 3 * s, 1 * s);
-            } else {
-                ctx.fillRect(x - 3 * s, y - 16 * s, 3 * s, 1 * s);
-            }
             // Eye
             if (dir > 0) {
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(x, y - 15 * s, 3 * s, 2 * s);
                 ctx.fillStyle = '#4477CC';
                 ctx.fillRect(x + 1 * s, y - 15 * s, 2 * s, 2 * s);
-                ctx.fillStyle = '#111133';
-                ctx.fillRect(x + 2 * s + idleHeadOfs * 0.5, y - 14.5 * s, 1 * s, 1 * s);
             } else {
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(x - 3 * s, y - 15 * s, 3 * s, 2 * s);
                 ctx.fillStyle = '#4477CC';
                 ctx.fillRect(x - 3 * s, y - 15 * s, 2 * s, 2 * s);
-                ctx.fillStyle = '#111133';
-                ctx.fillRect(x - 3 * s + idleHeadOfs * 0.5, y - 14.5 * s, 1 * s, 1 * s);
             }
-            // Nose
-            ctx.fillStyle = '#EEBB77';
-            if (dir > 0) {
-                ctx.fillRect(x + 3 * s, y - 14 * s, 1 * s, 2 * s);
-            } else {
-                ctx.fillRect(x - 4 * s, y - 14 * s, 1 * s, 2 * s);
-            }
-            // Mouth
-            ctx.fillStyle = '#CC8866';
-            ctx.fillRect(x - 1 * s, y - 12 * s, 3 * s, 1 * s);
-            if (dir > 0) {
-                ctx.fillRect(x + 2 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
-            } else {
-                ctx.fillRect(x - 1.5 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
-            }
-            ctx.fillStyle = '#EEBB77';
-            ctx.fillRect(x - 1 * s, y - 11.5 * s, 3 * s, 0.5 * s);
         }
 
         // Idle eye blink overlay — covers eyes with skin color
