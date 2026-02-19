@@ -1707,11 +1707,30 @@ class GameEngine {
             ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s + rightLeg);
             // Boots
             ctx.fillStyle = '#222222';
+            // Left boot (full, uses walk offset)
             ctx.fillRect(x - 5 * s, y + 9 * s + leftBoot, 4 * s, 3 * s);
-            ctx.fillRect(x, y + 9 * s + rightBoot, 4 * s, 3 * s);
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(x - 5 * s, y + 11 * s + leftBoot, 5 * s, 1 * s);
-            ctx.fillRect(x, y + 11 * s + rightBoot, 5 * s, 1 * s);
+            // Right boot — heel fixed, toe rotates up for foot tap
+            {
+                const heelX = x, heelY = y + 9 * s + rightLeg; // heel anchored to leg
+                const toeRise = idleFootTap > 0 ? idleFootTap : (rightBoot - rightLeg); // upward offset of toe tip
+                ctx.fillStyle = '#222222';
+                // Heel half (fixed)
+                ctx.fillRect(heelX, heelY, 2 * s, 3 * s);
+                // Toe half — shear so heel edge stays put, toe edge rises
+                ctx.save();
+                ctx.transform(1, 0, -toeRise / (2 * s), 1, heelX + 2 * s, heelY);
+                ctx.fillRect(0, 0, 2 * s, 3 * s);
+                ctx.restore();
+                // Sole line across full boot bottom at heel height
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(heelX - 1 * s, heelY + 2 * s, 2 * s, 1 * s); // heel sole
+                ctx.save();
+                ctx.transform(1, 0, -toeRise / (2 * s), 1, heelX + 2 * s, heelY);
+                ctx.fillRect(0, 2 * s, 2 * s, 1 * s);
+                ctx.restore();
+            }
             // Body
             ctx.fillStyle = '#4444DD';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);

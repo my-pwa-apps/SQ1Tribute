@@ -266,6 +266,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Draw the current Sierra-style dialog box (if any)
         function drawSierraBox(ctx, w, h) {
             if (!narrationBox) return;
+            // Reset transform so the box is never affected by screen shake
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
             const lines = narrationBox.lines;
             const lh = 16;
             const padX = 16, padY = 10;
@@ -306,6 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillText('\u25bc', w / 2, boxY + boxH - 4);
             }
             ctx.textAlign = 'left';
+            ctx.restore();
         }
 
         engine.playCutscene({
