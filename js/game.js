@@ -578,7 +578,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const pulse = Math.floor(eng.animTimer / 500) % 2;
         if (pulse) {
             ctx.fillStyle = 'rgba(255,0,0,0.12)';
-            ctx.fillRect(0, 0, w, h);
+            // Start at y=17 to avoid bleeding over the top action bar
+            ctx.fillRect(0, 17, w, h - 17);
         }
     }
 
@@ -588,10 +589,16 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillRect(x, y, 22, 10);
         ctx.fillRect(x + 2, y - 3, 18, 3);
         if (on) {
+            ctx.save();
+            // Clip glow to stay below y=17 (top action bar) and within canvas
+            ctx.beginPath();
+            ctx.rect(0, 17, (eng.WIDTH || 640), (eng.HEIGHT || 400) - 17);
+            ctx.clip();
             ctx.fillStyle = 'rgba(255,50,50,0.15)';
             ctx.beginPath();
             ctx.arc(x + 11, y + 5, 30, 0, Math.PI * 2);
             ctx.fill();
+            ctx.restore();
         }
     }
 
