@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const roomFade = Math.min(t / 2500, 0.45);
                     drawRoom(ctx, w, h, roomFade);
                     const breathe = Math.sin(elapsed / 400) * 1.5;
-                    drawPlayerSleeping(ctx, 260, 318 + breathe, 0);
+                    drawPlayerSleeping(ctx, 258, 322 + breathe, 0);
                     const zzz = Math.floor(elapsed / 700) % 3;
                     ctx.fillStyle = 'rgba(255,255,255,0.5)';
                     ctx.font = '12px "Courier New"';
@@ -398,52 +398,56 @@ document.addEventListener('DOMContentLoaded', () => {
                         const breathe = Math.sin(elapsed / 400) * 1;
                         // eyeOpen: starts fully closed, begins opening past standProg 0.2
                         const eyeOpen = standProg > 0.2 ? (standProg - 0.2) / 0.2 : 0;
-                        drawPlayerSleeping(ctx, 260, 318 + breathe, eyeOpen);
+                        drawPlayerSleeping(ctx, 258, 322 + breathe, eyeOpen);
                     } else if (standProg < 0.7) {
+                        // Sit-up phase: use same s=1.85 scale as drawPlayerBody
+                        const s = 1.85;
                         const sitP = (standProg - 0.4) / 0.3;
-                        const tY = 310 - sitP * 5;   // torso top y
-                        const hY = 298 - sitP * 8;   // head top y
+                        const cpx = 300;                          // horizontal centre
+                        const tY = 310 + 6 * s - sitP * 18 * s;  // torso bottom (belt level), rising
+                        const hY = tY - 18 * s;                   // head top
                         // Boots
                         ctx.fillStyle = '#222222';
-                        ctx.fillRect(285, 335, 10, 4);
-                        ctx.fillRect(298, 333, 10, 4);
+                        ctx.fillRect(cpx - 5 * s, tY + 9 * s, 4 * s, 3 * s);
+                        ctx.fillRect(cpx + 0 * s, tY + 9 * s, 4 * s, 3 * s);
                         // Legs
                         ctx.fillStyle = '#2828AA';
-                        ctx.fillRect(285, 328, 12, 8);
-                        ctx.fillRect(297, 326, 12, 8);
-                        // Torso
+                        ctx.fillRect(cpx - 4 * s, tY + 1 * s, 3 * s, 8 * s);
+                        ctx.fillRect(cpx + 1 * s, tY + 1 * s, 3 * s, 8 * s);
+                        // Body
                         ctx.fillStyle = '#4444DD';
-                        ctx.fillRect(285, tY, 18, 20);
-                        // Belt
-                        ctx.fillStyle = '#666666';
-                        ctx.fillRect(285, tY + 12, 18, 3);
-                        // Belt buckle
-                        ctx.fillStyle = '#DDCC22';
-                        ctx.fillRect(291, tY + 11, 4, 5);
+                        ctx.fillRect(cpx - 5 * s, tY - 10 * s, 10 * s, 11 * s);
                         // Collar
                         ctx.fillStyle = '#CCAA44';
-                        ctx.fillRect(286, tY, 16, 2);
-                        // Arms (pushing up from floor as they stand)
+                        ctx.fillRect(cpx - 4 * s, tY - 10 * s, 8 * s, 1 * s);
+                        // Belt
+                        ctx.fillStyle = '#666666';
+                        ctx.fillRect(cpx - 5 * s, tY, 10 * s, 2 * s);
+                        // Belt buckle
+                        ctx.fillStyle = '#DDCC22';
+                        ctx.fillRect(cpx - 1.5 * s, tY - 0.5 * s, 3 * s, 2.5 * s);
+                        // Arms (pushing off the floor, angled outward)
+                        const armExtend = (1 - sitP) * 5 * s;
                         ctx.fillStyle = '#4444DD';
-                        ctx.fillRect(282, tY + 2, 3, 11);
-                        ctx.fillRect(303, tY + 2, 3, 11);
+                        ctx.fillRect(cpx - 7 * s, tY - 4 * s + armExtend, 2 * s, 7 * s);
+                        ctx.fillRect(cpx + 5 * s, tY - 4 * s + armExtend, 2 * s, 7 * s);
                         // Hands
                         ctx.fillStyle = '#FFCC88';
-                        ctx.fillRect(282, tY + 12, 4, 4);
-                        ctx.fillRect(303, tY + 12, 4, 4);
+                        ctx.fillRect(cpx - 7 * s, tY + 3 * s + armExtend, 2 * s, 2.5 * s);
+                        ctx.fillRect(cpx + 5 * s, tY + 3 * s + armExtend, 2 * s, 2.5 * s);
                         // Hair
                         ctx.fillStyle = '#BB7733';
-                        ctx.fillRect(287, hY - 2, 12, 5);
+                        ctx.fillRect(cpx - 4 * s, hY - 1 * s, 8 * s, 4 * s);
                         // Head
                         ctx.fillStyle = '#FFCC88';
-                        ctx.fillRect(287, hY, 12, 12);
-                        // Eyes (open, forward-facing)
+                        ctx.fillRect(cpx - 4 * s, hY, 8 * s, 8 * s);
+                        // Eyes
                         ctx.fillStyle = '#FFFFFF';
-                        ctx.fillRect(288, hY + 4, 3, 3);
-                        ctx.fillRect(294, hY + 4, 3, 3);
+                        ctx.fillRect(cpx - 3 * s, hY + 3 * s, 2.5 * s, 2 * s);
+                        ctx.fillRect(cpx + 0.5 * s, hY + 3 * s, 2.5 * s, 2 * s);
                         ctx.fillStyle = '#4477CC';
-                        ctx.fillRect(289, hY + 4, 2, 3);
-                        ctx.fillRect(295, hY + 4, 2, 3);
+                        ctx.fillRect(cpx - 2.5 * s, hY + 3 * s, 1.5 * s, 2 * s);
+                        ctx.fillRect(cpx + 1 * s, hY + 3 * s, 1.5 * s, 2 * s);
                     } else {
                         drawPlayerBody(ctx, px, baseY, 1.85, wakeProg > 0.85 ? 0 : 0.5);
                     }
@@ -1252,57 +1256,83 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Draw the player lying down (sleeping / waking).
-     * bx = left edge of head, by = top of body (y≈318 at rest).
-     * eyeOpen: 0 = eyes closed, 1 = eyes fully open.
+     * bx = left edge of head, cy = vertical CENTRE of the lying body.
+     * All sizes derived from drawPlayerBody at s=1.85 (body rotated 90°).
+     * eyeOpen: 0 = closed, 1 = fully open.
      */
-    function drawPlayerSleeping(ctx, bx, by, eyeOpen) {
-        // Boots (drawn first, behind everything)
+    function drawPlayerSleeping(ctx, bx, cy, eyeOpen) {
+        const s = 1.85;
+        // Horizontal reference points (head left → feet right)
+        const bodyX = bx + 8 * s;          // torso starts just right of head
+        const beltX = bodyX + 11 * s;      // belt column
+        const legX  = beltX + 2 * s;       // legs start right of belt
+        const bootX = legX  + 8 * s;       // boots start right of legs
+
+        // ---- BACK ARM (rendered first so it sits behind the body) ----
+        ctx.fillStyle = '#3333AA';          // slightly darker than shirt
+        ctx.fillRect(bodyX + 1 * s, cy + 3.5 * s, 8 * s, 2 * s);
+        ctx.fillStyle = '#EEBB77';          // hand (slightly shadowed)
+        ctx.fillRect(bodyX + 8.5 * s, cy + 3.5 * s, 2.5 * s, 2 * s);
+
+        // ---- BOOTS ----
         ctx.fillStyle = '#222222';
-        ctx.fillRect(bx + 78, by + 4, 10, 9);
-        // Legs
+        ctx.fillRect(bootX, cy - 2 * s, 4 * s, 2 * s);   // near boot
+        ctx.fillRect(bootX, cy + 1 * s, 4 * s, 2 * s);   // far boot (offset)
+
+        // ---- LEGS ----
         ctx.fillStyle = '#2828AA';
-        ctx.fillRect(bx + 56, by + 2, 26, 10);
-        // Trouser cuff detail
-        ctx.fillStyle = '#1a1a88';
-        ctx.fillRect(bx + 77, by + 3, 3, 11);
-        // Body / shirt
+        ctx.fillRect(legX, cy - 4 * s, 8 * s, 3 * s);    // near leg
+        ctx.fillRect(legX, cy + 1 * s, 8 * s, 3 * s);    // far leg
+
+        // ---- BODY ----
         ctx.fillStyle = '#4444DD';
-        ctx.fillRect(bx + 12, by, 46, 14);
-        // Belt
+        ctx.fillRect(bodyX, cy - 5 * s, 11 * s, 10 * s);
+
+        // Collar strip at neck end of body
+        ctx.fillStyle = '#CCAA44';
+        ctx.fillRect(bodyX, cy - 4 * s, 2 * s, 8 * s);
+
+        // Belt (runs vertically across body when lying)
         ctx.fillStyle = '#666666';
-        ctx.fillRect(bx + 30, by + 5, 18, 3);
+        ctx.fillRect(beltX - 1 * s, cy - 5 * s, 2 * s, 10 * s);
         // Belt buckle
         ctx.fillStyle = '#DDCC22';
-        ctx.fillRect(bx + 36, by + 4, 5, 5);
-        // Collar strip (at neck side of body)
-        ctx.fillStyle = '#CCAA44';
-        ctx.fillRect(bx + 12, by, 10, 2);
-        // Arm resting along top of body
+        ctx.fillRect(beltX - 1.5 * s, cy - 1.5 * s, 3 * s, 3 * s);
+
+        // ---- FRONT ARM (resting above body surface) ----
         ctx.fillStyle = '#4444DD';
-        ctx.fillRect(bx + 14, by - 3, 22, 5);
+        ctx.fillRect(bodyX + 1 * s, cy - 7.5 * s, 8 * s, 2 * s);
         // Hand
         ctx.fillStyle = '#FFCC88';
-        ctx.fillRect(bx + 34, by - 4, 6, 5);
-        // Hair
+        ctx.fillRect(bodyX + 8.5 * s, cy - 7.5 * s, 2.5 * s, 2 * s);
+
+        // ---- HAIR ----
         ctx.fillStyle = '#BB7733';
-        ctx.fillRect(bx, by - 6, 14, 5);
-        // Head
+        ctx.fillRect(bx - 1 * s, cy - 4 * s, 3 * s, 8 * s);  // hair behind head
+        ctx.fillRect(bx, cy - 5 * s, 8 * s, 2 * s);           // hair across top of head
+
+        // ---- HEAD ----
         ctx.fillStyle = '#FFCC88';
-        ctx.fillRect(bx, by - 4, 14, 14);
-        // Eyes
+        ctx.fillRect(bx, cy - 4 * s, 8 * s, 8 * s);
+
+        // ---- EYES (face up — two eyes stacked vertically on screen) ----
         if (eyeOpen < 0.15) {
-            // Closed — thin dark lash lines
+            // Closed eyelash lines
             ctx.fillStyle = '#443322';
-            ctx.fillRect(bx + 2, by + 2, 4, 1);
-            ctx.fillRect(bx + 8, by + 2, 4, 1);
+            ctx.fillRect(bx + 3 * s, cy - 1.2 * s, 2.5 * s, 1);
+            ctx.fillRect(bx + 3 * s, cy + 0.7 * s, 2.5 * s, 1);
         } else {
-            const eyeH = Math.max(1, Math.round(eyeOpen * 3));
+            const eyeW = Math.max(2, Math.round(eyeOpen * 2.5 * s));
+            const eyeH = Math.max(1, Math.round(eyeOpen * 2 * s));
+            const iW   = Math.max(1, Math.round(eyeOpen * 1.5 * s));
+            // White sclera
             ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(bx + 2, by + 1, 4, eyeH);
-            ctx.fillRect(bx + 8, by + 1, 4, eyeH);
+            ctx.fillRect(bx + 3 * s, cy - 1.5 * s - eyeH, eyeW, eyeH);
+            ctx.fillRect(bx + 3 * s, cy + 1.5 * s,        eyeW, eyeH);
+            // Iris
             ctx.fillStyle = '#4477CC';
-            ctx.fillRect(bx + 3, by + 1, 2, eyeH);
-            ctx.fillRect(bx + 9, by + 1, 2, eyeH);
+            ctx.fillRect(bx + 3.5 * s, cy - 1.5 * s - eyeH, iW, eyeH);
+            ctx.fillRect(bx + 3.5 * s, cy + 1.5 * s,        iW, eyeH);
         }
     }
 
