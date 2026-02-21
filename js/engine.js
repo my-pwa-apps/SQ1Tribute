@@ -30,7 +30,7 @@ class GameEngine {
         this.currentRoomId = null;
         this.inventory = [];
         this.score = 0;
-        this.maxScore = 260;
+        this.maxScore = 380;
         this.flags = {};
         this.dead = false;
         this.won = false;

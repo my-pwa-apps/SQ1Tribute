@@ -18,6 +18,11 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'drink', name: 'Keronian Ale', description: 'A glass of potent alien ale. The liquid shimmers an unsettling shade of green.' },
         { id: 'nav_chip', name: 'Nav Chip', description: 'A navigation chip containing hyperspace coordinates to the Draknoid flagship location.' },
         { id: 'mop_handle', name: 'Mop Handle', description: 'A sturdy titanium alloy mop handle. Not much of a weapon, but great for prying things open.' },
+        { id: 'plasma_cutter', name: 'Plasma Cutter', description: 'A handheld plasma cutting tool from the engine room. Can slice through metal — or force field emitters.' },
+        { id: 'medkit', name: 'Medkit', description: 'A standard-issue medical kit. Contains bandages, stimulant injectors, and a blood-coagulating spray.' },
+        { id: 'prisoner_badge', name: 'Prisoner Badge', description: 'A Draknoid-issued prisoner identification tag. Has a magnetic strip that might work on internal ship doors.' },
+        { id: 'cargo_manifest', name: 'Cargo Manifest', description: 'A battered data pad showing the manifest of the freighter "Ironclad Star". Most entries are redacted.' },
+        { id: 'frequency_chip', name: 'Frequency Chip', description: 'A signal chip pulled from the wrecked freighter. Pre-loaded with emergency distress frequencies.' },
     ].forEach(item => engine.registerItem(item));
 
     // ========== AGS-INSPIRED DIALOG TREES ==========
@@ -154,6 +159,126 @@ document.addEventListener('DOMContentLoaded', () => {
                         text: 'What else do you know?',
                         response: '"I know that this ale is DIVINE. Oh, you mean useful stuff? The Draknoids guard their ship with some kind of energy barrier. You\'ll need serious firepower to get past their guards. Check Tiny\'s shop — he sells hardware."',
                         once: true
+                    }
+                ]
+            }
+        ]
+    });
+
+    // Korvak the engineer — wounded, trapped in engine room
+    engine.registerDialog({
+        id: 'korvak',
+        startTopic: 'greeting',
+        topics: [
+            {
+                id: 'greeting',
+                text: '"*cough* ... Someone\'s there? Oh thank the stars. I\'m Korvak — chief engineer. My leg\'s pinned. I\'ve been here since the attack."',
+                options: [
+                    {
+                        text: 'What happened?',
+                        response: '"Draknoids hit the ship with a tri-pulse EMP, then boarded. They were after something specific — heard them shouting about "the drive". The explosion in the reactor bay trapped me here. Most of the crew... they didn\'t make it."',
+                        once: true
+                    },
+                    {
+                        text: 'Are there any survivors?',
+                        response: '"I heard voices in the pod bay — maybe some made it out. There was a prisoner manifest from a Draknoid patrol that docked two weeks ago. They might have taken some of us alive. I saw them dragging crewmates toward their shuttle."',
+                        once: true
+                    },
+                    {
+                        text: 'I need to get to the escape pods.',
+                        response: '"Right, of course. Here — take my plasma cutter. It\'s fine tool, cut through any jammed door or panel. Even field emitters, in a pinch. Promise me you\'ll try to find the others?"',
+                        condition: (eng) => !eng.getFlag('korvak_gave_cutter'),
+                        action: (eng) => {
+                            eng.addToInventory('plasma_cutter');
+                            eng.setFlag('korvak_gave_cutter');
+                            eng.addScore(15);
+                            eng.updateInventoryUI();
+                        },
+                        once: true
+                    },
+                    {
+                        text: 'Let me take a look at that leg.',
+                        response: '"It\'s not pretty. I could survive if I had a medkit — there should be one in the fire suppression locker on the back wall. I\'d get it myself but... well."',
+                        once: true
+                    },
+                    {
+                        text: 'I found a medkit.',
+                        response: '"You beautiful, beautiful janitor. Hand it over... ah. That\'s better. I can get myself out now. I\'ll try to make for the life rafts on deck two. Go — I\'ll slow you down. And Wilkins? Don\'t let those reptiles win."',
+                        condition: (eng) => eng.hasItem('medkit') && !eng.getFlag('korvak_healed'),
+                        action: (eng) => {
+                            eng.removeFromInventory('medkit');
+                            eng.setFlag('korvak_healed');
+                            eng.addScore(20);
+                            eng.updateInventoryUI();
+                        },
+                        once: true,
+                        endDialog: true
+                    },
+                    {
+                        text: 'I have to go. Hang tight.',
+                        response: '"Go. Save yourself. And maybe everyone else. No pressure."',
+                        endDialog: true
+                    }
+                ]
+            }
+        ]
+    });
+
+    // Pipz the stowaway kid — wrecked freighter on Kerona
+    engine.registerDialog({
+        id: 'pipz',
+        startTopic: 'greeting',
+        topics: [
+            {
+                id: 'greeting',
+                text: '"Don\'t come any closer! I have a... a spanner. A quite large spanner."',
+                options: [
+                    {
+                        text: 'I\'m not going to hurt you.',
+                        response: '"...You\'re not Draknoid. You\'re a smoothskin like me! Oh thank goodness. I\'m Pipz. This is — was — my family\'s freighter. We were making a delivery run when the Draknoids jumped us."',
+                        once: true
+                    },
+                    {
+                        text: 'What happened to your family?',
+                        response: '"Dad managed to get me into the emergency hatch before they boarded. I saw them take him and mum on their ship. They said something about a... brig. A detention cell. They might still be alive!"',
+                        once: true
+                    },
+                    {
+                        text: 'Is there anything useful on this freighter?',
+                        response: '"The cargo hold is mostly torched, but I\'ve been living up here near the bridge. Dad always kept a frequency chip in the emergency locker — still works. And there\'s a cargo manifest in the nav console somewhere. Oh, and I found this prisoner badge near the hatch..."',
+                        action: (eng) => {
+                            if (!eng.getFlag('pipz_gave_items')) {
+                                eng.setFlag('pipz_gave_items');
+                                eng.addToInventory('prisoner_badge');
+                                eng.addToInventory('frequency_chip');
+                                eng.addScore(15);
+                                eng.updateInventoryUI();
+                            }
+                        },
+                        once: true
+                    },
+                    {
+                        text: 'I\'m heading to the Draknoid ship.',
+                        response: '"PLEASE — if you find my parents, bring them home. Their names are Jorv and Mella Vance. Please. I\'ll wait here." Her eyes are huge. You really can\'t say no to that.',
+                        once: true
+                    },
+                    {
+                        text: 'Your parents are safe.',
+                        response: '"They\'re... they\'re ALIVE?! Oh stars, oh stars!" She bursts into tears. Happy ones. "Thank you. THANK YOU. I\'ll tell everyone what you did. You\'re a hero!" Somewhat embarrassingly, she hugs your leg.',
+                        condition: (eng) => eng.getFlag('rescued_prisoners'),
+                        action: (eng) => {
+                            if (!eng.getFlag('pipz_thanked')) {
+                                eng.setFlag('pipz_thanked');
+                                eng.addScore(15);
+                            }
+                        },
+                        once: true,
+                        endDialog: true
+                    },
+                    {
+                        text: 'I have to go. Stay hidden.',
+                        response: '"I will. I\'ve been hiding for seventeen hours. I\'m basically a professional by now."',
+                        endDialog: true
                     }
                 ]
             }
@@ -1202,8 +1327,261 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // ========== SHARED ENVIRONMENT DRAWING HELPERS ==========
+
+    /**
+     * Draw a sci-fi computer terminal panel.
+     * statusLines: array of { text, color }
+     * powered: bool
+     */
+    function drawComputerTerminal(ctx, x, y, w, h, statusLines, powered) {
+        ctx.fillStyle = '#2a3040';
+        ctx.fillRect(x, y, w, h);
+        const sw = w - 20, sh = Math.floor(h * 0.55);
+        const sx = x + 10, sy = y + 10;
+        ctx.fillStyle = '#1a2030';
+        ctx.fillRect(sx, sy, sw, sh);
+        ctx.fillStyle = powered ? '#112244' : '#0a0a0a';
+        ctx.fillRect(sx + 4, sy + 4, sw - 8, sh - 8);
+        if (powered && statusLines && statusLines.length) {
+            const lineH = Math.min(14, Math.floor((sh - 16) / statusLines.length));
+            statusLines.forEach((line, i) => {
+                ctx.fillStyle = line.color || '#33AA55';
+                ctx.font = '9px "Courier New"';
+                ctx.fillText(line.text, sx + 8, sy + 12 + i * lineH);
+            });
+        }
+        ctx.fillStyle = '#383848';
+        ctx.fillRect(x + 14, y + sh + 16, w - 28, 12);
+        ctx.fillStyle = '#444458';
+        for (let kx = x + 18; kx < x + w - 14; kx += 7) {
+            ctx.fillRect(kx, y + sh + 18, 4, 3);
+            ctx.fillRect(kx + 2, y + sh + 23, 4, 3);
+        }
+        ctx.fillStyle = powered ? '#22FF44' : '#AA2222';
+        ctx.fillRect(x + w - 14, y + h - 14, 6, 6);
+    }
+
+    /**
+     * Draw a sci-fi doorway hatch at (x,y) with size (w,h).
+     * open: bool. glowColor: css color for frame strip.
+     */
+    function drawDoorway(ctx, x, y, w, h, label, open, glowColor) {
+        const gc = glowColor || '#5a7088';
+        if (open) {
+            ctx.fillStyle = '#1a1a2a';
+            ctx.fillRect(x, y, w, h);
+            ctx.fillStyle = 'rgba(180,40,40,0.18)';
+            ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
+            ctx.fillStyle = gc;
+            ctx.fillRect(x - 4, y, 4, h);
+            ctx.fillRect(x + w, y, 4, h);
+            ctx.fillRect(x, y - 4, w, 4);
+        } else {
+            ctx.fillStyle = '#4e5e72';
+            ctx.fillRect(x, y, w, h);
+            ctx.fillStyle = '#5a7088';
+            ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+            ctx.strokeStyle = '#3a4e60';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x + Math.floor(w / 2), y + 4);
+            ctx.lineTo(x + Math.floor(w / 2), y + h - 4);
+            ctx.stroke();
+            ctx.lineWidth = 1;
+            if (label) {
+                ctx.font = '9px "Courier New"';
+                ctx.fillStyle = '#88AACC';
+                ctx.textAlign = 'center';
+                ctx.fillText(label, x + w / 2, y + h / 2 + 4);
+                ctx.textAlign = 'left';
+            }
+        }
+    }
+
+    /**
+     * Draw an animated fire/glow effect centered at (cx, cy).
+     * r: radius, intensity: 0..1, animTimer: ms elapsed.
+     */
+    function drawFireEffect(ctx, cx, cy, r, intensity, animTimer) {
+        const flicker = 0.7 + Math.sin(animTimer / 80) * 0.3;
+        const fi = (intensity || 0.8) * flicker;
+        ctx.fillStyle = 'rgba(200,80,20,' + (fi * 0.12) + ')';
+        ctx.beginPath(); ctx.arc(cx, cy, r * 1.6, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,140,40,' + (fi * 0.25) + ')';
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,220,100,' + (fi * 0.5) + ')';
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.45, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,150,' + (fi * 0.8) + ')';
+        for (let i = 0; i < 5; i++) {
+            const ang = animTimer * 0.003 + i * 1.26;
+            const dist = r * 0.6 + Math.sin(animTimer * 0.007 + i) * r * 0.3;
+            ctx.fillRect(cx + Math.cos(ang) * dist - 1, cy + Math.sin(ang) * dist - 1, 2, 2);
+        }
+    }
+
+    /**
+     * Draw a rising smoke wisp column from (bx, by).
+     * height: pixels. animTimer: ms elapsed.
+     */
+    function drawSmokeWisp(ctx, bx, by, height, animTimer) {
+        const phases = [0, 0.33, 0.67];
+        phases.forEach((offset, i) => {
+            const t = ((animTimer / 1200 + offset) % 1);
+            const px = bx + Math.sin(t * Math.PI * 2 + i) * 8;
+            const py = by - t * height;
+            const r = 4 + t * 10;
+            const alpha = 0.25 * (1 - t);
+            ctx.fillStyle = 'rgba(100,100,100,' + alpha + ')';
+            ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+        });
+    }
+
+    /**
+     * Draw prison cell bars spanning full height of a column at x.
+     * barCount: number of vertical bars across w.
+     */
+    function drawPrisonBars(ctx, x, y, w, h, barCount) {
+        const n = barCount || 6;
+        ctx.fillStyle = '#334455';
+        // Horizontal rails
+        ctx.fillRect(x, y, w, 6);
+        ctx.fillRect(x, y + h - 6, w, 6);
+        ctx.fillRect(x, y + Math.floor(h / 2) - 3, w, 6);
+        // Vertical bars
+        ctx.fillStyle = '#445566';
+        for (let i = 0; i <= n; i++) {
+            const bx = x + Math.floor(i * w / n) - 2;
+            ctx.fillRect(bx, y, 4, h);
+            // Rivet
+            ctx.fillStyle = '#556677';
+            ctx.fillRect(bx + 1, y + 4, 2, 2);
+            ctx.fillStyle = '#445566';
+        }
+    }
+
+    // CUTSCENE 5: Freighter crash
+    function cutsceneFreighterCrash(ctx, w, h, progress, elapsed) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
+        stars(ctx, w, h, 54321, 180);
+
+        if (progress < 0.3) {
+            const p = progress / 0.3;
+            const fx = w * 0.8 - p * 100;
+            const fy = h * 0.3 + Math.sin(p * Math.PI) * 30;
+            ctx.save();
+            ctx.translate(fx, fy);
+            ctx.rotate(0.15 + p * 0.2);
+            ctx.fillStyle = '#667788';
+            ctx.fillRect(-45, -12, 90, 24);
+            ctx.fillStyle = '#778899';
+            ctx.fillRect(-30, -18, 50, 12);
+            ctx.fillStyle = '#445566';
+            ctx.fillRect(-48, -8, 6, 16);
+            ctx.restore();
+            drawFireEffect(ctx, fx - 40, fy + 5, 14, 0.7, elapsed);
+            drawSmokeWisp(ctx, fx - 35, fy, 50, elapsed);
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px "Courier New"';
+            ctx.textAlign = 'center';
+            ctx.fillText('Ironclad Star — Distress Signal Detected', w / 2, h - 30);
+            ctx.textAlign = 'left';
+        } else if (progress < 0.65) {
+            const p = (progress - 0.3) / 0.35;
+            const skyG = ctx.createLinearGradient(0, 0, 0, h);
+            skyG.addColorStop(0, 'rgba(0,0,0,' + (1 - p * 0.6) + ')');
+            skyG.addColorStop(1, 'rgba(' + Math.floor(180 * p) + ',' + Math.floor(70 * p) + ',0,' + (p * 0.7) + ')');
+            ctx.fillStyle = skyG;
+            ctx.fillRect(0, 0, w, h);
+            const fx = w * 0.5 + p * 60, fy = h * 0.25 + p * h * 0.35;
+            ctx.save(); ctx.translate(fx, fy); ctx.rotate(0.35 + p * 0.5);
+            ctx.fillStyle = '#556677'; ctx.fillRect(-40, -10, 80, 20); ctx.restore();
+            for (let i = 0; i < 4; i++) {
+                const dx = fx - 20 + i * 15 + Math.sin(elapsed * 0.003 + i) * p * 25;
+                const dy = fy + p * (20 + i * 15);
+                ctx.fillStyle = '#556677';
+                ctx.save(); ctx.translate(dx, dy); ctx.rotate(p * 2 + i); ctx.fillRect(-6, -4, 12, 8); ctx.restore();
+                drawFireEffect(ctx, dx, dy, 8 + i * 3, 0.6 + p * 0.3, elapsed + i * 300);
+            }
+            ctx.fillStyle = '#fff'; ctx.font = '14px "Courier New"'; ctx.textAlign = 'center';
+            ctx.fillText('Hull failure imminent!', w / 2, h - 30); ctx.textAlign = 'left';
+        } else {
+            const p = (progress - 0.65) / 0.35;
+            gradientRect(ctx, 0, h * 0.65, w, h * 0.35, '#c08030', '#a06820');
+            gradientRect(ctx, 0, 0, w, h * 0.65, '#AA5500', '#CC8830');
+            const cr = p * 180;
+            ctx.fillStyle = 'rgba(180,140,80,' + (0.5 - p * 0.3) + ')';
+            ctx.beginPath(); ctx.arc(w * 0.5, h * 0.65, cr, Math.PI, 0); ctx.fill();
+            if (p > 0.4) {
+                const wp = (p - 0.4) / 0.6;
+                ctx.fillStyle = 'rgba(50,60,70,' + wp + ')';
+                ctx.fillRect(w * 0.35, h * 0.63, w * 0.3, 8);
+            }
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 16px "Courier New"'; ctx.textAlign = 'center';
+            ctx.fillText('CRASH SITE LOCATED', w / 2, h - 30); ctx.textAlign = 'left';
+        }
+    }
+
+    // CUTSCENE 6: Brig prisoner rescue
+    function cutsceneBrigRescue(ctx, w, h, progress, elapsed) {
+        ctx.fillStyle = '#0a1a0a'; ctx.fillRect(0, 0, w, h);
+        if (progress < 0.35) {
+            const p = progress / 0.35;
+            ctx.fillStyle = '#0a1a0a'; ctx.fillRect(0, 0, w, h);
+            drawDoorway(ctx, w * 0.35, h * 0.15, w * 0.3, h * 0.65, 'BRIG-7', false, '#2a5a2a');
+            const cutY = h * 0.15 + p * h * 0.65;
+            ctx.fillStyle = 'rgba(255,200,50,' + (0.9 - p * 0.2) + ')';
+            ctx.beginPath(); ctx.arc(w * 0.35, cutY, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,200,0.6)';
+            ctx.beginPath(); ctx.arc(w * 0.35, cutY, 2, 0, Math.PI * 2); ctx.fill();
+            for (let i = 0; i < 5; i++) {
+                const sx = w * 0.35 + Math.cos(elapsed * 0.02 + i) * (3 + i * 2);
+                const sy = cutY + Math.sin(elapsed * 0.015 + i) * (3 + i);
+                ctx.fillStyle = 'rgba(255,220,80,' + (0.7 - i * 0.1) + ')';
+                ctx.fillRect(sx, sy, 2, 2);
+            }
+            ctx.fillStyle = '#ff8'; ctx.font = '12px "Courier New"'; ctx.textAlign = 'center';
+            ctx.fillText('Cutting through...', w / 2, h - 30); ctx.textAlign = 'left';
+        } else if (progress < 0.65) {
+            const p = (progress - 0.35) / 0.3;
+            ctx.fillStyle = '#0a1a0a'; ctx.fillRect(0, 0, w, h);
+            drawDoorway(ctx, w * 0.35, h * 0.15, w * 0.3, h * 0.65, null, true);
+            // Prisoners emerging
+            const p1x = w * 0.5 + p * 60;
+            const p2x = w * 0.5 + p * 36;
+            ctx.fillStyle = '#AA7755';
+            ctx.fillRect(p1x, h * 0.55, 12, 25);
+            ctx.beginPath(); ctx.arc(p1x + 6, h * 0.52, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#886644';
+            ctx.fillRect(p2x, h * 0.6, 12, 22);
+            ctx.beginPath(); ctx.arc(p2x + 6, h * 0.57, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.font = '12px "Courier New"'; ctx.textAlign = 'center';
+            ctx.fillText('"They\'re alive!"', w / 2, h - 30); ctx.textAlign = 'left';
+        } else {
+            const p = (progress - 0.65) / 0.35;
+            ctx.fillStyle = '#0a1a0a'; ctx.fillRect(0, 0, w, h);
+            if (Math.floor(elapsed / 300) % 2) { ctx.fillStyle = 'rgba(255,0,0,0.08)'; ctx.fillRect(0, 0, w, h); }
+            const run = Math.floor(elapsed / 160) % 2;
+            const baseX = w * 0.55 - p * 180;
+            for (let i = 0; i < 3; i++) {
+                const bx = baseX + i * 22, by = h * 0.78;
+                ctx.fillStyle = i === 0 ? '#4444DD' : '#AA7755';
+                ctx.fillRect(bx - 4, by - 20, 8, 16);
+                ctx.fillStyle = i === 0 ? '#FFCC88' : '#CC9977';
+                ctx.beginPath(); ctx.arc(bx, by - 24, 5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = i === 0 ? '#2828AA' : '#553322';
+                if (run) { ctx.fillRect(bx - 3, by - 4, 3, 8); ctx.fillRect(bx, by - 2, 3, 6); }
+                else { ctx.fillRect(bx - 3, by - 2, 3, 6); ctx.fillRect(bx, by - 4, 3, 8); }
+            }
+            ctx.fillStyle = '#ff4'; ctx.font = 'bold 14px "Courier New"'; ctx.textAlign = 'center';
+            ctx.fillText('GO GO GO!', w / 2, 30);
+            ctx.fillStyle = '#fff'; ctx.font = '12px "Courier New"';
+            ctx.fillText('Sprint for the airlock!', w / 2, h - 30); ctx.textAlign = 'left';
+        }
+    }
+
     // ========== MINI-ANIMATION HELPERS ==========
-    // Redraws current room background + draws player in a custom pose
     function miniAnimRedrawRoom(ctx, w, h) {
         const room = engine.rooms[engine.currentRoomId];
         if (room && room.draw) room.draw(ctx, w, h, engine);
@@ -2150,6 +2528,34 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = eng.getFlag('pod_bay_unlocked') ? '#22AA22' : '#AA2222';
             ctx.fillRect(534, 170, 6, 10);
 
+            // Engine room door (right wall — lower section, perspective trapezoid)
+            // Further along the right wall than the pod door — at t=0.55..0.85
+            ctx.fillStyle = '#3e4e5e';
+            ctx.beginPath();
+            ctx.moveTo(598, 150); ctx.lineTo(536, 158);
+            ctx.lineTo(536, 258); ctx.lineTo(598, 264);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#4e6070';
+            ctx.beginPath();
+            ctx.moveTo(594, 154); ctx.lineTo(540, 161);
+            ctx.lineTo(540, 255); ctx.lineTo(594, 261);
+            ctx.closePath(); ctx.fill();
+            // Door bent/forced open — slight offset on top panel
+            ctx.fillStyle = '#3a3848';
+            ctx.beginPath();
+            ctx.moveTo(594, 154); ctx.lineTo(566, 157); ctx.lineTo(566, 205); ctx.lineTo(594, 204);
+            ctx.closePath(); ctx.fill();
+            // Eerie red glow from engine room leaking through gap
+            ctx.fillStyle = 'rgba(200,50,20,0.18)';
+            ctx.beginPath();
+            ctx.moveTo(566, 157); ctx.lineTo(594, 154); ctx.lineTo(594, 204); ctx.lineTo(566, 205);
+            ctx.closePath(); ctx.fill();
+            // Engine room label
+            ctx.font = '8px "Courier New"';
+            ctx.fillStyle = '#88AACC';
+            ctx.fillText('ENGINE', 548, 195);
+            ctx.fillText('  ROOM', 548, 206);
+
             // Supply Closet door (back wall)
             ctx.fillStyle = '#4a5e70';
             ctx.fillRect(285, 115, 72, 140);
@@ -2381,6 +2787,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: 'A deck identification sign.',
                 look: (e) => e.showMessage('"DECK 3 — SCIENCE & ENGINEERING." Underneath someone scratched "and broom closets." You wonder who did that. It was you. You did that.'),
                 get: (e) => e.showMessage('The sign is bolted to the bulkhead. You\'d need a power tool to remove it— and leaving evidence of your graffiti is probably unwise anyway.')
+            },
+            {
+                name: 'Engine Room', x: 430, y: 55, w: 110, h: 200, isExit: true, walkToX: 530, walkToY: 285,
+                description: 'A door labeled "ENGINE ROOM". Something must have gone badly wrong in there — you can see the glow of emergency lighting through the gap.',
+                look: (e) => e.showMessage('The engine room door on the starboard wall. It\'s been forced open — the blast impact must have bent the frame. Flickering red light seeps through the gap.'),
+                onExit: (e) => e.goToRoom('engine_room', 55, 340)
             }
         ]
     });
@@ -3746,6 +4158,20 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = 'rgba(60,50,30,0.2)';
             ctx.fillRect(0, 320, w, 3);
             ctx.fillRect(0, 328, w, 2);
+
+            // Docking Bay B — right edge sign and rough track
+            ctx.fillStyle = '#4a3a28';
+            ctx.fillRect(608, 255, 32, 145);
+            ctx.fillStyle = '#664433';
+            ctx.fillRect(610, 268, 20, 8);
+            ctx.fillStyle = '#AABBAA';
+            ctx.font = '7px "Courier New"';
+            ctx.save(); ctx.translate(622, 395); ctx.rotate(-Math.PI / 2);
+            ctx.fillText('DOCK BAY B', 0, 0); ctx.restore();
+            // Arrow indicator
+            ctx.fillStyle = '#88AACC';
+            ctx.font = '12px "Courier New"';
+            ctx.fillText('\u2192', 614, 310);
         },
         hotspots: [
             {
@@ -3858,6 +4284,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: 'Alien graffiti sprayed on the wall.',
                 look: (e) => e.showMessage('"ZQRX WUZ HERE" — scrawled in luminescent paint. As a sanitation professional, you disapprove. But you also appreciate the craftsmanship. Good coverage, even strokes. ZQRX takes pride in their vandalism.'),
                 use: (e) => e.showMessage('You instinctively reach for your cleaning supplies before remembering they\'re on a dying spaceship several million miles away.')
+            },
+            {
+                name: 'Docking Bay',
+                x: 608, y: 250, w: 32, h: 150, isExit: true, walkToX: 590, walkToY: 340,
+                description: 'A side road leading to the docking bay. A hand-painted sign reads "DOCKING BAY B — WRECK ZONE."',
+                look: (e) => e.showMessage('A narrow track leads around the back of the outpost buildings to the secondary docking bay. Someone spray-painted "WRECK ZONE" over the official sign.'),
+                onExit: (e) => e.goToRoom('docking_bay', 60, 340)
             }
         ]
     });
@@ -4820,6 +5253,765 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
     });
 
+    // ========== ROOM 11: ENGINE ROOM ==========
+    engine.registerRoom({
+        id: 'engine_room',
+        name: 'Engine Room',
+        description: 'The ship\'s engine room. Emergency lighting casts everything in sickly red. The smell of burnt circuitry and hydraulic fluid hangs heavy in the air.',
+        onEnter: (e) => {
+            e.sound.startAmbient('ship_alarm');
+            e.setDepthScaling(260, 360, 0.7, 1.1);
+            // Beam wreckage barrier — can't walk through collapsed structure
+            e.addBarrier(280, 295, 160, 25);
+            // Central reactor column
+            e.addBarrier(290, 220, 60, 120);
+        },
+        draw: (ctx, w, h, eng) => {
+            // Background: dark industrial space
+            gradientRect(ctx, 0, 0, w, h, '#0a0808', '#180e0e');
+            // Floor
+            metalFloor(ctx, 0, 340, w, h - 340);
+            // Rear wall
+            metalWall(ctx, 0, 0, w, 200);
+            // Alarm glow (emergency)
+            alarmGlow(ctx, w, h, eng);
+
+            // Large reactor column in centre
+            ctx.fillStyle = '#2a2535';
+            ctx.fillRect(295, 80, 50, 180);
+            ctx.fillStyle = '#353045';
+            ctx.fillRect(305, 90, 30, 160);
+            // Reactor core glow (flickering)
+            const rFlicker = 0.6 + Math.sin(eng.animTimer / 90) * 0.4;
+            ctx.fillStyle = 'rgba(80,200,255,' + (rFlicker * 0.35) + ')';
+            ctx.beginPath(); ctx.arc(320, 170, 28, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(160,240,255,' + (rFlicker * 0.55) + ')';
+            ctx.beginPath(); ctx.arc(320, 170, 14, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#AAEEFF';
+            ctx.beginPath(); ctx.arc(320, 170, 5, 0, Math.PI * 2); ctx.fill();
+            // Reactor labels
+            ctx.fillStyle = '#556677';
+            ctx.font = '8px "Courier New"';
+            ctx.fillText('REACTOR CORE', 298, 78);
+            ctx.fillText('DANGER', 307, 270);
+
+            // Left bank of consoles
+            drawComputerTerminal(ctx, 30, 100, 90, 70,
+                [
+                    { text: 'CORE TEMP: 8420K', color: '#FF4444' },
+                    { text: 'FIELD: OFFLINE', color: '#FF8800' },
+                    { text: 'COOLING: FAIL', color: '#FF4444' }
+                ], true);
+            alarmLight(ctx, 70, 98, eng);
+
+            // Right console bank
+            drawComputerTerminal(ctx, 520, 100, 90, 70,
+                [
+                    { text: 'PWR OUTPUT: 12%', color: '#FFAA44' },
+                    { text: 'LIFE SUPPORT: OK', color: '#33AA55' },
+                    { text: 'HULL: BREACH D7', color: '#FF4444' }
+                ], true);
+            alarmLight(ctx, 560, 98, eng);
+
+            // Collapsed beam across floor (wreckage)
+            ctx.fillStyle = '#3a3040';
+            ctx.save();
+            ctx.translate(320, 310);
+            ctx.rotate(-0.1);
+            ctx.fillRect(-90, -8, 180, 16);
+            ctx.fillStyle = '#2a2030';
+            ctx.fillRect(-90, -8, 180, 5);
+            ctx.restore();
+            // Scorch marks under beam
+            ctx.fillStyle = 'rgba(20,10,10,0.6)';
+            ctx.beginPath(); ctx.ellipse(320, 314, 80, 12, 0, 0, Math.PI * 2); ctx.fill();
+
+            // Korvak pinned under beam (if not yet freed)
+            if (!eng.getFlag('korvak_freed')) {
+                // Body trapped under left end of beam
+                ctx.fillStyle = '#AA7755'; // skin - torso
+                ctx.fillRect(190, 315, 14, 20);
+                ctx.beginPath(); ctx.arc(197, 313, 7, 0, Math.PI * 2); ctx.fill();
+                // Legs under beam
+                ctx.fillStyle = '#555570';
+                ctx.fillRect(185, 296, 18, 20);
+                // Arm reaching out
+                ctx.fillStyle = '#AA7755';
+                ctx.fillRect(178, 318, 14, 6);
+                // Blood pool (subtle)
+                ctx.fillStyle = 'rgba(160,20,20,0.5)';
+                ctx.beginPath(); ctx.ellipse(192, 336, 14, 6, 0, 0, Math.PI * 2); ctx.fill();
+                // Uniform patches
+                ctx.fillStyle = '#224488';
+                ctx.fillRect(190, 316, 10, 12);
+            } else {
+                // Korvak freed — leaning against wall (if not departed)
+                if (!eng.getFlag('korvak_left')) {
+                    ctx.fillStyle = '#555570'; ctx.fillRect(145, 310, 16, 30);
+                    ctx.fillStyle = '#AA7755'; ctx.fillRect(148, 306, 10, 16);
+                    ctx.beginPath(); ctx.arc(153, 304, 7, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#224488'; ctx.fillRect(148, 308, 10, 14);
+                }
+            }
+
+            // Fire damage — small fire near blown conduit upper right
+            if (!eng.getFlag('fire_suppressed')) {
+                drawFireEffect(ctx, 490, 250, 18, 0.85, eng.animTimer);
+                drawSmokeWisp(ctx, 490, 240, 80, eng.animTimer);
+                drawFireEffect(ctx, 468, 265, 10, 0.7, eng.animTimer + 200);
+            } else {
+                // Suppressed: char marks
+                ctx.fillStyle = '#1a0808';
+                ctx.beginPath(); ctx.ellipse(488, 260, 22, 14, 0, 0, Math.PI * 2); ctx.fill();
+            }
+
+            // Conduit pipe damage on right wall
+            ctx.fillStyle = '#334455';
+            ctx.fillRect(470, 180, 12, 100);
+            ctx.fillStyle = '#2a3848';
+            ctx.fillRect(474, 210, 4, 30);
+            // Blown-out section
+            ctx.fillStyle = '#1a1a28';
+            ctx.fillRect(468, 235, 18, 22);
+
+            // Fire suppression cabinet (left wall)
+            ctx.fillStyle = '#AA2222';
+            ctx.fillRect(30, 220, 50, 70);
+            ctx.fillStyle = '#CC3333';
+            ctx.fillRect(34, 224, 42, 60);
+            ctx.fillStyle = '#fff';
+            ctx.font = '8px "Courier New"';
+            ctx.fillText('FIRE', 45, 248);
+            ctx.fillText('SUPP', 46, 258);
+            // Cabinet lock
+            ctx.fillStyle = eng.getFlag('cabinet_opened') ? '#225522' : '#AA5500';
+            ctx.fillRect(52, 240, 8, 12);
+
+            // Door back to corridor (right wall)
+            drawDoorway(ctx, 570, 200, 60, 120, 'CORRIDOR', false, '#335566');
+
+            // Medkit gleam in cabinet if available
+            if (!eng.getFlag('got_medkit') && eng.getFlag('cabinet_opened')) {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(40, 260, 24, 16);
+                ctx.fillStyle = '#FF4444';
+                ctx.fillRect(48, 263, 8, 10);
+                ctx.fillStyle = '#FF4444';
+                ctx.fillRect(44, 266, 16, 4);
+            }
+
+            // Room label
+            ctx.font = '10px "Courier New"';
+            ctx.fillStyle = '#556677';
+            ctx.fillText('ENGINE ROOM - DECK 3', 10, 395);
+        },
+        hotspots: [
+            {
+                name: 'Reactor Core',
+                x: 285, y: 80, w: 70, h: 210,
+                description: 'The ship\'s main reactor. Emergency containment is holding, but barely. The blue glow pulses erratically.',
+                look: (e) => e.showMessage('The reactor core hums ominously. Containment fields are wavering. One more power surge and it\'ll be lights-out for good.'),
+                use: (e) => e.showMessage('You\'d need a death wish — and a radiation suit — to mess with the reactor directly.'),
+                useItem: (e, id) => e.showMessage('That won\'t help with a reactor meltdown.')
+            },
+            {
+                name: 'Left Console',
+                x: 28, y: 98, w: 96, h: 74,
+                description: 'A navigation and systems monitoring console. Status indicators glow red across the board.',
+                look: (e) => e.showMessage('The console shows critical failures across half the ship\'s systems. Core temperature is off the charts.'),
+                use: (e) => e.showMessage('You tap a few keys but the input subsystem is unresponsive. The main I/O bus must be offline.')
+            },
+            {
+                name: 'Korvak',
+                x: 170, y: 293, w: 60, h: 55,
+                get hidden() { return engine.getFlag('korvak_left'); },
+                description: 'A man is pinned under a collapsed support beam.',
+                look: (e) => {
+                    if (e.getFlag('korvak_freed')) {
+                        e.showMessage('Korvak leans against the wall, breathing hard. He looks relieved but still in pain. The plasma cutter rests beside him.');
+                    } else {
+                        e.showMessage('A man in a chief engineer\'s uniform is trapped under a heavy beam. He\'s conscious — barely. His leg is badly mangled.');
+                        e.addScore(2);
+                    }
+                },
+                talk: (e) => e.startDialog('korvak'),
+                useItem: (e, id) => {
+                    if (id === 'medkit' && !e.getFlag('korvak_freed')) {
+                        e.removeFromInventory('medkit');
+                        e.setFlag('korvak_freed');
+                        e.addScore(20);
+                        e.showMessage('You use the medkit to stabilize Korvak\'s wounds. He grits his teeth as you patch him up, then helps you lever the beam aside. "Thank you," he rasps. He hands you a battered plasma cutter from his belt.');
+                        e.addToInventory('plasma_cutter');
+                        e.addScore(15);
+                    } else if (id === 'medkit' && e.getFlag('korvak_freed')) {
+                        e.showMessage('Korvak is already patched up as best as possible.');
+                    } else {
+                        e.showMessage('That won\'t get the beam off him. He needs medical attention first.');
+                    }
+                }
+            },
+            {
+                name: 'Collapsed Beam',
+                x: 240, y: 292, w: 160, h: 28,
+                description: 'A massive structural beam has collapsed across the floor.',
+                look: (e) => e.showMessage('The beam fell during the Draknoid attack. It weighs a tonne. There\'s a man pinned under the left end.'),
+                use: (e) => {
+                    if (!e.getFlag('korvak_freed')) {
+                        e.showMessage('The beam is too heavy to move alone while someone is critically injured. You\'d need to stabilise him first.');
+                    } else {
+                        e.showMessage('The beam has already been levered aside.');
+                    }
+                }
+            },
+            {
+                name: 'Fire Suppression Cabinet',
+                x: 28, y: 218, w: 56, h: 74,
+                get hidden() { return engine.getFlag('fire_suppressed'); },
+                description: 'A red fire suppression cabinet bolted to the left wall.',
+                look: (e) => {
+                    if (e.getFlag('cabinet_opened')) {
+                        e.showMessage('The cabinet door hangs open. A medkit is inside — standard emergency kit.');
+                    } else {
+                        e.showMessage('A fire suppression cabinet. It\'s locked with an emergency seal — a security measure against unauthorised access during drills.');
+                    }
+                },
+                use: (e) => {
+                    if (!e.getFlag('cabinet_opened')) {
+                        e.setFlag('cabinet_opened');
+                        e.addScore(5);
+                        e.showMessage('You find the emergency override switch behind a small panel. A click, and the cabinet door swings open. Inside: a medkit and a fire suppression canister.');
+                    } else if (!e.getFlag('got_medkit')) {
+                        e.showMessage('The medkit is sitting right there. Use GET to pick it up.');
+                    } else {
+                        e.showMessage('The cabinet is empty now.');
+                    }
+                },
+                get: (e) => {
+                    if (e.getFlag('cabinet_opened') && !e.getFlag('got_medkit')) {
+                        e.addToInventory('medkit');
+                        e.setFlag('got_medkit');
+                        e.showMessage('You grab the medkit.');
+                    } else if (!e.getFlag('cabinet_opened')) {
+                        e.showMessage('The cabinet is locked. Find a way to open it first.');
+                    } else {
+                        e.showMessage('The cabinet is empty.');
+                    }
+                },
+                useItem: (e, id) => {
+                    if (id === 'plasma_cutter' && !e.getFlag('fire_suppressed')) {
+                        // Use the suppression canister on the fire
+                        e.setFlag('fire_suppressed');
+                        e.addScore(5);
+                        e.showMessage('You grab the suppression canister from the cabinet and blast the conduit fire. The flames gutter out with a satisfying hiss. The room smells of chemical foam and char.');
+                    } else {
+                        e.showMessage('That won\'t open a locked cabinet.');
+                    }
+                }
+            },
+            {
+                name: 'Right Console',
+                x: 518, y: 98, w: 96, h: 74,
+                description: 'Engineering status console.',
+                look: (e) => e.showMessage('This console monitors power distribution. According to these readings, life support is the only system drawing full power. Everything else is rerouted or offline.')
+            },
+            {
+                name: 'Corridor Exit',
+                x: 568, y: 198, w: 64, h: 124, isExit: true, walkToX: 555, walkToY: 340,
+                description: 'The corridor back to the main ship.',
+                look: (e) => e.showMessage('The hatch back to the main corridor.'),
+                onExit: (e) => e.goToRoom('corridor', 120, 310)
+            }
+        ]
+    });
+
+    // ========== ROOM 12: DOCKING BAY (Kerona Starport) ==========
+    engine.registerRoom({
+        id: 'docking_bay',
+        name: 'Kerona Docking Bay',
+        description: 'A ramshackle docking bay on the outskirts of Kerona\'s frontier post. The wrecked cargo freighter Ironclad Star dominates the far end, half-buried in sand.',
+        onEnter: (e) => {
+            e.sound.startAmbient('desert');
+            e.setDepthScaling(260, 380, 0.75, 1.1);
+            // Bay wall barriers
+            e.addBarrier(0, 230, 80, 60);     // Left bay wall
+            e.addBarrier(560, 230, 80, 60);   // Right bay wall
+            e.addBarrier(160, 230, 300, 20);  // Freighter hull base
+        },
+        draw: (ctx, w, h, eng) => {
+            // Sky — Kerona harsh midday
+            gradientRect(ctx, 0, 0, w, 260, '#882200', '#CC7733');
+            // Ground — packed sand and tarmac
+            gradientRect(ctx, 0, 260, w, h - 260, '#AA7744', '#887030');
+            // Dithered horizon
+            ditherRect(ctx, 0, 250, w, 20, '#CC7733', '#AA7744', 4);
+
+            // Bay walls left and right (structural pylons)
+            for (let bx of [0, 540]) {
+                ctx.fillStyle = '#556670';
+                ctx.fillRect(bx, 120, 80, 200);
+                ctx.fillStyle = '#445560';
+                ctx.fillRect(bx + (bx === 0 ? 0 : 8), 120, 24, 200);
+                // Rivet lines
+                for (let ry = 140; ry < 300; ry += 20) {
+                    ctx.fillStyle = '#667780';
+                    ctx.fillRect(bx + 12, ry, 4, 4);
+                    ctx.fillRect(bx + 56, ry, 4, 4);
+                }
+            }
+
+            // Overhead hangar roof structure
+            ctx.fillStyle = '#445566';
+            ctx.fillRect(60, 60, w - 120, 40);
+            ctx.fillStyle = '#334455';
+            ctx.fillRect(60, 60, w - 120, 10);
+            // Roof lights
+            for (let lx = 100; lx < w - 80; lx += 80) {
+                ctx.fillStyle = Math.floor(Date.now() / 800) % 2 ? '#FFDD44' : '#AA9922';
+                ctx.fillRect(lx, 68, 20, 12);
+                ctx.fillStyle = 'rgba(255,200,50,0.2)';
+                ctx.beginPath(); ctx.arc(lx + 10, 80, 22, 0, Math.PI * 2); ctx.fill();
+            }
+
+            // Wrecked freighter (Ironclad Star) — centre-back
+            // Main hull
+            ctx.fillStyle = '#556677';
+            ctx.fillRect(160, 130, 320, 130);
+            ctx.fillStyle = '#667788';
+            ctx.fillRect(180, 110, 240, 50);
+            // Name plate
+            ctx.font = '11px "Courier New"';
+            ctx.fillStyle = '#889AAA';
+            ctx.fillText('IRONCLAD STAR', 256, 158);
+            ctx.font = '8px "Courier New"';
+            ctx.fillStyle = '#667788';
+            ctx.fillText('REG: ISS-4471', 276, 168);
+            // Hull damage — gouges and char
+            ctx.fillStyle = '#2a3040';
+            ctx.fillRect(200, 138, 30, 60);
+            ctx.fillRect(280, 125, 20, 40);
+            ctx.fillRect(390, 140, 40, 55);
+            // Scorch streaks
+            ctx.fillStyle = '#1a1520';
+            ctx.fillRect(205, 135, 8, 80);
+            ctx.fillRect(393, 137, 6, 60);
+            // Hull breach — dark gaping hole left side
+            ctx.fillStyle = '#0a0a14';
+            ctx.beginPath();
+            ctx.moveTo(218, 145);
+            ctx.lineTo(240, 138);
+            ctx.lineTo(248, 155);
+            ctx.lineTo(242, 185);
+            ctx.lineTo(215, 192);
+            ctx.lineTo(202, 168);
+            ctx.closePath();
+            ctx.fill();
+            // Twisted metal around breach
+            ctx.strokeStyle = '#667788';
+            ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(218, 145); ctx.lineTo(210, 135); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(248, 155); ctx.lineTo(256, 148); ctx.stroke();
+            ctx.lineWidth = 1;
+            // Landing struts — partially snapped
+            ctx.fillStyle = '#445566';
+            ctx.fillRect(170, 258, 16, 30); // left snapped
+            ctx.save(); ctx.translate(186, 258); ctx.rotate(0.4);
+            ctx.fillRect(0, 0, 16, 25); ctx.restore(); // bent
+            ctx.fillStyle = '#445566';
+            ctx.fillRect(460, 258, 16, 30); // right standing
+
+            // Nav console — accessible from breach (if breach is entered)
+            if (eng.getFlag('entered_freighter')) {
+                // Dim interior glow from breach
+                ctx.fillStyle = 'rgba(0,100,200,0.12)';
+                ctx.beginPath();
+                ctx.moveTo(218, 145); ctx.lineTo(248, 155); ctx.lineTo(242, 185); ctx.lineTo(215, 192); ctx.lineTo(202, 168);
+                ctx.closePath(); ctx.fill();
+            }
+
+            // Pipz — stowaway child, crouching near breach (if not yet departed)
+            if (!eng.getFlag('pipz_left')) {
+                const px = 265, py = 308;
+                // Crouch pose
+                ctx.fillStyle = '#885533'; // skin
+                ctx.beginPath(); ctx.arc(px, py - 22, 7, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#BB7744';
+                ctx.fillRect(px - 6, py - 16, 12, 16);
+                ctx.fillStyle = '#665533';
+                ctx.fillRect(px - 8, py, 8, 12); ctx.fillRect(px + 2, py + 2, 8, 10);
+                // Hair
+                ctx.fillStyle = '#331100';
+                ctx.fillRect(px - 7, py - 30, 14, 8);
+                // Wide eyes
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(px - 4, py - 25, 4, 4); ctx.fillRect(px + 1, py - 25, 4, 4);
+                ctx.fillStyle = '#2255AA';
+                ctx.fillRect(px - 3, py - 24, 2, 2); ctx.fillRect(px + 2, py - 24, 2, 2);
+                // Name tag
+                ctx.font = '9px "Courier New"';
+                ctx.fillStyle = '#FFDD77';
+                ctx.textAlign = 'center';
+                ctx.fillText('Pipz', px, py - 38);
+                ctx.textAlign = 'left';
+            }
+
+            // Cargo manifest — on the ground near the breach
+            if (!eng.getFlag('got_manifest')) {
+                ctx.fillStyle = '#DDCC88';
+                ctx.fillRect(302, 310, 20, 28);
+                ctx.fillStyle = '#BBAA66';
+                ctx.fillRect(304, 312, 16, 24);
+                ctx.fillStyle = '#555533';
+                ctx.font = '6px "Courier New"';
+                ctx.fillText('MAN', 307, 322);
+                ctx.fillText('IFEST', 305, 330);
+            }
+
+            // Outpost exit — left edge
+            ctx.fillStyle = '#335544';
+            ctx.fillRect(0, 260, 30, 120);
+            ctx.font = '8px "Courier New"';
+            ctx.fillStyle = '#AACCAA';
+            ctx.save(); ctx.translate(14, 340); ctx.rotate(-Math.PI / 2);
+            ctx.fillText('OUTPOST', 0, 0); ctx.restore();
+
+            // Room label
+            ctx.font = '10px "Courier New"';
+            ctx.fillStyle = '#556644';
+            ctx.fillText('KERONA DOCKING BAY - IRONCLAD STAR CRASH SITE', 10, 395);
+        },
+        hotspots: [
+            {
+                name: 'Ironclad Star',
+                x: 158, y: 108, w: 324, h: 156,
+                description: 'The wrecked freighter Ironclad Star. She was a Kepler-class cargo hauler. Not anymore.',
+                look: (e) => {
+                    e.showMessage('The Ironclad Star. Draknoid ion cannons tore her apart on re-entry. It\'s a miracle anyone survived. The hull breach on the port side looks wide enough to squeeze through.');
+                    e.addScore(2);
+                },
+                use: (e) => {
+                    if (!e.getFlag('entered_freighter')) {
+                        e.setFlag('entered_freighter');
+                        e.addScore(3);
+                        e.showMessage('You pick your way carefully through the hull breach into the freighter\'s wrecked interior. The emergency lighting still flickers dimly.');
+                    } else {
+                        e.showMessage('You\'ve already been inside. Everything useful has been extracted, apart from the cargo manifest.');
+                    }
+                }
+            },
+            {
+                name: 'Hull Breach',
+                x: 198, y: 135, w: 55, h: 60,
+                description: 'A ragged opening torn in the hull.',
+                look: (e) => e.showMessage('The breach is big enough to crawl through. The interior of the freighter\'s cargo hold is dark and tilted at an angle.'),
+                use: (e) => {
+                    if (!e.getFlag('entered_freighter')) {
+                        e.setFlag('entered_freighter');
+                        e.addScore(3);
+                        e.showMessage('You squeeze through the breach. Inside the wreck it\'s dark and smells of fuel. You can see a flickering nav console deeper in — and something else moving in the shadows...');
+                    } else {
+                        e.showMessage('You\'ve scoped it out. Nothing left in there except the manifest on the ground outside.');
+                    }
+                }
+            },
+            {
+                name: 'Cargo Manifest',
+                x: 299, y: 308, w: 28, h: 32,
+                get hidden() { return engine.getFlag('got_manifest'); },
+                description: 'A battered data-clipboard lying on the ground. A cargo manifest.',
+                look: (e) => e.showMessage('It\'s the Ironclad Star\'s cargo manifest. The last entry reads: "2x civilian colonists, Sector 9 resettlement." Signed three days ago.'),
+                get: (e) => {
+                    e.addToInventory('cargo_manifest');
+                    e.setFlag('got_manifest');
+                    e.addScore(5);
+                    e.showMessage('You pick up the cargo manifest. The last entry lists two colonists aboard. Someone survived this wreck — or didn\'t make it out.');
+                }
+            },
+            {
+                name: 'Pipz',
+                x: 248, y: 274, w: 46, h: 56,
+                get hidden() { return engine.getFlag('pipz_left'); },
+                description: 'A small figure huddled in the shade of the wreck.',
+                look: (e) => {
+                    if (!e.getFlag('met_pipz')) {
+                        e.setFlag('met_pipz');
+                        e.addScore(5);
+                        e.showMessage('It\'s a kid — maybe twelve years old. She\'s wearing a torn Constellation crew uniform several sizes too big. Her eyes are wide and red from crying.');
+                    } else {
+                        e.showMessage('The kid watches you warily with large, tired eyes.');
+                    }
+                },
+                talk: (e) => e.startDialog('pipz')
+            },
+            {
+                name: 'Outpost Exit',
+                x: 0, y: 255, w: 32, h: 130, isExit: true, walkToX: 50, walkToY: 340,
+                description: 'Back to the frontier outpost.',
+                look: (e) => e.showMessage('The path back to the outpost.'),
+                onExit: (e) => e.goToRoom('outpost', 570, 310)
+            }
+        ]
+    });
+
+    // ========== ROOM 13: DRAKNOID BRIG ==========
+    engine.registerRoom({
+        id: 'draknoid_brig',
+        name: 'Draknoid Brig',
+        description: 'A dimly lit detention block deep inside the Draknoid flagship. Rows of cells line both sides of a narrow corridor, their bar doors sealed magnetically.',
+        onEnter: (e) => {
+            e.sound.startAmbient('draknoid_ship');
+            e.setDepthScaling(260, 370, 0.72, 1.05);
+            // Cell bar barriers — can't walk into cells
+            e.addBarrier(30, 200, 120, 150);
+            e.addBarrier(490, 200, 120, 150);
+        },
+        draw: (ctx, w, h, eng) => {
+            // Dark corridor background
+            gradientRect(ctx, 0, 0, w, h, '#060612', '#0e0e22');
+            // Floor
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 340, w, h - 340);
+            ditherRect(ctx, 0, 330, w, 16, '#0e0e22', '#1a1a2e', 3);
+            // Ceiling
+            ctx.fillStyle = '#0a0a18';
+            ctx.fillRect(0, 0, w, 80);
+
+            // Alarm flicker
+            alarmGlow(ctx, w, h, eng);
+
+            // Left cell block
+            ctx.fillStyle = '#1a1a30';
+            ctx.fillRect(20, 160, 140, 190);
+            // Right cell block
+            ctx.fillStyle = '#1a1a30';
+            ctx.fillRect(480, 160, 140, 190);
+
+            // Left cell bars (2 cells)
+            const barsOpen = eng.getFlag('brig_cells_open');
+            ctx.fillStyle = '#2a2a45'; ctx.fillRect(20, 156, 140, 10); // top beam
+            drawPrisonBars(ctx, 20, 156, 65, 194, 4);
+            drawPrisonBars(ctx, 86, 156, 65, 194, 4);
+            // Right bars
+            ctx.fillStyle = '#2a2a45'; ctx.fillRect(480, 156, 140, 10);
+            drawPrisonBars(ctx, 480, 156, 65, 194, 4);
+            drawPrisonBars(ctx, 547, 156, 65, 194, 4);
+
+            // Cell control panels (one each side)
+            ctx.fillStyle = '#1e1e36';
+            ctx.fillRect(150, 240, 34, 60);
+            ctx.fillStyle = barsOpen ? '#22AA44' : '#AA2222';
+            ctx.fillRect(156, 246, 10, 10); // status LED
+            ctx.fillStyle = '#556677';
+            ctx.fillRect(158, 262, 16, 6);
+            ctx.fillRect(158, 272, 16, 6);
+
+            ctx.fillStyle = '#1e1e36';
+            ctx.fillRect(456, 240, 34, 60);
+            ctx.fillStyle = barsOpen ? '#22AA44' : '#AA2222';
+            ctx.fillRect(462, 246, 10, 10);
+
+            // Prisoners in cells (Jorv and Mella — only visible if cells not open)
+            if (!barsOpen) {
+                // Left cell — Jorv (tall male, silver-streaked hair)
+                ctx.fillStyle = '#996644'; // skin
+                ctx.beginPath(); ctx.arc(54, 296, 7, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#334488';
+                ctx.fillRect(47, 300, 14, 26);
+                ctx.fillStyle = '#556699';
+                ctx.fillRect(47, 300, 14, 6); // collar
+                ctx.fillStyle = '#CCCCCC'; // silver hair
+                ctx.fillRect(47, 288, 14, 7);
+
+                // Right of left block — Mella (shorter, auburn hair)
+                ctx.fillStyle = '#BB8866';
+                ctx.beginPath(); ctx.arc(112, 300, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#553366';
+                ctx.fillRect(106, 304, 12, 22);
+                ctx.fillStyle = '#AA4422'; // auburn hair
+                ctx.fillRect(106, 291, 12, 8);
+
+                // Right cells — two other Constellation crew
+                ctx.fillStyle = '#AA9977';
+                ctx.beginPath(); ctx.arc(508, 298, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#335544'; ctx.fillRect(502, 302, 12, 20);
+
+                ctx.fillStyle = '#CC9966';
+                ctx.beginPath(); ctx.arc(568, 296, 7, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#443322'; ctx.fillRect(562, 300, 14, 22);
+
+                // Hands gripping bars
+                ctx.fillStyle = '#996644';
+                ctx.fillRect(82, 280, 5, 10); ctx.fillRect(90, 280, 5, 10); // Jorv hands
+                ctx.fillStyle = '#BB8866';
+                ctx.fillRect(82, 290, 4, 8); ctx.fillRect(90, 290, 4, 8);
+            } else {
+                // Cells open — prisoners freed, show open cell interiors
+                ctx.fillStyle = 'rgba(0,160,80,0.06)'; ctx.fillRect(20, 160, 140, 190);
+                ctx.fillStyle = 'rgba(0,160,80,0.06)'; ctx.fillRect(480, 160, 140, 190);
+            }
+
+            // Corridor perspective — vanishing point lines
+            ctx.strokeStyle = '#1e1e3a'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(w * 0.5, 80); ctx.lineTo(0, 400); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(w * 0.5, 80); ctx.lineTo(w, 400); ctx.stroke();
+            ctx.lineWidth = 1;
+
+            // Corridor lit panels (ceiling recessed)
+            for (let clx = 180; clx < 480; clx += 80) {
+                ctx.fillStyle = Math.floor(Date.now() / 700) % 2 ? '#223355' : '#1a2840';
+                ctx.fillRect(clx, 30, 50, 16);
+                ctx.fillStyle = 'rgba(50,100,180,0.15)';
+                ctx.beginPath(); ctx.arc(clx + 25, 52, 28, 0, Math.PI * 2); ctx.fill();
+            }
+
+            // Corridor end — hatch back to draknoid ship main area
+            drawDoorway(ctx, 280, 100, 80, 170, 'MAIN DECK', false, '#4a2a6a');
+
+            // Badge reader on wall near hatch
+            ctx.fillStyle = '#222236';
+            ctx.fillRect(370, 160, 28, 50);
+            ctx.fillStyle = barsOpen ? '#225522' : '#552222';
+            ctx.fillRect(374, 164, 20, 16);
+            ctx.font = '7px "Courier New"';
+            ctx.fillStyle = '#667788';
+            ctx.fillText('CELL', 376, 192);
+            ctx.fillText('CTRL', 376, 200);
+
+            // Room label
+            ctx.font = '10px "Courier New"';
+            ctx.fillStyle = '#336655';
+            ctx.fillText('DETENTION BLOCK 7 — DRAKNOID FLAGSHIP', 10, 395);
+        },
+        hotspots: [
+            {
+                name: 'Left Cells',
+                x: 18, y: 154, w: 140, h: 198,
+                description: 'Magnetic-lock cells. Two Constellation crew members are imprisoned here.',
+                look: (e) => {
+                    if (!e.getFlag('brig_cells_open')) {
+                        e.showMessage('"Hey! HEY! Over here!" A man in a torn Constellation uniform grabs the bars. "I\'m Jorv Vance — colonist registry. My daughter — is she safe? Her name\'s Pipz. Please get us out of here!"');
+                        e.addScore(5);
+                    } else {
+                        e.showMessage('The cells stand open and empty. The locks have been deactivated.');
+                    }
+                },
+                useItem: (e, id) => {
+                    if (!e.getFlag('brig_cells_open')) {
+                        if (id === 'prisoner_badge') {
+                            e.removeFromInventory('prisoner_badge');
+                            e.setFlag('brig_cells_open');
+                            e.setFlag('rescued_prisoners');
+                            e.addScore(30);
+                            e.playCutscene({
+                                duration: 6500,
+                                skippable: true,
+                                draw: (ctx, w, h, prog, elapsed) => cutsceneBrigRescue(ctx, w, h, prog, elapsed),
+                                onEnd: () => {
+                                    e.showMessage('"THANK YOU!" Jorv Vance clasps your hand. "Pipz — she\'s alive?" You nod. The big man blinks away tears. "Lead us out of here. Please."');
+                                    e.goToRoom('draknoid_ship', 200, 310);
+                                }
+                            });
+                        } else if (id === 'plasma_cutter') {
+                            e.setFlag('brig_cells_open');
+                            e.setFlag('rescued_prisoners');
+                            e.addScore(30);
+                            e.playCutscene({
+                                duration: 6500,
+                                skippable: true,
+                                draw: (ctx, w, h, prog, elapsed) => cutsceneBrigRescue(ctx, w, h, prog, elapsed),
+                                onEnd: () => {
+                                    e.showMessage('"You cut us out!" Jorv stares at the plasma-cut bars. "What took you so long?" Mella rolls her eyes. "He means thank you."');
+                                    e.goToRoom('draknoid_ship', 200, 310);
+                                }
+                            });
+                        } else {
+                            e.showMessage('That won\'t open a magnetic lock.');
+                        }
+                    } else {
+                        e.showMessage('The cells are already open.');
+                    }
+                }
+            },
+            {
+                name: 'Right Cells',
+                x: 478, y: 154, w: 140, h: 198,
+                description: 'More cells. Two more Constellation crew members are held here.',
+                look: (e) => {
+                    if (!e.getFlag('brig_cells_open')) {
+                        e.showMessage('Two more crew members — both in bad shape. One has a makeshift bandage around their head. They look up hopefully. "Are you here to get us out?"');
+                    } else {
+                        e.showMessage('The right cells are open. Crew members have already filed out.');
+                    }
+                }
+            },
+            {
+                name: 'Cell Control Panel',
+                x: 148, y: 238, w: 38, h: 64,
+                description: 'The magnetic lock control panel for the left cell block.',
+                look: (e) => e.showMessage('A cell control terminal. The lock status indicator glows red. It requires authorised clearance — probably a magnetic badge or security override.'),
+                use: (e) => {
+                    if (e.getFlag('brig_cells_open')) {
+                        e.showMessage('The cells are already unlocked.');
+                    } else {
+                        e.showMessage('The panel requires a magnetic access credential. Brute-forcing this would set off every alarm on the ship.');
+                    }
+                },
+                useItem: (e, id) => {
+                    if (id === 'prisoner_badge' && !e.getFlag('brig_cells_open')) {
+                        e.removeFromInventory('prisoner_badge');
+                        e.setFlag('brig_cells_open');
+                        e.setFlag('rescued_prisoners');
+                        e.addScore(30);
+                        e.playCutscene({
+                            duration: 6500,
+                            skippable: true,
+                            draw: (ctx, w, h, prog, elapsed) => cutsceneBrigRescue(ctx, w, h, prog, elapsed),
+                            onEnd: () => {
+                                e.showMessage('"THANK YOU!" Jorv Vance clasps your hand. "Pipz — she\'s alive?" You nod. The big man blinks away tears. "Lead us out of here. Please."');
+                                e.goToRoom('draknoid_ship', 200, 310);
+                            }
+                        });
+                    } else {
+                        e.showMessage('That doesn\'t interface with this control panel.');
+                    }
+                }
+            },
+            {
+                name: 'Badge Reader',
+                x: 368, y: 158, w: 32, h: 54,
+                description: 'A magnetic badge reader controlling all cells on this block.',
+                look: (e) => e.showMessage('A magnetic badge reader. Swipe an authorised access card to release all cell locks simultaneously.'),
+                useItem: (e, id) => {
+                    if (id === 'prisoner_badge' && !e.getFlag('brig_cells_open')) {
+                        e.removeFromInventory('prisoner_badge');
+                        e.setFlag('brig_cells_open');
+                        e.setFlag('rescued_prisoners');
+                        e.addScore(30);
+                        e.playCutscene({
+                            duration: 6500,
+                            skippable: true,
+                            draw: (ctx, w, h, prog, elapsed) => cutsceneBrigRescue(ctx, w, h, prog, elapsed),
+                            onEnd: () => {
+                                e.showMessage('"THANK YOU!" Jorv Vance grasps your hand. "Pipz — she got away?" You nod. The big man\'s shoulders sag with relief. "Let\'s get off this ship."');
+                                e.goToRoom('draknoid_ship', 200, 310);
+                            }
+                        });
+                    } else if (e.getFlag('brig_cells_open')) {
+                        e.showMessage('Cells already released.');
+                    } else {
+                        e.showMessage('Nothing happens. Wrong authorisation level.');
+                    }
+                }
+            },
+            {
+                name: 'Main Deck Exit',
+                x: 278, y: 98, w: 84, h: 174, isExit: true, walkToX: 320, walkToY: 340,
+                description: 'The hatch back to the main deck of the Draknoid flagship.',
+                look: (e) => e.showMessage('The corridor hatch back to the main deck. Getting back without running into more guards will be tricky.'),
+                onExit: (e) => e.goToRoom('draknoid_ship', 200, 310)
+            }
+        ]
+    });
+
     // ========== ROOM 10: DRAKNOID SHIP ==========
     engine.registerRoom({
         id: 'draknoid_ship',
@@ -5522,6 +6714,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const py = 30 + Math.cos(partTime + p * 3) * 15;
                 ctx.fillRect(px, py, 2, 2);
             }
+
+            // Brig corridor — right wall passage
+            ctx.fillStyle = '#0a1a0a';
+            ctx.fillRect(610, 75, 30, 195);
+            // Frame
+            ctx.fillStyle = '#2a4a2a';
+            ctx.fillRect(607, 72, 5, 200);
+            ctx.fillRect(607, 72, 35, 5);
+            // Eerie dim light from brig
+            ctx.fillStyle = 'rgba(0,80,0,0.15)';
+            ctx.beginPath(); ctx.arc(620, 170, 30, 0, Math.PI * 2); ctx.fill();
+            // Sign
+            ctx.font = '7px "Courier New"';
+            ctx.fillStyle = '#446644';
+            ctx.save(); ctx.translate(638, 270); ctx.rotate(-Math.PI / 2);
+            ctx.fillText('DETENTION', 0, 0); ctx.restore();
         },
         hotspots: [
             {
@@ -5762,6 +6970,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 look: (e) => { if (!engine.getFlag('looked_insignia')) { engine.setFlag('looked_insignia'); e.addScore(3); } e.showMessage('The Draknoid military insignia is set into the deck floor in dark metal - a fanged serpent coiling around a planet. Very menacing. Very dramatic. Someone really liked their graphic design budget.'); },
                 get: (e) => e.showMessage('It\'s embedded in the deck plating. You\'d need a plasma torch and about three hours. You have neither.'),
                 use: (e) => e.showMessage('You step on it defiantly. Take THAT, Draknoid Empire. They\'ll probably just buff out the footprint.')
+            },
+            {
+                name: 'Brig Corridor',
+                x: 608, y: 72, w: 32, h: 200, isExit: true, walkToX: 590, walkToY: 310,
+                description: 'A dark corridor leads deeper into the ship — toward the detention block.',
+                look: (e) => {
+                    if (!e.getFlag('looked_brig_corridor')) {
+                        e.setFlag('looked_brig_corridor');
+                        e.addScore(3);
+                    }
+                    if (e.getFlag('rescued_prisoners')) {
+                        e.showMessage('The corridor to the brig. The cells are empty now. You did good.');
+                    } else {
+                        e.showMessage('A dim corridor leads aft toward what you presume is the detention block. You can hear distant movement. Someone might be alive back there.');
+                    }
+                },
+                onExit: (e) => {
+                    if (e.getFlag('rescued_prisoners')) {
+                        e.showMessage('The brig is already empty. Everyone is out.');
+                    } else {
+                        e.goToRoom('draknoid_brig', 300, 340);
+                    }
+                }
             }
         ]
     });
