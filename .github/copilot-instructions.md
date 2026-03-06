@@ -33,6 +33,19 @@ engine.playCutscene({ duration, draw(ctx, w, h, progress, elapsed), onEnd(), ski
 ```
 Sets `playerVisible = false` during playback. Skippable via click/Space/Escape/Enter. The `onEnd` callback typically calls `engine.goToRoom()`.
 
+### Sierra Pseudo-3D Scene Design (REQUIRED for all rooms)
+Every room **must** use Sierra-style pseudo-3D perspective. This is non-negotiable and defines the visual identity of the game:
+
+- **Vanishing point** at roughly centre-screen (x≈320, y≈55–80). All side walls converge toward it.
+- **Left wall**: a filled trapezoid from the top-left corner to the vanishing point — top edge `lTop(x) = x * k`, bottom edge `lBot(x) = floorY - x * k2`. Draw panel seams as perspective-correct lines along this surface.
+- **Right wall**: mirror of the left — `rTop(x) = (w - x) * k`, `rBot(x) = floorY - (w - x) * k2`.
+- **Back wall**: a centred rectangular band between the two vanishing edges (e.g., x: 155–485, y: 55–255).
+- **Floor**: fills from the bottom of the back wall to the bottom of the canvas. Use a perspective grid — lines radiating from the vanishing point plus horizontal parallels.
+- **Ceiling**: triangle/trapezoid from canvas top corners to the vanishing edge of the back wall.
+- **Doors and objects on side walls** are drawn as perspective trapezoids — their top/bottom y-coordinates are computed from the wall's `lTop`/`lBot` (or `rTop`/`rBot`) functions at the relevant x positions. Never draw wall-mounted objects as flat rectangles.
+- **Depth scaling**: objects and the player sprite scale smaller toward the vanishing point. Use `engine.setDepthScaling()` in `onEnter`.
+- **Reference implementation**: the Corridor room (Room 2) and Engine Room (Room 11) are the canonical examples — study them before drawing any new room.
+
 ### Drawing Conventions
 - Shared helpers: `stars()`, `metalWall()`, `metalFloor()`, `alarmGlow()`, `alarmLight()`, `gradientRect()`
 - Animations use `eng.animTimer` (ms elapsed) with modular cycles, e.g., `(eng.animTimer % 2400) / 2400`

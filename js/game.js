@@ -208,6 +208,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         action: (eng) => {
                             eng.removeFromInventory('medkit');
                             eng.setFlag('korvak_healed');
+                            eng.setFlag('korvak_freed');
+                            eng.setFlag('korvak_left');
                             eng.addScore(20);
                             eng.updateInventoryUI();
                         },
@@ -701,6 +703,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+function ditherPoly(ctx, points, c1, c2, patternSize) {
+        if (points.length < 3) return;
+        
+        // Find bounding box
+        let minX = points[0].x, maxX = points[0].x;
+        let minY = points[0].y, maxY = points[0].y;
+        for (let i = 1; i < points.length; i++) {
+            if (points[i].x < minX) minX = points[i].x;
+            if (points[i].x > maxX) maxX = points[i].x;
+            if (points[i].y < minY) minY = points[i].y;
+            if (points[i].y > maxY) maxY = points[i].y;
+        }
+        
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i].x, points[i].y);
+        }
+        ctx.closePath();
+        ctx.clip();
+        
+        ditherRect(ctx, minX, minY, maxX - minX, maxY - minY, c1, c2, patternSize);
+        
+        ctx.restore();
+    }
+
     function stars(ctx, w, h, seed, count, yFraction) {
         let r = seed || 54321;
         const maxY = h * (yFraction || 1);
@@ -714,24 +743,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function metalWall(ctx, x, y, w, h, base, panel) {
-        ctx.fillStyle = base;
-        ctx.fillRect(x, y, w, h);
+        ditherRect(ctx, x, y, w, h, base, panel, 2);
         const pw = 55;
         for (let px = x + 4; px < x + w - 4; px += pw + 4) {
             const rw = Math.min(pw, x + w - px - 4);
             ctx.fillStyle = panel;
             ctx.fillRect(px, y + 4, rw, h - 8);
-            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.strokeStyle = '#000000';
             ctx.strokeRect(px, y + 4, rw, h - 8);
+            // Add a highlight for depth
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(px, y + 4, rw, 1);
+            ctx.fillRect(px, y + 4, 1, h - 8);
         }
     }
 
     function metalFloor(ctx, y, w, h, color1, color2) {
-        ctx.fillStyle = color1 || '#484860';
-        ctx.fillRect(0, y, w, h);
-        ctx.strokeStyle = color2 || '#3a3a50';
+        ditherRect(ctx, 0, y, w, h, color1 || '#484860', color2 || '#3a3a50', 2);
+        ctx.strokeStyle = '#000000';
         for (let x = 0; x < w; x += 40) {
             ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + h); ctx.stroke();
+        }
+        // Horizontal perspective lines
+        for (let py = y + 10; py < y + h; py += (py - y) * 0.5) {
+            ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(w, py); ctx.stroke();
         }
     }
 
@@ -764,12 +799,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function gradientRect(ctx, x, y, w, h, c1, c2, vertical) {
-        const g = vertical !== false
-            ? ctx.createLinearGradient(x, y, x, y + h)
-            : ctx.createLinearGradient(x, y, x + w, y);
-        g.addColorStop(0, c1); g.addColorStop(1, c2);
-        ctx.fillStyle = g;
-        ctx.fillRect(x, y, w, h);
+        // EGA style dithered gradient
+        const steps = 4;
+        const stepSize = (vertical !== false ? h : w) / steps;
+        
+        for (let i = 0; i < steps; i++) {
+            const pos = i * stepSize;
+            const size = stepSize;
+            
+            let rx = x, ry = y, rw = w, rh = h;
+            if (vertical !== false) {
+                ry = y + pos;
+                rh = size;
+            } else {
+                rx = x + pos;
+                rw = size;
+            }
+            
+            if (i === 0) {
+                ctx.fillStyle = c1;
+                ctx.fillRect(rx, ry, rw, rh);
+            } else if (i === steps - 1) {
+                ctx.fillStyle = c2;
+                ctx.fillRect(rx, ry, rw, rh);
+            } else {
+                // Dither mix
+                const mix = i / (steps - 1);
+                const ps = 2;
+                ctx.fillStyle = mix < 0.5 ? c1 : c2;
+                ctx.fillRect(rx, ry, rw, rh);
+                
+                ctx.fillStyle = mix < 0.5 ? c2 : c1;
+                const density = mix < 0.5 ? mix * 2 : (1 - mix) * 2;
+                
+                for (let py = ry; py < ry + rh; py += ps) {
+                    const offset = ((py - ry) / ps) % 2 === 0 ? 0 : ps;
+                    for (let px = rx + offset; px < rx + rw; px += ps * 2) {
+                        // Deterministic dither based on position to avoid per-frame flicker
+                        const hash = ((px * 73 + py * 137) & 0xFF) / 255;
+                        if (hash < density) {
+                            ctx.fillRect(px, py, ps, ps);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // ========== CUTSCENE DRAWING FUNCTIONS ==========
@@ -1590,7 +1664,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawPlayerBody(ctx, px, py, s, armAngle) {
         // Simplified front-facing player for mini-anims
         // Legs
-        ctx.fillStyle = '#2828AA';
+        ctx.fillStyle = '#BBBBBB';
         ctx.fillRect(px - 4 * s, py + 1 * s, 3 * s, 8 * s);
         ctx.fillRect(px + 1 * s, py + 1 * s, 3 * s, 8 * s);
         // Boots
@@ -1598,13 +1672,13 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillRect(px - 5 * s, py + 9 * s, 4 * s, 3 * s);
         ctx.fillRect(px + 0 * s, py + 9 * s, 4 * s, 3 * s);
         // Body
-        ctx.fillStyle = '#4444DD';
+        ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(px - 5 * s, py - 10 * s, 10 * s, 11 * s);
         // Collar
-        ctx.fillStyle = '#CCAA44';
+        ctx.fillStyle = '#555555';
         ctx.fillRect(px - 4 * s, py - 10 * s, 8 * s, 1 * s);
         // Belt
-        ctx.fillStyle = '#666666';
+        ctx.fillStyle = '#333333';
         ctx.fillRect(px - 5 * s, py, 10 * s, 2 * s);
         ctx.fillStyle = '#DDCC22';
         ctx.fillRect(px - 1.5 * s, py - 0.5 * s, 3 * s, 2.5 * s);
@@ -1623,7 +1697,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillRect(px + 1 * s, py - 15 * s, 1.5 * s, 2 * s);
         // Arms (with rotation based on armAngle: 0=down, 1=forward)
         const armOffY = -armAngle * 8 * s;
-        ctx.fillStyle = '#4444DD';
+        ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(px - 7 * s, py - 8 * s + armOffY, 2 * s, 7 * s);
         ctx.fillRect(px + 5 * s, py - 8 * s + armOffY, 2 * s, 7 * s);
         // Hands
@@ -1658,27 +1732,27 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillRect(bootX, cy + 1 * s, 4 * s, 2 * s);   // far boot (offset)
 
         // ---- LEGS ----
-        ctx.fillStyle = '#2828AA';
+        ctx.fillStyle = '#BBBBBB';
         ctx.fillRect(legX, cy - 4 * s, 8 * s, 3 * s);    // near leg
         ctx.fillRect(legX, cy + 1 * s, 8 * s, 3 * s);    // far leg
 
         // ---- BODY ----
-        ctx.fillStyle = '#4444DD';
+        ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(bodyX, cy - 5 * s, 11 * s, 10 * s);
 
         // Collar strip at neck end of body
-        ctx.fillStyle = '#CCAA44';
+        ctx.fillStyle = '#555555';
         ctx.fillRect(bodyX, cy - 4 * s, 2 * s, 8 * s);
 
         // Belt (runs vertically across body when lying)
-        ctx.fillStyle = '#666666';
+        ctx.fillStyle = '#333333';
         ctx.fillRect(beltX - 1 * s, cy - 5 * s, 2 * s, 10 * s);
         // Belt buckle
         ctx.fillStyle = '#DDCC22';
         ctx.fillRect(beltX - 1.5 * s, cy - 1.5 * s, 3 * s, 3 * s);
 
         // ---- FRONT ARM (resting above body surface) ----
-        ctx.fillStyle = '#4444DD';
+        ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(bodyX + 1 * s, cy - 7.5 * s, 8 * s, 2 * s);
         // Hand
         ctx.fillStyle = '#FFCC88';
@@ -2400,27 +2474,29 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath();
             ctx.moveTo(0, 0); ctx.lineTo(200, 55); ctx.lineTo(440, 55); ctx.lineTo(640, 0);
             ctx.closePath(); ctx.fill();
+
             // Back wall
-            ctx.fillStyle = '#282848';
-            ctx.fillRect(200, 55, 240, 200);
+            metalWall(ctx, 200, 55, 240, 200);
+
             // Left wall
             ctx.fillStyle = '#2e2e50';
             ctx.beginPath();
             ctx.moveTo(0, 0); ctx.lineTo(200, 55); ctx.lineTo(200, 255); ctx.lineTo(0, 275);
             ctx.closePath(); ctx.fill();
+
             // Right wall
             ctx.fillStyle = '#2a2a4a';
             ctx.beginPath();
             ctx.moveTo(640, 0); ctx.lineTo(440, 55); ctx.lineTo(440, 255); ctx.lineTo(640, 275);
             ctx.closePath(); ctx.fill();
+
             // Floor
-            ctx.fillStyle = '#0000AA';
+            ctx.fillStyle = '#484860';
             ctx.beginPath();
-            ctx.moveTo(0, 275); ctx.lineTo(200, 255); ctx.lineTo(440, 255);
-            ctx.lineTo(640, 275); ctx.lineTo(640, 400); ctx.lineTo(0, 400);
+            ctx.moveTo(0, 275); ctx.lineTo(200, 255); ctx.lineTo(440, 255); ctx.lineTo(640, 275);
+            ctx.lineTo(640, 400); ctx.lineTo(0, 400);
             ctx.closePath(); ctx.fill();
-            // Dithered floor texture (EGA-style)
-            ditherRect(ctx, 0, 340, w, 60, '#0000AA', '#000000', 4);
+
             // Floor lines
             ctx.strokeStyle = '#000000';
             for (let i = 0; i < 10; i++) {
@@ -5430,8 +5506,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.getFlag('korvak_freed')) {
                         e.showMessage('Korvak leans against the wall, breathing hard. He looks relieved but still in pain. The plasma cutter rests beside him.');
                     } else {
+                        if (!e.getFlag('looked_korvak')) { e.setFlag('looked_korvak'); e.addScore(2); }
                         e.showMessage('A man in a chief engineer\'s uniform is trapped under a heavy beam. He\'s conscious — barely. His leg is badly mangled.');
-                        e.addScore(2);
                     }
                 },
                 talk: (e) => e.startDialog('korvak'),
@@ -5439,6 +5515,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (id === 'medkit' && !e.getFlag('korvak_freed')) {
                         e.removeFromInventory('medkit');
                         e.setFlag('korvak_freed');
+                        e.setFlag('korvak_left');
                         e.addScore(20);
                         e.showMessage('You use the medkit to stabilize Korvak\'s wounds. He grits his teeth as you patch him up, then helps you lever the beam aside. "Thank you," he rasps. He hands you a battered plasma cutter from his belt.');
                         e.addToInventory('plasma_cutter');
@@ -5685,8 +5762,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 x: 158, y: 108, w: 324, h: 156,
                 description: 'The wrecked freighter Ironclad Star. She was a Kepler-class cargo hauler. Not anymore.',
                 look: (e) => {
+                    if (!e.getFlag('looked_ironclad')) { e.setFlag('looked_ironclad'); e.addScore(2); }
                     e.showMessage('The Ironclad Star. Draknoid ion cannons tore her apart on re-entry. It\'s a miracle anyone survived. The hull breach on the port side looks wide enough to squeeze through.');
-                    e.addScore(2);
                 },
                 use: (e) => {
                     if (!e.getFlag('entered_freighter')) {
@@ -5888,8 +5965,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: 'Magnetic-lock cells. Two Constellation crew members are imprisoned here.',
                 look: (e) => {
                     if (!e.getFlag('brig_cells_open')) {
+                        if (!e.getFlag('looked_brig_cells')) { e.setFlag('looked_brig_cells'); e.addScore(5); }
                         e.showMessage('"Hey! HEY! Over here!" A man in a torn Constellation uniform grabs the bars. "I\'m Jorv Vance — colonist registry. My daughter — is she safe? Her name\'s Pipz. Please get us out of here!"');
-                        e.addScore(5);
                     } else {
                         e.showMessage('The cells stand open and empty. The locks have been deactivated.');
                     }
@@ -6821,6 +6898,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.addScore(25);
                     } else if (e.getFlag('field_down')) {
                         e.showMessage('Force field is already offline.');
+                    } else if (itemId === 'cargo_manifest') {
+                        e.showMessage('The console scans the cargo manifest but doesn\'t recognize the format. It\'s a civilian document — useless to a Draknoid military system.');
+                    } else if (itemId === 'frequency_chip') {
+                        e.showMessage('You try the frequency chip but the Draknoid comms array operates on completely different bands. It\'s incompatible.');
                     } else {
                         e.showMessage('The console doesn\'t accept that.');
                     }
@@ -6880,6 +6961,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: 'A shimmering energy force field.',
                 look: (e) => {
                     e.showMessage('A powerful energy force field surrounds the Quantum Drive platform. It hums with lethal voltage. You\'ll need to find a way to shut it off — brute force won\'t work.');
+                },
+                useItem: (e, id) => {
+                    if (id === 'plasma_cutter') {
+                        e.showMessage('The plasma cutter sparks against the force field but can\'t penetrate it. The field is energy-based — you need to disable it at the console, not cut through it.');
+                    } else {
+                        e.showMessage('That won\'t do anything to the force field. You need to find a way to shut it down from the ship\'s console.');
+                    }
                 },
                 use: (e) => {
                     if (!e.getFlag('field_down')) {

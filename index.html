@@ -3,6 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Star Sweeper: A Space Adventure — a Sierra-style point-and-click adventure game built with HTML5 Canvas and JavaScript.">
+    <meta name="theme-color" content="#080818">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;">
+    <meta property="og:title" content="Star Sweeper: A Space Adventure">
+    <meta property="og:description" content="A Sierra-style point-and-click space adventure game. From humble janitor to galactic hero.">
+    <meta property="og:type" content="website">
     <title>Star Sweeper: A Space Adventure</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🌟</text></svg>">
     <style>
@@ -26,22 +32,24 @@
             max-width: 100vw;
             border: 3px solid #222244;
             background: #0a0a1a;
-            box-shadow: 0 0 60px rgba(30,30,80,0.5), inset 0 0 20px rgba(0,0,0,0.5);
-            border-radius: 4px;
+            box-shadow: 0 0 80px rgba(30,30,100,0.6), inset 0 0 20px rgba(0,0,0,0.8);
+            border-radius: 6px;
+            overflow: hidden;
         }
         #title-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 4px 14px;
-            background: #0000AA;
+            padding: 6px 14px;
+            background: linear-gradient(to right, #0000AA, #000066);
             border-bottom: 2px solid #5555FF;
-            font-size: 13px;
+            font-size: 14px;
+            text-shadow: 1px 1px 0 #000;
         }
         #game-title {
             color: #FFFFFF;
             font-weight: bold;
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
         }
         #game-canvas {
             display: block;
@@ -60,42 +68,46 @@
             display: flex;
             gap: 2px;
             padding: 4px 6px;
-            background: #0000AA;
+            background: linear-gradient(to bottom, #0000AA, #000088);
             border-top: 1px solid #5555FF;
             border-bottom: 1px solid #5555FF;
         }
         .action-btn {
             flex: 1;
-            padding: 5px 4px;
+            padding: 6px 4px;
             background: #000088;
             border: 1px solid #5555FF;
             color: #AAAAAA;
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: bold;
             cursor: pointer;
             text-align: center;
-            transition: all 0.1s;
+            transition: all 0.15s ease;
+            text-shadow: 1px 1px 0 #000;
         }
-        .action-btn:hover { background: #0000CC; color: #FFFFFF; }
+        .action-btn:hover { background: #0000CC; color: #FFFFFF; transform: translateY(-1px); }
+        .action-btn:active { transform: translateY(1px); }
         .action-btn.active {
             background: #5555FF;
             border-color: #FFFFFF;
             color: #FFFFFF;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
         }
         #inventory-bar {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            background: #000066;
+            gap: 8px;
+            padding: 6px 12px;
+            background: linear-gradient(to right, #000066, #0000AA);
             border-bottom: 1px solid #333388;
-            min-height: 32px;
+            min-height: 36px;
         }
         #inv-label {
-            font-size: 11px;
+            font-size: 12px;
             color: #AAAAAA;
             white-space: nowrap;
+            text-shadow: 1px 1px 0 #000;
         }
         #inventory-items {
             display: flex;
@@ -104,54 +116,62 @@
             flex: 1;
         }
         .inv-item {
-            padding: 2px 6px;
+            padding: 3px 8px;
             background: #000088;
             border: 1px solid #5555FF;
-            border-radius: 0;
-            font-size: 11px;
+            border-radius: 2px;
+            font-size: 12px;
             cursor: pointer;
             color: #AAAAAA;
-            transition: all 0.1s;
+            transition: all 0.15s ease;
             white-space: nowrap;
+            text-shadow: 1px 1px 0 #000;
         }
-        .inv-item:hover { background: #0000CC; color: #FFFFFF; }
+        .inv-item:hover { background: #0000CC; color: #FFFFFF; transform: translateY(-1px); }
+        .inv-item:active { transform: translateY(1px); }
         .inv-item.selected {
             border-color: #FFFF55;
             color: #FFFF55;
-            background: #000088;
+            background: #0000AA;
+            box-shadow: 0 0 5px rgba(255,255,85,0.3);
         }
         #message-area {
-            padding: 6px 14px;
-            background: #0000AA;
+            padding: 8px 14px;
+            background: linear-gradient(to bottom, #0000AA, #000066);
             border-top: 1px solid #5555FF;
-            min-height: 52px;
-            max-height: 68px;
+            min-height: 56px;
+            max-height: 72px;
             overflow-y: auto;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.3);
         }
         #message-text {
-            font-size: 13px;
-            line-height: 1.4;
+            font-size: 14px;
+            line-height: 1.5;
             color: #FFFFFF;
+            text-shadow: 1px 1px 0 #000;
         }
         #message-area::-webkit-scrollbar { width: 6px; }
         #message-area::-webkit-scrollbar-track { background: #000088; }
         #message-area::-webkit-scrollbar-thumb { background: #5555FF; border-radius: 0; }
         .save-btn {
-            padding: 4px 10px;
+            padding: 5px 12px;
             background: #000088;
             border: 1px solid #5555FF;
+            border-radius: 2px;
             color: #AAAAAA;
             font-family: 'Courier New', monospace;
-            font-size: 11px;
+            font-size: 12px;
             cursor: pointer;
-            transition: all 0.1s;
+            transition: all 0.15s ease;
+            text-shadow: 1px 1px 0 #000;
         }
-        .save-btn:hover { background: #0000CC; color: #FFFFFF; }
+        .save-btn:hover { background: #0000CC; color: #FFFFFF; transform: translateY(-1px); }
+        .save-btn:active { transform: translateY(1px); }
         #save-load-bar {
             display: flex;
             gap: 6px;
-            padding: 3px 10px;
-            background: #000066;
+            padding: 4px 10px;
+            background: linear-gradient(to right, #000066, #0000AA);
             border-top: 1px solid #333388;
             align-items: center;
         }
@@ -166,17 +186,19 @@
         }
         #save-modal.open { display: flex; }
         #save-modal-inner {
-            background: #0000AA;
+            background: linear-gradient(to bottom, #0000AA, #000066);
             border: 2px solid #5555FF;
             padding: 20px 28px;
             min-width: 360px;
             box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            border-radius: 4px;
         }
         #save-modal-inner h3 {
             margin: 0 0 14px 0;
-            color: #FFFFFF;
-            font-size: 16px;
+            color: #FFFF55;
+            font-size: 18px;
             text-align: center;
+            text-shadow: 1px 1px 0 #000;
         }
         .slot-row {
             display: flex;
@@ -194,30 +216,37 @@
         .slot-info .slot-name { color: #FFFFFF; font-weight: bold; }
         .slot-info .slot-detail { color: #5555FF; font-size: 10px; }
         .slot-action {
-            padding: 4px 12px;
+            padding: 5px 12px;
             background: #000088;
             border: 1px solid #5555FF;
-            color: #FFFFFF;
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            cursor: pointer;
-            transition: all 0.1s;
-        }
-        .slot-action:hover { background: #0000CC; color: #FFFFFF; }
-        .slot-action.delete { border-color: #AA0000; }
-        .slot-action.delete:hover { background: #AA0000; }
-        #save-modal-close {
-            display: block;
-            margin: 14px auto 0;
-            padding: 6px 24px;
-            background: #000088;
-            border: 1px solid #5555FF;
+            border-radius: 2px;
             color: #FFFFFF;
             font-family: 'Courier New', monospace;
             font-size: 12px;
             cursor: pointer;
+            transition: all 0.15s ease;
+            text-shadow: 1px 1px 0 #000;
         }
-        #save-modal-close:hover { background: #0000CC; }
+        .slot-action:hover { background: #0000CC; color: #FFFFFF; transform: translateY(-1px); }
+        .slot-action:active { transform: translateY(1px); }
+        .slot-action.delete { border-color: #AA0000; }
+        .slot-action.delete:hover { background: #AA0000; }
+        #save-modal-close {
+            display: block;
+            margin: 16px auto 0;
+            padding: 8px 24px;
+            background: #000088;
+            border: 1px solid #5555FF;
+            border-radius: 2px;
+            color: #FFFFFF;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            text-shadow: 1px 1px 0 #000;
+        }
+        #save-modal-close:hover { background: #0000CC; transform: translateY(-1px); }
+        #save-modal-close:active { transform: translateY(1px); }
 
         /* D-pad for mobile */
         #dpad {
@@ -234,6 +263,7 @@
             height: 40px;
             background: #000088;
             border: 1px solid #5555FF;
+            border-radius: 4px;
             color: #AAAAAA;
             font-size: 18px;
             font-family: 'Courier New', monospace;
@@ -243,8 +273,10 @@
             justify-content: center;
             -webkit-touch-callout: none;
             touch-action: none;
+            transition: all 0.15s ease;
+            text-shadow: 1px 1px 0 #000;
         }
-        .dpad-btn:active { background: #5555FF; color: #FFFFFF; }
+        .dpad-btn:active { background: #5555FF; color: #FFFFFF; transform: scale(0.95); }
         #dpad-up    { top: 0;   left: 40px; }
         #dpad-down  { top: 80px; left: 40px; }
         #dpad-left  { top: 40px; left: 0; }
@@ -255,6 +287,7 @@
             width: 40px; height: 40px;
             background: #000055;
             border: 1px solid #333388;
+            border-radius: 4px;
         }
 
         /* Responsive layout for small screens */
@@ -309,22 +342,22 @@
         <div id="title-bar">
             <span id="game-title">&#9733; STAR SWEEPER: A Space Adventure</span>
         </div>
-        <canvas id="game-canvas" width="640" height="400"></canvas>
+        <canvas id="game-canvas" width="640" height="400" aria-label="Game screen" role="img">Your browser does not support the canvas element.</canvas>
         <div id="action-bar">
-            <button class="action-btn active" data-action="walk">Walk</button>
-            <button class="action-btn" data-action="look">Look</button>
-            <button class="action-btn" data-action="get">Get</button>
-            <button class="action-btn" data-action="use">Use</button>
-            <button class="action-btn" data-action="talk">Talk</button>
+            <button class="action-btn active" type="button" data-action="walk">Walk</button>
+            <button class="action-btn" type="button" data-action="look">Look</button>
+            <button class="action-btn" type="button" data-action="get">Get</button>
+            <button class="action-btn" type="button" data-action="use">Use</button>
+            <button class="action-btn" type="button" data-action="talk">Talk</button>
         </div>
         <div id="inventory-bar">
             <span id="inv-label">Inventory:</span>
             <div id="inventory-items"></div>
         </div>
         <div id="save-load-bar">
-            <button class="save-btn" id="btn-save" title="Save Game (F5)">Save</button>
-            <button class="save-btn" id="btn-load" title="Load Game (F7)">Load</button>
-            <button class="save-btn" id="btn-mute" title="Toggle Sound (M)">Sound: ON</button>
+            <button class="save-btn" type="button" id="btn-save" title="Save Game (F5)">Save</button>
+            <button class="save-btn" type="button" id="btn-load" title="Load Game (F7)">Load</button>
+            <button class="save-btn" type="button" id="btn-mute" title="Toggle Sound (M)">Sound: ON</button>
         </div>
         <div id="dpad">
             <div id="dpad-center"></div>
@@ -333,11 +366,11 @@
             <button class="dpad-btn" id="dpad-left" aria-label="Left">&#9664;</button>
             <button class="dpad-btn" id="dpad-right" aria-label="Right">&#9654;</button>
         </div>
-        <div id="message-area">
+        <div id="message-area" aria-live="polite">
             <p id="message-text">Loading...</p>
         </div>
     </div>
-    <div id="save-modal">
+    <div id="save-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div id="save-modal-inner">
             <h3 id="modal-title">Save Game</h3>
             <div id="slot-list"></div>

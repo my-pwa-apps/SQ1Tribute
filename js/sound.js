@@ -47,6 +47,7 @@ class SoundEngine {
         g.connect(this.master);
         o.start(start);
         o.stop(start + dur + 0.01);
+        o.onended = () => { g.disconnect(); };
         return o;
     }
 
@@ -70,8 +71,10 @@ class SoundEngine {
             f.Q.value = 1;
             src.connect(f);
             f.connect(g);
+            src.onended = () => { f.disconnect(); g.disconnect(); };
         } else {
             src.connect(g);
+            src.onended = () => { g.disconnect(); };
         }
         g.connect(this.master);
         src.start(start);
@@ -441,6 +444,16 @@ class SoundEngine {
                     }
                 }, 2400);
                 break;
+        }
+    }
+
+    /** Release AudioContext resources */
+    dispose() {
+        this.stopAmbient();
+        if (this.ctx) {
+            try { this.ctx.close(); } catch (e) { /* already closed */ }
+            this.ctx = null;
+            this.master = null;
         }
     }
 }

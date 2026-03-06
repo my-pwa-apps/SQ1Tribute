@@ -828,6 +828,7 @@ class GameEngine {
         const ds = this.depthScaling;
         if (y <= ds.farY) return ds.farScale;
         if (y >= ds.nearY) return ds.nearScale;
+        if (ds.nearY === ds.farY) return ds.nearScale;
         const t = (y - ds.farY) / (ds.nearY - ds.farY);
         return ds.farScale + t * (ds.nearScale - ds.farScale);
     }
@@ -1114,17 +1115,22 @@ class GameEngine {
             // AGS-inspired: scale walk speed by depth for perspective realism
             const depthSpd = this.depthScaling ? this.getDepthScale(this.playerY) : 1;
             const spd = this.playerSpeed * depthSpd;
-            if (arrowLeft || arrowRight) {
-                const newX = Math.max(30, Math.min(610, this.playerX + spd * this.playerDir));
+            // Normalize diagonal movement to prevent ~1.41x speed boost
+            const movingX = arrowLeft || arrowRight;
+            const movingY = arrowUp || arrowDown;
+            const diagFactor = (movingX && movingY) ? Math.SQRT1_2 : 1;
+            if (movingX) {
+                const newX = Math.max(30, Math.min(610, this.playerX + spd * diagFactor * this.playerDir));
                 if (!this.collidesBarrier(newX, this.playerY)) {
                     this.playerX = newX;
                 }
             }
             // Move Y (respect horizon like AGI)
-            if (arrowUp || arrowDown) {
+            if (movingY) {
                 const yDir = arrowUp ? -1 : 1;
                 const minY = Math.max(this.horizon, 280);
-                const newY = Math.max(minY, Math.min(370, this.playerY + spd * yDir));
+                const newY = Math.max(minY, Math.min(370, this.playerY + spd * diagFactor * yDir));
+                // Check combined position first, then axis-only fallback (match click-walk behavior)
                 if (!this.collidesBarrier(this.playerX, newY)) {
                     this.playerY = newY;
                 }
@@ -1699,17 +1705,17 @@ class GameEngine {
         if (facing === 'toward') {
             // ---- FRONT VIEW (facing camera) ----
             // Legs
-            ctx.fillStyle = '#2828AA';
+            ctx.fillStyle = '#BBBBBB';
             ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + leftLeg);
             ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s + rightLeg);
-            ctx.fillStyle = '#3535BB';
+            ctx.fillStyle = '#DDDDDD';
             ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + leftLeg);
             ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s + rightLeg);
             // Boots
             ctx.fillStyle = '#222222';
             // Left boot (full, uses walk offset)
             ctx.fillRect(x - 5 * s, y + 9 * s + leftBoot, 4 * s, 3 * s);
-            ctx.fillStyle = '#1a1a1a';
+            ctx.fillStyle = '#111111';
             ctx.fillRect(x - 5 * s, y + 11 * s + leftBoot, 5 * s, 1 * s);
             // Right boot — heel fixed, toe rotates up for foot tap
             {
@@ -1724,7 +1730,7 @@ class GameEngine {
                 ctx.fillRect(0, 0, 2 * s, 3 * s);
                 ctx.restore();
                 // Sole line across full boot bottom at heel height
-                ctx.fillStyle = '#1a1a1a';
+                ctx.fillStyle = '#111111';
                 ctx.fillRect(heelX - 1 * s, heelY + 2 * s, 2 * s, 1 * s); // heel sole
                 ctx.save();
                 ctx.transform(1, 0, -toeRise / (2 * s), 1, heelX + 2 * s, heelY);
@@ -1732,41 +1738,41 @@ class GameEngine {
                 ctx.restore();
             }
             // Body
-            ctx.fillStyle = '#4444DD';
+            ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
-            ctx.fillStyle = '#3838CC';
+            ctx.fillStyle = '#EEEEEE';
             ctx.fillRect(x - 5 * s, y - 10 * s, 1 * s, 11 * s);
             ctx.fillRect(x + 4 * s, y - 10 * s, 1 * s, 11 * s);
-            ctx.fillStyle = '#5050EE';
+            ctx.fillStyle = '#DDDDDD';
             ctx.fillRect(x - 1 * s, y - 6 * s, 2 * s, 4 * s);
             // Gold collar
-            ctx.fillStyle = '#CCAA44';
+            ctx.fillStyle = '#555555';
             ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
             // Belt
-            ctx.fillStyle = '#666666';
+            ctx.fillStyle = '#333333';
             ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
-            ctx.fillStyle = '#DDCC22';
+            ctx.fillStyle = '#AAAAAA';
             ctx.fillRect(x - 1.5 * s, y - 0.5 * s, 3 * s, 2.5 * s);
             // Arms
-            ctx.fillStyle = '#4444DD';
+            ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(x - 7 * s, y - 8 * s + as, 2 * s, 7 * s);
             ctx.fillRect(x + 5 * s, y - 8 * s - as, 2 * s, 7 * s);
-            ctx.fillStyle = '#CCAA44';
+            ctx.fillStyle = '#555555';
             ctx.fillRect(x - 7 * s, y - 2 * s + as, 2 * s, 1 * s);
             ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
             // Hands
-            ctx.fillStyle = '#FFCC88';
+            ctx.fillStyle = '#FF55FF';
             ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
             ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
             // Head
-            ctx.fillStyle = '#FFCC88';
+            ctx.fillStyle = '#FF55FF';
             ctx.fillRect(x - 4 * s, y - 18 * s, 8 * s, 8 * s);
-            ctx.fillStyle = '#EEBB77';
+            ctx.fillStyle = '#EE44EE';
             ctx.fillRect(x - 4 * s, y - 11 * s, 8 * s, 1 * s);
             // Hair
-            ctx.fillStyle = '#BB7733';
+            ctx.fillStyle = '#AA5500';
             ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 4 * s);
-            ctx.fillStyle = '#CC8844';
+            ctx.fillStyle = '#994400';
             ctx.fillRect(x - 2 * s, y - 19 * s, 4 * s, 1 * s);
             // Eyes (both visible!)
             // Left eye
@@ -1783,148 +1789,148 @@ class GameEngine {
         } else if (facing === 'away') {
             // ---- BACK VIEW (facing away from camera) ----
             // Legs
-            ctx.fillStyle = '#2828AA';
+            ctx.fillStyle = '#BBBBBB';
             ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + leftLeg);
             ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s + rightLeg);
-            ctx.fillStyle = '#2020AA';
+            ctx.fillStyle = '#AAAAAA';
             ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + leftLeg);
             ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s + rightLeg);
             // Boots
             ctx.fillStyle = '#222222';
             ctx.fillRect(x - 5 * s, y + 9 * s + leftLeg, 4 * s, 3 * s);
             ctx.fillRect(x, y + 9 * s + rightLeg, 4 * s, 3 * s);
-            ctx.fillStyle = '#1a1a1a';
+            ctx.fillStyle = '#111111';
             ctx.fillRect(x - 5 * s, y + 11 * s + leftLeg, 5 * s, 1 * s);
             ctx.fillRect(x, y + 11 * s + rightLeg, 5 * s, 1 * s);
             // Body (back of uniform, darker)
-            ctx.fillStyle = '#3838CC';
+            ctx.fillStyle = '#EEEEEE';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
-            ctx.fillStyle = '#3030BB';
+            ctx.fillStyle = '#CCCCCC';
             ctx.fillRect(x - 5 * s, y - 10 * s, 1 * s, 11 * s);
             ctx.fillRect(x + 4 * s, y - 10 * s, 1 * s, 11 * s);
             // Back seam
-            ctx.fillStyle = '#2828AA';
+            ctx.fillStyle = '#BBBBBB';
             ctx.fillRect(x - 0.5 * s, y - 9 * s, 1 * s, 10 * s);
             // Gold collar (back)
-            ctx.fillStyle = '#CCAA44';
+            ctx.fillStyle = '#555555';
             ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
             // Belt
-            ctx.fillStyle = '#666666';
+            ctx.fillStyle = '#333333';
             ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
             // Arms
-            ctx.fillStyle = '#3838CC';
+            ctx.fillStyle = '#EEEEEE';
             ctx.fillRect(x - 7 * s, y - 8 * s + as, 2 * s, 7 * s);
             ctx.fillRect(x + 5 * s, y - 8 * s - as, 2 * s, 7 * s);
-            ctx.fillStyle = '#CCAA44';
+            ctx.fillStyle = '#555555';
             ctx.fillRect(x - 7 * s, y - 2 * s + as, 2 * s, 1 * s);
             ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
             // Hands
-            ctx.fillStyle = '#FFCC88';
+            ctx.fillStyle = '#FF55FF';
             ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
             ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
             // Head (back of head, all hair)
-            ctx.fillStyle = '#BB7733';
+            ctx.fillStyle = '#AA5500';
             ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 9 * s);
             // Hair texture lines
-            ctx.fillStyle = '#AA6622';
+            ctx.fillStyle = '#883300';
             ctx.fillRect(x - 3 * s, y - 18 * s, 1 * s, 7 * s);
             ctx.fillRect(x, y - 17 * s, 1 * s, 6 * s);
             ctx.fillRect(x + 2 * s, y - 18 * s, 1 * s, 7 * s);
             // Hair highlight
-            ctx.fillStyle = '#CC8844';
+            ctx.fillStyle = '#994400';
             ctx.fillRect(x - 1 * s, y - 19 * s, 3 * s, 1 * s);
             // Ears peeking out
-            ctx.fillStyle = '#EEBB77';
+            ctx.fillStyle = '#EE44EE';
             ctx.fillRect(x - 5 * s, y - 15 * s, 1 * s, 2 * s);
             ctx.fillRect(x + 4 * s, y - 15 * s, 1 * s, 2 * s);
             // Neck
-            ctx.fillStyle = '#FFCC88';
+            ctx.fillStyle = '#FF55FF';
             ctx.fillRect(x - 2 * s, y - 10.5 * s, 4 * s, 1 * s);
 
         } else {
             // ---- SIDE VIEW (left or right) ---- [existing sprite]
             // Legs
-            ctx.fillStyle = '#2828AA';
+            ctx.fillStyle = '#BBBBBB';
             ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + leftLeg);
             ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s + rightLeg);
-            ctx.fillStyle = '#3535BB';
+            ctx.fillStyle = '#DDDDDD';
             ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + leftLeg);
             ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s + rightLeg);
-            ctx.fillStyle = '#2020AA';
+            ctx.fillStyle = '#AAAAAA';
             ctx.fillRect(x - 4 * s, y + 5 * s + Math.max(leftLeg, 0), 3 * s, 1 * s);
             ctx.fillRect(x + 1 * s, y + 5 * s + Math.max(rightLeg, 0), 3 * s, 1 * s);
             // Boots
             ctx.fillStyle = '#222222';
             ctx.fillRect(x - 5 * s, y + 9 * s + leftLeg, 4 * s, 3 * s);
             ctx.fillRect(x, y + 9 * s + rightLeg, 4 * s, 3 * s);
-            ctx.fillStyle = '#1a1a1a';
+            ctx.fillStyle = '#111111';
             ctx.fillRect(x - 5 * s, y + 11 * s + leftLeg, 5 * s, 1 * s);
             ctx.fillRect(x, y + 11 * s + rightLeg, 5 * s, 1 * s);
-            ctx.fillStyle = '#444444';
+            ctx.fillStyle = '#333333';
             ctx.fillRect(x - 4 * s, y + 9 * s + leftLeg, 2 * s, 1 * s);
             ctx.fillRect(x + 1 * s, y + 9 * s + rightLeg, 2 * s, 1 * s);
             // Body
-            ctx.fillStyle = '#4444DD';
+            ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
-            ctx.fillStyle = '#3838CC';
+            ctx.fillStyle = '#EEEEEE';
             ctx.fillRect(x - 5 * s, y - 10 * s, 1 * s, 11 * s);
             ctx.fillRect(x + 4 * s, y - 10 * s, 1 * s, 11 * s);
-            ctx.fillStyle = '#5050EE';
+            ctx.fillStyle = '#DDDDDD';
             ctx.fillRect(x - 1 * s, y - 8 * s, 2 * s, 6 * s);
             // Collar
-            ctx.fillStyle = '#5555EE';
+            ctx.fillStyle = '#444444';
             ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 2 * s);
-            ctx.fillStyle = '#CCAA44';
+            ctx.fillStyle = '#555555';
             ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
             // Belt
-            ctx.fillStyle = '#666666';
+            ctx.fillStyle = '#333333';
             ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
-            ctx.fillStyle = '#DDCC22';
+            ctx.fillStyle = '#AAAAAA';
             ctx.fillRect(x - 1.5 * s, y - 0.5 * s, 3 * s, 2.5 * s);
-            ctx.fillStyle = '#CCBB11';
+            ctx.fillStyle = '#999999';
             ctx.fillRect(x - 1 * s, y, 2 * s, 1.5 * s);
-            ctx.fillStyle = '#555555';
+            ctx.fillStyle = '#222222';
             ctx.fillRect(x - 5 * s, y, 2 * s, 3 * s);
             ctx.fillRect(x + 3 * s, y, 2 * s, 3 * s);
             // Arms
-            ctx.fillStyle = '#4444DD';
+            ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(x - 7 * s, y - 8 * s + as, 2 * s, 7 * s);
             ctx.fillRect(x + 5 * s, y - 8 * s - as, 2 * s, 7 * s);
-            ctx.fillStyle = '#CCAA44';
+            ctx.fillStyle = '#555555';
             ctx.fillRect(x - 7 * s, y - 2 * s + as, 2 * s, 1 * s);
             ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
-            ctx.fillStyle = '#3838CC';
+            ctx.fillStyle = '#EEEEEE';
             ctx.fillRect(x - 7 * s, y - 5 * s + as, 1 * s, 4 * s);
             ctx.fillRect(x + 6 * s, y - 5 * s - as, 1 * s, 4 * s);
             // Hands
-            ctx.fillStyle = '#FFCC88';
+            ctx.fillStyle = '#FF55FF';
             ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
             ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
-            ctx.fillStyle = '#EEBB77';
+            ctx.fillStyle = '#EE44EE';
             ctx.fillRect(x - 7 * s, y + 0.5 * s + as, 2 * s, 0.5 * s);
             ctx.fillRect(x + 5 * s, y + 0.5 * s - as, 2 * s, 0.5 * s);
             // Head
-            ctx.fillStyle = '#FFCC88';
+            ctx.fillStyle = '#FF55FF';
             ctx.fillRect(x - 4 * s, y - 18 * s, 8 * s, 8 * s);
-            ctx.fillStyle = '#EEBB77';
+            ctx.fillStyle = '#EE44EE';
             ctx.fillRect(x - 4 * s, y - 11 * s, 8 * s, 1 * s);
             // Hair
-            ctx.fillStyle = '#BB7733';
+            ctx.fillStyle = '#AA5500';
             ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 4 * s);
-            ctx.fillStyle = '#CC8844';
+            ctx.fillStyle = '#994400';
             ctx.fillRect(x - 2 * s, y - 19 * s, 3 * s, 1 * s);
             if (dir > 0) {
-                ctx.fillStyle = '#BB7733';
+                ctx.fillStyle = '#AA5500';
                 ctx.fillRect(x - 5 * s, y - 19 * s, 2 * s, 6 * s);
-                ctx.fillStyle = '#AA6622';
+                ctx.fillStyle = '#883300';
                 ctx.fillRect(x - 5 * s, y - 14 * s, 1 * s, 2 * s);
             } else {
-                ctx.fillStyle = '#BB7733';
+                ctx.fillStyle = '#AA5500';
                 ctx.fillRect(x + 3 * s, y - 19 * s, 2 * s, 6 * s);
-                ctx.fillStyle = '#AA6622';
+                ctx.fillStyle = '#883300';
                 ctx.fillRect(x + 4 * s, y - 14 * s, 1 * s, 2 * s);
             }
-            ctx.fillStyle = '#AA6622';
+            ctx.fillStyle = '#883300';
             ctx.fillRect(x - 3 * s, y - 18 * s, 6 * s, 1 * s);
             // Eye
             if (dir > 0) {
@@ -1942,7 +1948,7 @@ class GameEngine {
 
         // Idle eye blink overlay — covers eyes with skin color
         if (idleType === 'blink') {
-            ctx.fillStyle = '#FFCC88';
+            ctx.fillStyle = '#FF55FF';
             if (facing === 'toward') {
                 ctx.fillRect(x - 3 * s, y - 15 * s, 2.5 * s, 2 * s);
                 ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
@@ -2129,9 +2135,24 @@ class GameEngine {
             const raw = localStorage.getItem(this.getSaveKey(slot));
             if (!raw) { this.showMessage('That slot is empty.'); return; }
             const data = JSON.parse(raw);
-            this.inventory = data.inventory || [];
-            this.score = data.score || 0;
-            this.flags = data.flags || {};
+            // Validate save data structure
+            if (!data || typeof data !== 'object' ||
+                typeof data.currentRoomId !== 'string' ||
+                !Array.isArray(data.inventory) ||
+                typeof data.score !== 'number' ||
+                typeof data.flags !== 'object' || data.flags === null || Array.isArray(data.flags)) {
+                this.showMessage('Save data is corrupted.'); return;
+            }
+            // Sanitize flags against prototype pollution
+            const safeFlags = {};
+            for (const [k, v] of Object.entries(data.flags)) {
+                if (k !== '__proto__' && k !== 'constructor' && k !== 'prototype') {
+                    safeFlags[k] = v;
+                }
+            }
+            this.inventory = data.inventory;
+            this.score = data.score;
+            this.flags = safeFlags;
             this.dead = false;
             this.won = false;
             this.titleScreen = false;
@@ -2196,9 +2217,23 @@ class GameEngine {
             const infoDiv = document.createElement('div');
             infoDiv.className = 'slot-info';
             if (info) {
-                infoDiv.innerHTML = `<div class="slot-name">Slot ${i + 1}: ${info.room}</div><div class="slot-detail">Score: ${info.score}/${this.maxScore} &bull; ${info.date}</div>`;
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'slot-name';
+                nameDiv.textContent = `Slot ${i + 1}: ${info.room}`;
+                const detailDiv = document.createElement('div');
+                detailDiv.className = 'slot-detail';
+                detailDiv.textContent = `Score: ${info.score}/${this.maxScore} \u2022 ${info.date}`;
+                infoDiv.appendChild(nameDiv);
+                infoDiv.appendChild(detailDiv);
             } else {
-                infoDiv.innerHTML = `<div class="slot-name">Slot ${i + 1}</div><div class="slot-detail">— Empty —</div>`;
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'slot-name';
+                nameDiv.textContent = `Slot ${i + 1}`;
+                const detailDiv = document.createElement('div');
+                detailDiv.className = 'slot-detail';
+                detailDiv.textContent = '\u2014 Empty \u2014';
+                infoDiv.appendChild(nameDiv);
+                infoDiv.appendChild(detailDiv);
             }
             row.appendChild(infoDiv);
             const actionBtn = document.createElement('button');

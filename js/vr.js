@@ -237,25 +237,49 @@ class VRSystem {
             }`
         );
         this.lnU = this._locs(this.lineProg, ['uProj','uView','uSz','uMode','uColor']);
+
+        // Cache attribute locations (static after linking)
+        if (this.texProg) {
+            this.texA = { aP: this.gl.getAttribLocation(this.texProg, 'aP'), aT: this.gl.getAttribLocation(this.texProg, 'aT') };
+        }
+        if (this.markerProg) {
+            this.mkA = { aP: this.gl.getAttribLocation(this.markerProg, 'aP'), aC: this.gl.getAttribLocation(this.markerProg, 'aC') };
+        }
+        if (this.lineProg) {
+            this.lnA = { aP: this.gl.getAttribLocation(this.lineProg, 'aP'), aC: this.gl.getAttribLocation(this.lineProg, 'aC') };
+        }
     }
 
     _prog(vs, fs) {
         const gl = this.gl;
         const v = gl.createShader(gl.VERTEX_SHADER);
         gl.shaderSource(v, vs); gl.compileShader(v);
-        if (!gl.getShaderParameter(v, gl.COMPILE_STATUS))
+        if (!gl.getShaderParameter(v, gl.COMPILE_STATUS)) {
             console.error('VR VS:', gl.getShaderInfoLog(v));
+            gl.deleteShader(v);
+            return null;
+        }
 
         const f = gl.createShader(gl.FRAGMENT_SHADER);
         gl.shaderSource(f, fs); gl.compileShader(f);
-        if (!gl.getShaderParameter(f, gl.COMPILE_STATUS))
+        if (!gl.getShaderParameter(f, gl.COMPILE_STATUS)) {
             console.error('VR FS:', gl.getShaderInfoLog(f));
+            gl.deleteShader(v);
+            gl.deleteShader(f);
+            return null;
+        }
 
         const p = gl.createProgram();
         gl.attachShader(p, v); gl.attachShader(p, f);
         gl.linkProgram(p);
-        if (!gl.getProgramParameter(p, gl.LINK_STATUS))
+        // Detach and delete shaders after linking
+        gl.detachShader(p, v); gl.deleteShader(v);
+        gl.detachShader(p, f); gl.deleteShader(f);
+        if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
             console.error('VR link:', gl.getProgramInfoLog(p));
+            gl.deleteProgram(p);
+            return null;
+        }
         return p;
     }
 
@@ -363,8 +387,17 @@ class VRSystem {
             this.engine.showMessage('VR not supported on this device.');
             return;
         }
+        // Prevent double-invocation
+        if (this.xrSession) {
+            return;
+        }
         if (!this.gl && !this._initGL()) {
             this.engine.showMessage('WebGL init failed for VR.');
+            return;
+        }
+        // Verify shaders compiled successfully
+        if (!this.texProg || !this.markerProg || !this.lineProg) {
+            this.engine.showMessage('VR shader compilation failed. VR is not available on this device.');
             return;
         }
 
@@ -412,10 +445,16 @@ class VRSystem {
         }
     }
 
-    async exitVR() { if (this.xrSession) await this.xrSession.end(); }
+    async exitVR() {
+        if (this.xrSession) {
+            try { await this.xrSession.end(); } catch (e) { this._onEnd(); }
+        }
+    }
 
     _onEnd() {
         this.xrSession = null;
+        this.xrRefSpace = null;
+        this.xrLayer = null;
         // Restore original canvas
         if (this.engine._origCanvas) {
             this.engine.canvas = this.engine._origCanvas;
@@ -516,8 +555,8 @@ class VRSystem {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, tex);
         gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-        const a0 = gl.getAttribLocation(this.texProg, 'aP');
-        const a1 = gl.getAttribLocation(this.texProg, 'aT');
+        const a0 = this.texA.aP;
+        const a1 = this.texA.aT;
         gl.enableVertexAttribArray(a0);
         gl.vertexAttribPointer(a0, 3, gl.FLOAT, false, 20, 0);
         gl.enableVertexAttribArray(a1);
@@ -535,8 +574,8 @@ class VRSystem {
         gl.uniform1f(this.lnU.uSz, 1.0);
         gl.uniform1i(this.lnU.uMode, 0);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.starVBO);
-        const a0 = gl.getAttribLocation(this.lineProg, 'aP');
-        const a1 = gl.getAttribLocation(this.lineProg, 'aC');
+        const a0 = this.lnA.aP;
+        const a1 = this.lnA.aC;
         gl.enableVertexAttribArray(a0);
         gl.vertexAttribPointer(a0, 3, gl.FLOAT, false, 28, 0);
         gl.enableVertexAttribArray(a1);
@@ -557,8 +596,8 @@ class VRSystem {
         gl.uniform1f(this.mkU.uSz, 1.0);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.markerVBO);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.mkData), gl.DYNAMIC_DRAW);
-        const a0 = gl.getAttribLocation(this.markerProg, 'aP');
-        const a1 = gl.getAttribLocation(this.markerProg, 'aC');
+        const a0 = this.mkA.aP;
+        const a1 = this.mkA.aC;
         gl.enableVertexAttribArray(a0);
         gl.vertexAttribPointer(a0, 3, gl.FLOAT, false, 28, 0);
         gl.enableVertexAttribArray(a1);
@@ -598,11 +637,11 @@ class VRSystem {
                 o.x + d[0]*len, o.y + d[1]*len, o.z + d[2]*len
             ]), gl.DYNAMIC_DRAW);
 
-            const a0 = gl.getAttribLocation(this.lineProg, 'aP');
+            const a0 = this.lnA.aP;
             gl.enableVertexAttribArray(a0);
             gl.vertexAttribPointer(a0, 3, gl.FLOAT, false, 0, 0);
             // Disable color attrib (not used in line mode)
-            const a1 = gl.getAttribLocation(this.lineProg, 'aC');
+            const a1 = this.lnA.aC;
             if (a1 >= 0) gl.disableVertexAttribArray(a1);
             gl.drawArrays(gl.LINES, 0, 2);
             gl.disableVertexAttribArray(a0);
