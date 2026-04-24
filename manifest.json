@@ -1,0 +1,26 @@
+{
+    "name": "Star Sweeper: A Space Adventure",
+    "short_name": "Star Sweeper",
+    "description": "A Sierra-style point-and-click space adventure game. From humble janitor to galactic hero.",
+    "start_url": "./index.html",
+    "scope": "./",
+    "display": "standalone",
+    "orientation": "landscape",
+    "background_color": "#080818",
+    "theme_color": "#080818",
+    "categories": ["games", "entertainment"],
+    "icons": [
+        {
+            "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' fill='%23080818'/><text x='96' y='138' font-size='140' text-anchor='middle'>%F0%9F%8C%9F</text></svg>",
+            "sizes": "192x192",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%23080818'/><text x='256' y='370' font-size='380' text-anchor='middle'>%F0%9F%8C%9F</text></svg>",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ]
+}

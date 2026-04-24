@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="description" content="Star Sweeper: A Space Adventure — a Sierra-style point-and-click adventure game built with HTML5 Canvas and JavaScript.">
     <meta name="theme-color" content="#080818">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self'; connect-src 'self'; img-src 'self' data:;">
     <meta property="og:title" content="Star Sweeper: A Space Adventure">
     <meta property="og:description" content="A Sierra-style point-and-click space adventure game. From humble janitor to galactic hero.">
     <meta property="og:type" content="website">
     <title>Star Sweeper: A Space Adventure</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🌟</text></svg>">
+    <link rel="manifest" href="manifest.json">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -381,5 +382,14 @@
     <script src="js/engine.js"></script>
     <script src="js/vr.js"></script>
     <script src="js/game.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('serviceworker.js').catch((err) => {
+                    console.warn('Service worker registration failed:', err);
+                });
+            });
+        }
+    </script>
 </body>
 </html>

@@ -30,7 +30,7 @@ class GameEngine {
         this.currentRoomId = null;
         this.inventory = [];
         this.score = 0;
-        this.maxScore = 380;
+        this.maxScore = 450;
         this.flags = {};
         this.dead = false;
         this.won = false;
@@ -1761,18 +1761,18 @@ class GameEngine {
             ctx.fillRect(x - 7 * s, y - 2 * s + as, 2 * s, 1 * s);
             ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
             // Hands
-            ctx.fillStyle = '#FF55FF';
+            ctx.fillStyle = '#FFCC88';
             ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
             ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
             // Head
-            ctx.fillStyle = '#FF55FF';
+            ctx.fillStyle = '#FFCC88';
             ctx.fillRect(x - 4 * s, y - 18 * s, 8 * s, 8 * s);
-            ctx.fillStyle = '#EE44EE';
+            ctx.fillStyle = '#EEBB77';
             ctx.fillRect(x - 4 * s, y - 11 * s, 8 * s, 1 * s);
             // Hair
-            ctx.fillStyle = '#AA5500';
+            ctx.fillStyle = '#BB7733';
             ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 4 * s);
-            ctx.fillStyle = '#994400';
+            ctx.fillStyle = '#CC8844';
             ctx.fillRect(x - 2 * s, y - 19 * s, 4 * s, 1 * s);
             // Eyes (both visible!)
             // Left eye
@@ -1825,26 +1825,26 @@ class GameEngine {
             ctx.fillRect(x - 7 * s, y - 2 * s + as, 2 * s, 1 * s);
             ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
             // Hands
-            ctx.fillStyle = '#FF55FF';
+            ctx.fillStyle = '#FFCC88';
             ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
             ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
             // Head (back of head, all hair)
-            ctx.fillStyle = '#AA5500';
+            ctx.fillStyle = '#BB7733';
             ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 9 * s);
             // Hair texture lines
-            ctx.fillStyle = '#883300';
+            ctx.fillStyle = '#AA6622';
             ctx.fillRect(x - 3 * s, y - 18 * s, 1 * s, 7 * s);
             ctx.fillRect(x, y - 17 * s, 1 * s, 6 * s);
             ctx.fillRect(x + 2 * s, y - 18 * s, 1 * s, 7 * s);
             // Hair highlight
-            ctx.fillStyle = '#994400';
+            ctx.fillStyle = '#CC8844';
             ctx.fillRect(x - 1 * s, y - 19 * s, 3 * s, 1 * s);
             // Ears peeking out
-            ctx.fillStyle = '#EE44EE';
+            ctx.fillStyle = '#EEBB77';
             ctx.fillRect(x - 5 * s, y - 15 * s, 1 * s, 2 * s);
             ctx.fillRect(x + 4 * s, y - 15 * s, 1 * s, 2 * s);
             // Neck
-            ctx.fillStyle = '#FF55FF';
+            ctx.fillStyle = '#FFCC88';
             ctx.fillRect(x - 2 * s, y - 10.5 * s, 4 * s, 1 * s);
 
         } else {
@@ -1903,34 +1903,34 @@ class GameEngine {
             ctx.fillRect(x - 7 * s, y - 5 * s + as, 1 * s, 4 * s);
             ctx.fillRect(x + 6 * s, y - 5 * s - as, 1 * s, 4 * s);
             // Hands
-            ctx.fillStyle = '#FF55FF';
+            ctx.fillStyle = '#FFCC88';
             ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
             ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
-            ctx.fillStyle = '#EE44EE';
+            ctx.fillStyle = '#EEBB77';
             ctx.fillRect(x - 7 * s, y + 0.5 * s + as, 2 * s, 0.5 * s);
             ctx.fillRect(x + 5 * s, y + 0.5 * s - as, 2 * s, 0.5 * s);
             // Head
-            ctx.fillStyle = '#FF55FF';
+            ctx.fillStyle = '#FFCC88';
             ctx.fillRect(x - 4 * s, y - 18 * s, 8 * s, 8 * s);
-            ctx.fillStyle = '#EE44EE';
+            ctx.fillStyle = '#EEBB77';
             ctx.fillRect(x - 4 * s, y - 11 * s, 8 * s, 1 * s);
             // Hair
-            ctx.fillStyle = '#AA5500';
+            ctx.fillStyle = '#BB7733';
             ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 4 * s);
-            ctx.fillStyle = '#994400';
+            ctx.fillStyle = '#CC8844';
             ctx.fillRect(x - 2 * s, y - 19 * s, 3 * s, 1 * s);
             if (dir > 0) {
-                ctx.fillStyle = '#AA5500';
+                ctx.fillStyle = '#BB7733';
                 ctx.fillRect(x - 5 * s, y - 19 * s, 2 * s, 6 * s);
-                ctx.fillStyle = '#883300';
+                ctx.fillStyle = '#AA6622';
                 ctx.fillRect(x - 5 * s, y - 14 * s, 1 * s, 2 * s);
             } else {
-                ctx.fillStyle = '#AA5500';
+                ctx.fillStyle = '#BB7733';
                 ctx.fillRect(x + 3 * s, y - 19 * s, 2 * s, 6 * s);
-                ctx.fillStyle = '#883300';
+                ctx.fillStyle = '#AA6622';
                 ctx.fillRect(x + 4 * s, y - 14 * s, 1 * s, 2 * s);
             }
-            ctx.fillStyle = '#883300';
+            ctx.fillStyle = '#AA6622';
             ctx.fillRect(x - 3 * s, y - 18 * s, 6 * s, 1 * s);
             // Eye
             if (dir > 0) {
@@ -1948,7 +1948,7 @@ class GameEngine {
 
         // Idle eye blink overlay — covers eyes with skin color
         if (idleType === 'blink') {
-            ctx.fillStyle = '#FF55FF';
+            ctx.fillStyle = '#FFCC88';
             if (facing === 'toward') {
                 ctx.fillRect(x - 3 * s, y - 15 * s, 2.5 * s, 2 * s);
                 ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
@@ -2150,8 +2150,9 @@ class GameEngine {
                     safeFlags[k] = v;
                 }
             }
-            this.inventory = data.inventory;
-            this.score = data.score;
+            // Filter inventory to known string item IDs
+            this.inventory = data.inventory.filter(x => typeof x === 'string' && this.items[x]);
+            this.score = Math.max(0, Math.min(this.maxScore, Math.floor(data.score)));
             this.flags = safeFlags;
             this.dead = false;
             this.won = false;

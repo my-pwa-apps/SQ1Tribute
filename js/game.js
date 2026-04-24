@@ -703,33 +703,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-function ditherPoly(ctx, points, c1, c2, patternSize) {
-        if (points.length < 3) return;
-        
-        // Find bounding box
-        let minX = points[0].x, maxX = points[0].x;
-        let minY = points[0].y, maxY = points[0].y;
-        for (let i = 1; i < points.length; i++) {
-            if (points[i].x < minX) minX = points[i].x;
-            if (points[i].x > maxX) maxX = points[i].x;
-            if (points[i].y < minY) minY = points[i].y;
-            if (points[i].y > maxY) maxY = points[i].y;
-        }
-        
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length; i++) {
-            ctx.lineTo(points[i].x, points[i].y);
-        }
-        ctx.closePath();
-        ctx.clip();
-        
-        ditherRect(ctx, minX, minY, maxX - minX, maxY - minY, c1, c2, patternSize);
-        
-        ctx.restore();
-    }
-
     function stars(ctx, w, h, seed, count, yFraction) {
         let r = seed || 54321;
         const maxY = h * (yFraction || 1);
@@ -764,8 +737,9 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
         for (let x = 0; x < w; x += 40) {
             ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + h); ctx.stroke();
         }
-        // Horizontal perspective lines
-        for (let py = y + 10; py < y + h; py += (py - y) * 0.5) {
+        // Horizontal perspective lines (4 stops, geometric spacing)
+        for (let i = 1; i <= 4; i++) {
+            const py = y + h * (i * i) / 25;
             ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(w, py); ctx.stroke();
         }
     }
@@ -1792,7 +1766,7 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
     engine.registerRoom({
         id: 'broom_closet',
         name: 'Broom Closet',
-        description: 'You wake up groggy in the ship\'s broom closet — your favorite napping spot. Alarms wail. Red lights flash. Something terrible has happened aboard the ISS Constellation.',
+        description: 'You wake up groggy in the ship\'s broom closet — your favorite napping spot, and, until recently, your finest idea. Alarms wail. Red lights flash. Something terrible has happened aboard the ISS Constellation. Typical Monday.',
         onEnter: (e) => {
             e.sound.startAmbient('ship_alarm');
             e.setFlag('alarm_active');
@@ -2416,6 +2390,13 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
                 get: (e) => e.showMessage('You cup your hands and try to scoop up the purple goo. It slips through your fingers and leaves them tingling. And slightly purple. That\'ll wash out. Probably.'),
                 use: (e) => e.showMessage('You consider mopping it up but then remember: the ship is exploding. Priorities, Wilkins. Priorities.'),
                 talk: (e) => e.showMessage('"What ARE you?" you ask the puddle. It bubbles. You decide not to ask again.')
+            },
+            {
+                name: 'Drink Puddle', x: 110, y: 285, w: 55, h: 10,
+                description: 'The glowing purple fluid. Surely drinking it is a fine idea.',
+                look: (e) => e.showMessage('Up close, the puddle smells faintly of ozone and regret.'),
+                use: (e) => e.die('Against every warning label you\'ve ever cleaned off a bottle, you drink the glowing purple fluid. You have approximately four seconds to appreciate your life choices before you dissolve into a slightly-more-purple puddle. Congratulations: you are now the mess you were meant to clean.'),
+                get: (e) => e.die('You cup a handful of glowing purple liquid and, in the sort of decision that separates janitors from astronauts, drink it. Your atoms briefly vibrate in a new and exciting key. Then they stop vibrating altogether.')
             },
             {
                 name: 'Safety Poster', x: 540, y: 100, w: 50, h: 60,
@@ -3296,14 +3277,15 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
                         e.showMessage('The pod is already gone.');
                         return;
                     }
-                    // Warn about missing critical items
-                    if (!e.hasItem('cartridge') && !e.getFlag('pod_warn_cartridge')) {
-                        e.showMessage('You hesitate before climbing in. Something nags at you... There\'s a lot of ship you haven\'t searched yet. You feel like you should check the Science Lab before leaving forever.');
-                        e.setFlag('pod_warn_cartridge');
+                    // The Data Cartridge is REQUIRED to beat the game — hard-block launch without it
+                    // to prevent a late-game soft-lock on the Draknoid ship.
+                    if (!e.hasItem('cartridge')) {
+                        e.showMessage('You hesitate before climbing in. Something nags at you... There\'s a lot of ship you haven\'t searched yet. You really should check the Science Lab before leaving forever — there might be critical data that can\'t be replaced.');
                         return;
                     }
+                    // Survival Kit is strongly recommended (you\'ll die in the desert without it) — warn once
                     if (!e.hasItem('survival_kit') && !e.getFlag('got_kit') && !e.getFlag('pod_warn_kit')) {
-                        e.showMessage('A survival instinct tells you to check for emergency supplies before launching into the unknown. That locker on the wall looks promising...');
+                        e.showMessage('A survival instinct tells you to check for emergency supplies before launching into the unknown. That locker on the wall looks promising... (Click the pod again to launch anyway.)');
                         e.setFlag('pod_warn_kit');
                         return;
                     }
@@ -3385,7 +3367,7 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
     engine.registerRoom({
         id: 'desert',
         name: 'Desert Planet',
-        description: 'Your pod crashlands on a scorching desert planet. Twin suns blaze overhead. The air is dry as dust. You need to find shelter — fast.',
+        description: 'Your pod crashlands on a scorching desert planet — Kerona, if the charts are right; Unnamed Sandtrap if you\'re being honest. Twin suns blaze overhead. The air is dry as dust. You need to find shelter — preferably before you become a skeleton with a mop.',
         onEnter: (e) => {
             e.sound.startAmbient('desert_wind');
             if (!e.getFlag('desert_entered')) {
@@ -3948,7 +3930,14 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
                 description: 'Clusters of softly glowing mushrooms.',
                 look: (e) => { if (!engine.getFlag('looked_mushrooms')) { engine.setFlag('looked_mushrooms'); e.addScore(2); } e.showMessage('Bioluminescent mushrooms cluster near the pool, casting a soft blue-green glow. They pulse gently, almost like breathing. Pretty, but you wouldn\'t eat them — your xenobiology training (which consists of zero hours) says "don\'t eat glowing things."'); },
                 get: (e) => e.showMessage('You pluck a mushroom. It immediately stops glowing and goes limp in your hand. Now you feel guilty. You put it back.'),
-                use: (e) => e.showMessage('You consider eating one. Then you imagine the headline: "Janitor Killed by Space Mushroom." You put it down.'),
+                use: (e) => {
+                    if (!e.getFlag('warn_mushroom')) {
+                        e.setFlag('warn_mushroom');
+                        e.showMessage('You consider eating one. Every fiber of your being, plus several mandatory safety posters, scream NO. You put it down. For now.');
+                    } else {
+                        e.die('You eat a glowing mushroom on the second try, because apparently you learn nothing. It tastes like copper pennies marinated in bad decisions. The fungus glows, briefly, from INSIDE you. Then everything glows. Then nothing does.');
+                    }
+                },
                 talk: (e) => e.showMessage('"Glow, little buddies, glow." They pulse a bit brighter. Coincidence? Probably. But you smile anyway.')
             },
             {
@@ -4375,7 +4364,7 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
     engine.registerRoom({
         id: 'cantina',
         name: 'Cantina',
-        description: 'The cantina is smoky and dim. Alien music plays from somewhere. A few patrons sit at tables. A bartender polishes glasses behind the bar.',
+        description: 'The cantina is smoky and dim. Alien music plays from somewhere questionable. A three-eyed bartender polishes glasses with three hands. A crystalline being hums at the bar. An insectoid clicks over a fizzing drink. A purple blob watches you with its one big eye. A weary pilot nurses an empty glass. You feel extremely smoothskin.',
         onEnter: (e) => {
             e.sound.startAmbient('cantina_music');
             // AGI-inspired barriers: bar counter, tables, stools
@@ -4614,10 +4603,120 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
                 ctx.beginPath(); ctx.arc(494, 240, 7, 0, Math.PI * 2); ctx.fill();
             }
 
-            // Table 2 (empty)
+            // Table 2 (Blorp the tentacled blob patron)
             ctx.fillStyle = '#443322';
             ctx.fillRect(530, 260, 80, 6);
             ctx.fillRect(560, 266, 6, 40);
+            // Blorp: squishy purple blob with 4 tentacles clutching a glowing glass
+            {
+                const blorpBob = Math.sin(eng.animTimer / 600) * 1.5;
+                const bx = 555, by = 225 + blorpBob;
+                // Body (ellipse-ish blob)
+                ctx.fillStyle = '#8844AA';
+                ctx.beginPath(); ctx.ellipse(bx, by + 12, 22, 20, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#AA55CC';
+                ctx.beginPath(); ctx.ellipse(bx - 4, by + 8, 8, 6, 0, 0, Math.PI * 2); ctx.fill();
+                // Single huge eye
+                ctx.fillStyle = '#FFFFCC';
+                ctx.beginPath(); ctx.arc(bx, by + 6, 8, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#331133';
+                ctx.beginPath(); ctx.arc(bx + Math.sin(eng.animTimer/900) * 2, by + 6, 4, 0, Math.PI * 2); ctx.fill();
+                // Tentacles drooping onto table, wiggling
+                ctx.strokeStyle = '#663388';
+                ctx.lineWidth = 3;
+                for (let t = 0; t < 4; t++) {
+                    const wig = Math.sin(eng.animTimer / 400 + t) * 3;
+                    ctx.beginPath();
+                    ctx.moveTo(bx - 18 + t * 12, by + 26);
+                    ctx.quadraticCurveTo(bx - 20 + t * 13 + wig, by + 38, bx - 22 + t * 14, by + 42);
+                    ctx.stroke();
+                }
+                ctx.lineWidth = 1;
+                // Glowing drink on table
+                const drinkGlow = 0.5 + Math.sin(eng.animTimer / 250) * 0.3;
+                ctx.fillStyle = `rgba(80,255,120,${drinkGlow})`;
+                ctx.fillRect(548, 256, 10, 8);
+                ctx.fillStyle = `rgba(180,255,180,${drinkGlow * 0.8})`;
+                ctx.fillRect(549, 254, 8, 3);
+            }
+
+            // Skritch the insectoid at the far back barstool
+            {
+                const sx = 268, sy = 232;
+                // Thorax
+                ctx.fillStyle = '#226622';
+                ctx.fillRect(sx - 8, sy, 16, 18);
+                // Head
+                ctx.fillStyle = '#338833';
+                ctx.fillRect(sx - 6, sy - 12, 12, 12);
+                // Compound eyes (two big bulging spheres)
+                ctx.fillStyle = '#CC2200';
+                ctx.beginPath(); ctx.arc(sx - 4, sy - 8, 3, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(sx + 4, sy - 8, 3, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = 'rgba(255,180,80,0.8)';
+                ctx.fillRect(sx - 5, sy - 9, 1, 1);
+                ctx.fillRect(sx + 3, sy - 9, 1, 1);
+                // Antennae twitching
+                const aw = Math.sin(eng.animTimer / 200) * 2;
+                ctx.strokeStyle = '#114411';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(sx - 3, sy - 12); ctx.lineTo(sx - 6 + aw, sy - 22); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(sx + 3, sy - 12); ctx.lineTo(sx + 6 - aw, sy - 22); ctx.stroke();
+                // Mandibles clicking
+                const mc = Math.floor(eng.animTimer / 180) % 2;
+                ctx.fillStyle = '#FFEE88';
+                ctx.fillRect(sx - 3 - mc, sy - 3, 2, 3);
+                ctx.fillRect(sx + 1 + mc, sy - 3, 2, 3);
+                // Four arms clutching a fizzing drink
+                ctx.fillStyle = '#226622';
+                ctx.fillRect(sx - 12, sy + 2, 5, 8);
+                ctx.fillRect(sx + 7, sy + 2, 5, 8);
+                ctx.fillRect(sx - 10, sy + 10, 4, 6);
+                ctx.fillRect(sx + 6, sy + 10, 4, 6);
+                // Fizzing cocktail on counter
+                ctx.fillStyle = '#FFAA33';
+                ctx.fillRect(sx - 3, sy + 12, 6, 8);
+                // Fizz bubbles
+                for (let b = 0; b < 3; b++) {
+                    const bp = ((eng.animTimer / 120) + b * 30) % 30;
+                    ctx.fillStyle = `rgba(255,255,200,${Math.max(0, 1 - bp / 30)})`;
+                    ctx.fillRect(sx - 2 + (b % 2) * 3, sy + 11 - bp, 1, 1);
+                }
+            }
+
+            // Crystar the crystalline being at bar (mid position)
+            {
+                const cx = 165, cy = 232;
+                // Shimmer: rotate hue gently
+                const shimmer = (Math.sin(eng.animTimer / 400) + 1) / 2;
+                // Crystal body: angular diamond shape
+                ctx.fillStyle = `rgba(${80 + shimmer * 40},${200 + shimmer * 40},${240},0.9)`;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - 24);
+                ctx.lineTo(cx + 10, cy - 8);
+                ctx.lineTo(cx + 8, cy + 18);
+                ctx.lineTo(cx - 8, cy + 18);
+                ctx.lineTo(cx - 10, cy - 8);
+                ctx.closePath(); ctx.fill();
+                // Inner facets
+                ctx.strokeStyle = `rgba(255,255,255,${0.4 + shimmer * 0.3})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - 24); ctx.lineTo(cx, cy + 18);
+                ctx.moveTo(cx - 10, cy - 8); ctx.lineTo(cx + 10, cy - 8);
+                ctx.stroke();
+                // Inner glow "heart"
+                ctx.fillStyle = `rgba(255,255,200,${0.5 + shimmer * 0.4})`;
+                ctx.fillRect(cx - 2, cy - 4, 4, 6);
+                // Eye glints
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(cx - 4, cy - 12, 2, 2);
+                ctx.fillRect(cx + 2, cy - 12, 2, 2);
+                // No drink \u2014 Crystar doesn't drink. Crystar radiates.
+            }
+
+            // Tables
+            // Table 2 already drawn above (with Blorp). Next up: ambiance.
 
             // Ambiance - neon sign on wall (AGI-style: 2-frame blink)
             const signOn = Math.floor(eng.animTimer / 500) % 2;
@@ -4809,6 +4908,30 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
                 get: (e) => e.showMessage('The bartender gives you a stern three-eyed glare. Best not to steal from a guy with three arms.'),
                 talk: (e) => e.showMessage('You lean in close to the bottles. "Any of you guys know a way off this rock?" The moving one gurgles. You decide it doesn\'t count as a real answer.'),
                 use: (e) => e.showMessage('You\'re not reaching behind the bar. The bartender has three arms and almost certainly knows how to use all of them.')
+            },
+            {
+                name: 'Blorp', x: 530, y: 205, w: 60, h: 70,
+                description: 'A quivering purple blob with a single enormous eye and four tentacles.',
+                look: (e) => { if (!engine.getFlag('looked_blorp')) { engine.setFlag('looked_blorp'); e.addScore(1); } e.showMessage('A purple blob roughly the size of a beach ball squats at the table, clutching a glowing green cocktail with four rubbery tentacles. Its single eye tracks you with weary disinterest. The universal translator on your wrist offers "*gurgle*" as its best guess.'); },
+                talk: (e) => e.showMessage('You greet the blob. It extrudes a tentacle, taps its glass, and gurgles what is either "cheers" or "I am going to digest you slowly." You nod politely and back away.'),
+                get: (e) => e.showMessage('You do not try to pick up a sentient blob. You are a janitor, not a food critic.'),
+                use: (e) => e.showMessage('You awkwardly pat the blob. It quivers. The tentacles retract half an inch. That is the most emotion it has shown all night.')
+            },
+            {
+                name: 'Skritch', x: 252, y: 220, w: 32, h: 58,
+                description: 'An insectoid with compound eyes and four clicking arms.',
+                look: (e) => { if (!engine.getFlag('looked_skritch')) { engine.setFlag('looked_skritch'); e.addScore(1); } e.showMessage('A wiry green insectoid perched on a barstool, antennae twitching, four arms cradling a fizzing orange cocktail. Its compound eyes refract every light in the room. Somewhere under the chitin, you suspect it is judging your shoes.'); },
+                talk: (e) => e.showMessage('"*click-click-skrrrt?*" says Skritch. Your translator offers four possibilities, all containing the word "moist." You smile and pretend you understood.'),
+                get: (e) => e.showMessage('You are not touching anything with that many moving mouthparts.'),
+                use: (e) => e.showMessage('You mime drinking together. Skritch raises its glass, pours half of it directly into an eye, and chitters appreciatively. Different strokes.')
+            },
+            {
+                name: 'Crystar', x: 153, y: 208, w: 28, h: 68,
+                description: 'A silent, faintly humming crystalline being.',
+                look: (e) => { if (!engine.getFlag('looked_crystar')) { engine.setFlag('looked_crystar'); e.addScore(1); } e.showMessage('A walking geometry problem. Crystar stands perfectly still at the bar, a six-sided crystal the color of a swimming pool, with two white-hot glints where eyes might be. It has no glass. It does not appear to need one. A soft chime radiates from inside.'); },
+                talk: (e) => e.showMessage('You speak to Crystar. A harmonic hum resonates back through your fillings. You think it might be agreeing with you. Or tuning your skeleton. Either way, fine.'),
+                get: (e) => e.showMessage('You prod Crystar experimentally. The chime goes very slightly flat, which, in your gut, feels like the start of a cosmic lawsuit. You stop prodding.'),
+                use: (e) => e.showMessage('You hold up your wrist communicator near Crystar. It briefly tunes itself to a station that has not existed for two centuries. You switch it off quickly.')
             },
             {
                 name: 'Dartboard', x: 492, y: 67, w: 36, h: 36,
@@ -5487,7 +5610,15 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
                 x: 285, y: 80, w: 70, h: 210,
                 description: 'The ship\'s main reactor. Emergency containment is holding, but barely. The blue glow pulses erratically.',
                 look: (e) => e.showMessage('The reactor core hums ominously. Containment fields are wavering. One more power surge and it\'ll be lights-out for good.'),
-                use: (e) => e.showMessage('You\'d need a death wish — and a radiation suit — to mess with the reactor directly.'),
+                use: (e) => {
+                    if (!e.getFlag('warn_reactor')) {
+                        e.setFlag('warn_reactor');
+                        e.showMessage('You\'d need a death wish — and a radiation suit — to mess with the reactor directly. Probably best not to touch it a second time.');
+                    } else {
+                        e.die('You decide to "just check something" on the reactor. The containment field, already questionable, objects strenuously to your presence. You now emit a gentle cyan glow. Posthumously. Your atoms are doing fine, individually. As a janitor, you are less well.');
+                    }
+                },
+                get: (e) => e.die('You reach to take a souvenir chunk of the reactor. This is the last decision you ever make. Your family will be proud. They will also be unable to hold a funeral without a lead-lined box.'),
                 useItem: (e, id) => e.showMessage('That won\'t help with a reactor meltdown.')
             },
             {
@@ -5517,9 +5648,12 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
                         e.setFlag('korvak_freed');
                         e.setFlag('korvak_left');
                         e.addScore(20);
+                        // Award cutter only if Korvak hasn't already given it via dialog
+                        if (!e.getFlag('korvak_gave_cutter')) {
+                            e.addToInventory('plasma_cutter');
+                            e.setFlag('korvak_gave_cutter');
+                        }
                         e.showMessage('You use the medkit to stabilize Korvak\'s wounds. He grits his teeth as you patch him up, then helps you lever the beam aside. "Thank you," he rasps. He hands you a battered plasma cutter from his belt.');
-                        e.addToInventory('plasma_cutter');
-                        e.addScore(15);
                     } else if (id === 'medkit' && e.getFlag('korvak_freed')) {
                         e.showMessage('Korvak is already patched up as best as possible.');
                     } else {
@@ -5543,7 +5677,7 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
             {
                 name: 'Fire Suppression Cabinet',
                 x: 28, y: 218, w: 56, h: 74,
-                get hidden() { return engine.getFlag('fire_suppressed'); },
+                get hidden() { return engine.getFlag('got_medkit') && engine.getFlag('fire_suppressed'); },
                 description: 'A red fire suppression cabinet bolted to the left wall.',
                 look: (e) => {
                     if (e.getFlag('cabinet_opened')) {
@@ -5575,8 +5709,13 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
                     }
                 },
                 useItem: (e, id) => {
-                    if (id === 'plasma_cutter' && !e.getFlag('fire_suppressed')) {
-                        // Use the suppression canister on the fire
+                    if (id === 'plasma_cutter' && !e.getFlag('cabinet_opened')) {
+                        // Plasma cutter slices the seal
+                        e.setFlag('cabinet_opened');
+                        e.addScore(5);
+                        e.showMessage('You slice through the cabinet seal with the plasma cutter. The door swings open: a medkit and a suppression canister inside.');
+                    } else if (id === 'plasma_cutter' && e.getFlag('cabinet_opened') && !e.getFlag('fire_suppressed')) {
+                        // After cabinet is opened, use canister on fire
                         e.setFlag('fire_suppressed');
                         e.addScore(5);
                         e.showMessage('You grab the suppression canister from the cabinet and blast the conduit fire. The flames gutter out with a satisfying hiss. The room smells of chemical foam and char.');
@@ -5607,7 +5746,7 @@ function ditherPoly(ctx, points, c1, c2, patternSize) {
         name: 'Kerona Docking Bay',
         description: 'A ramshackle docking bay on the outskirts of Kerona\'s frontier post. The wrecked cargo freighter Ironclad Star dominates the far end, half-buried in sand.',
         onEnter: (e) => {
-            e.sound.startAmbient('desert');
+            e.sound.startAmbient('desert_wind');
             e.setDepthScaling(260, 380, 0.75, 1.1);
             // Bay wall barriers
             e.addBarrier(0, 230, 80, 60);     // Left bay wall
