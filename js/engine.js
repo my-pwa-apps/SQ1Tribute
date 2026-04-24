@@ -53,6 +53,12 @@ class GameEngine {
         this.currentAction = 'walk';
         this.selectedItem = null;
         this.pendingAction = null;
+        this.classicMode = true;
+        this.commandLine = '';
+        this.lastCommand = '';
+        this.lastMessage = '';
+        this.parserPrompt = '>';
+        this.parserFlash = 0;
 
         // Arrow key state
         this.keysDown = {};
@@ -160,6 +166,7 @@ class GameEngine {
         this.depthScaling = null;    // { nearY, farY, nearScale, farScale } or null to disable
 
         this.setupInput();
+        this.applyInterfaceMode();
     }
 
     // ---- Input ----
@@ -221,6 +228,15 @@ class GameEngine {
         document.addEventListener('keydown', (e) => {
             this.keysDown[e.key] = true;
             this.sound.init();
+            if (e.key === 'F10') {
+                e.preventDefault();
+                this.toggleInterfaceMode();
+                return;
+            }
+            if (this.titleScreen) {
+                this.startNewGame();
+                return;
+            }
             if (this.cutscene) {
                 if (this.cutscene.onAdvance || e.key === ' ' || e.key === 'Escape' || e.key === 'Enter') {
                     this.skipCutscene();
@@ -271,6 +287,7 @@ class GameEngine {
                 this.dismissTextWindow();
                 return;
             }
+            if (this.handleClassicKey(e)) return;
             if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                 e.preventDefault();
             }
@@ -378,6 +395,56 @@ class GameEngine {
         }
     }
 
+    handleClassicKey(e) {
+        if (!this.classicMode || this.dom.saveModal.classList.contains('open')) return false;
+        if (this.dead || this.won || this.titleScreen) return false;
+        if (e.ctrlKey || e.altKey || e.metaKey) return false;
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const command = this.commandLine.trim();
+            if (command) {
+                this.lastCommand = command;
+                this.commandLine = '';
+                this.executeParserCommand(command);
+            }
+            return true;
+        }
+        if (e.key === 'Backspace') {
+            e.preventDefault();
+            this.commandLine = this.commandLine.slice(0, -1);
+            return true;
+        }
+        if (e.key === 'F3') {
+            e.preventDefault();
+            this.commandLine = this.lastCommand;
+            return true;
+        }
+        if (e.key === 'Escape') {
+            this.commandLine = '';
+            return false;
+        }
+        if (e.key.length === 1 && !e.key.match(/[\r\n\t]/)) {
+            e.preventDefault();
+            if (this.commandLine.length < 64) this.commandLine += e.key.toUpperCase();
+            return true;
+        }
+        return false;
+    }
+
+    toggleInterfaceMode() {
+        this.classicMode = !this.classicMode;
+        this.applyInterfaceMode();
+        this.showMessage(this.classicMode
+            ? 'Classic parser interface selected.'
+            : 'Enhanced point-and-click interface selected.');
+    }
+
+    applyInterfaceMode() {
+        document.body.classList.toggle('classic-mode', this.classicMode);
+        document.body.classList.toggle('enhanced-mode', !this.classicMode);
+    }
+
     setAction(action) {
         this.currentAction = action;
         this.sound.uiClick();
@@ -481,10 +548,33 @@ class GameEngine {
 
     // ---- Messages ----
     showMessage(text) {
-        this.message = text;
+        const displayText = this.classicMode ? this.sierraTrim(text) : text;
+        this.message = displayText;
+        this.lastMessage = displayText;
         const el = this.dom.messageText;
-        el.textContent = text;
+        el.textContent = displayText;
         el.parentElement.scrollTop = el.parentElement.scrollHeight;
+        if (this.classicMode && !this.titleScreen && !this.cutscene && !this.dead && !this.won) {
+            this.showTextWindow(displayText, { color: '#FFFFFF', duration: 0, maxWidth: 440 });
+        }
+    }
+
+    sierraTrim(text) {
+        const rewrites = new Map([
+            ['You need a weapon first!', 'Bare hands versus plasma armor? Brave. Brief, but brave.'],
+            ['Deal with the guard first!', 'The guard makes a convincing argument against that.'],
+            ['The force field is already down.', 'The field is already off. Try not to look surprised.'],
+            ['Force field is already offline.', 'The field is already offline.'],
+            ['You should grab the Quantum Drive before leaving!', 'Leaving the Quantum Drive behind would make this a very short legend.'],
+            ['That won\'t do anything to the force field. You need to find a way to shut it down from the ship\'s console.', 'The field ignores your efforts with professional contempt.'],
+            ['The console has a data port but you need the right data to interface with it.', 'The console waits for proper data. Yours does not impress it.'],
+            ['You can\'t get past the guard, let alone the force field!', 'The guard and the field form a tidy little wall of doom.'],
+            ['ZAP! The force field shocks you as you reach for it. You need to disable the field first!', 'ZAP! Your fingers briefly learn a new alphabet.'],
+            ['You can launch the pod after boarding it. Climb into the pod first!', 'Launching it from out here would be traditional only for the pod.'],
+            ['The shuttle\'s navigation computer is blank. You need coordinates — a nav chip with the destination plotted.', 'The nav computer blinks expectantly. It has no idea where to go.'],
+            ['That slot is empty.', 'That slot is as empty as your confidence.']
+        ]);
+        return rewrites.get(text) || text;
     }
 
     // ---- Cutscene System ----
@@ -623,6 +713,201 @@ class GameEngine {
             this.sound.error();
             this.showMessage(fallback[action] || "Nothing happens.");
         }
+    }
+
+    executeParserCommand(rawCommand) {
+        const original = rawCommand.trim();
+        const command = this.normalizeParserText(original);
+        if (!command) return;
+
+        if (command === 'again' && this.lastCommand) {
+            this.executeParserCommand(this.lastCommand);
+            return;
+        }
+        if (['help', 'commands'].includes(command)) {
+            this.showMessage('Try LOOK, GET object, USE object ON object, TALK TO person, INVENTORY, SAVE, RESTORE. F10 toggles enhanced mode.');
+            return;
+        }
+        if (['enhanced', 'enhanced mode', 'point click', 'point and click'].includes(command)) {
+            if (this.classicMode) this.toggleInterfaceMode();
+            return;
+        }
+        if (['classic', 'classic mode', 'parser'].includes(command)) {
+            if (!this.classicMode) this.toggleInterfaceMode();
+            return;
+        }
+        if (['inventory', 'inv', 'i'].includes(command)) {
+            this.describeInventory();
+            return;
+        }
+        if (['look', 'look room', 'look around', 'l'].includes(command)) {
+            const room = this.rooms[this.currentRoomId];
+            this.showMessage(room ? room.description : 'You see nothing remarkable.');
+            return;
+        }
+        if (['score', 'status'].includes(command)) {
+            this.showMessage(`Your score is ${this.score} of ${this.maxScore}.`);
+            return;
+        }
+        if (['save', 'save game'].includes(command)) {
+            this.openSaveModal('save');
+            return;
+        }
+        if (['restore', 'load', 'load game', 'restore game'].includes(command)) {
+            this.openSaveModal('load');
+            return;
+        }
+
+        const parsed = this.parseVerbPhrase(command);
+        if (!parsed) {
+            this.showMessage("I don't understand.");
+            return;
+        }
+
+        if (parsed.verb === 'walk') {
+            const target = this.findParserHotspot(parsed.object);
+            if (target && target.isExit) {
+                this.handleClick(target.x + target.w / 2, target.y + target.h / 2);
+            } else {
+                this.showMessage("You'll have to steer your feet yourself.");
+            }
+            return;
+        }
+
+        if (parsed.verb === 'use' && parsed.instrument && parsed.object) {
+            const item = this.findParserItem(parsed.instrument);
+            const hotspot = this.findParserHotspot(parsed.object);
+            if (!item) {
+                this.showMessage("You don't have that.");
+                return;
+            }
+            if (!hotspot) {
+                this.showMessage("You don't see that here.");
+                return;
+            }
+            if (hotspot.useItem) hotspot.useItem(this, item.id);
+            else this.showMessage("That doesn't seem to do anything.");
+            return;
+        }
+
+        if (parsed.verb === 'use') {
+            const item = this.findParserItem(parsed.object);
+            if (item) {
+                this.selectedItem = item.id;
+                this.setAction('use');
+                this.selectedItem = item.id;
+                this.showMessage(`Use ${item.name} on what?`);
+                return;
+            }
+        }
+
+        const hotspot = this.findParserHotspot(parsed.object);
+        if (hotspot) {
+            const previousAction = this.currentAction;
+            const previousItem = this.selectedItem;
+            this.currentAction = parsed.verb;
+            this.selectedItem = null;
+            this.performAction(hotspot);
+            this.currentAction = previousAction;
+            this.selectedItem = previousItem;
+            return;
+        }
+
+        const item = this.findParserItem(parsed.object);
+        if (item && parsed.verb === 'look') {
+            this.showMessage(item.description);
+            return;
+        }
+
+        this.showMessage("You don't see that here.");
+    }
+
+    normalizeParserText(text) {
+        return text.toLowerCase()
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .replace(/\b(the|a|an|at|to|with|please)\b/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    parseVerbPhrase(command) {
+        const verbAliases = {
+            examine: 'look', inspect: 'look', read: 'look', search: 'look',
+            take: 'get', grab: 'get', pick: 'get', pickup: 'get',
+            talk: 'talk', speak: 'talk', ask: 'talk',
+            use: 'use', open: 'use', unlock: 'use', pry: 'use', cut: 'use',
+            go: 'walk', walk: 'walk', enter: 'walk'
+        };
+        const words = command.split(' ');
+        let verb = verbAliases[words[0]];
+        if (!verb && words[0] === 'pick' && words[1] === 'up') {
+            verb = 'get';
+            words.splice(1, 1);
+        }
+        if (!verb) return null;
+
+        const rest = words.slice(1).join(' ').trim();
+        if (!rest) return { verb, object: '' };
+
+        if (verb === 'use' && rest.includes(' on ')) {
+            const [instrument, object] = rest.split(/\s+on\s+/, 2);
+            return { verb, instrument: instrument.trim(), object: object.trim() };
+        }
+        return { verb, object: rest };
+    }
+
+    findParserHotspot(name) {
+        const room = this.rooms[this.currentRoomId];
+        if (!room || !room.hotspots || !name) return null;
+        const target = this.normalizeParserText(name);
+        let best = null;
+        let bestScore = 0;
+        for (let i = room.hotspots.length - 1; i >= 0; i--) {
+            const hs = room.hotspots[i];
+            if (hs.hidden) continue;
+            const hsName = this.normalizeParserText(hs.name || '');
+            const desc = this.normalizeParserText(hs.description || '');
+            const score = this.parserMatchScore(target, hsName, desc);
+            if (score > bestScore) {
+                best = hs;
+                bestScore = score;
+            }
+        }
+        return bestScore > 0 ? best : null;
+    }
+
+    findParserItem(name) {
+        const target = this.normalizeParserText(name);
+        for (const id of this.inventory) {
+            const item = this.items[id];
+            if (!item) continue;
+            const itemName = this.normalizeParserText(item.name || id);
+            const score = this.parserMatchScore(target, itemName, id.replace(/_/g, ' '));
+            if (score > 0) return { id, ...item };
+        }
+        return null;
+    }
+
+    parserMatchScore(target, name, description) {
+        if (!target) return 0;
+        if (name === target) return 100;
+        if (name.includes(target) || target.includes(name)) return 80;
+        const targetWords = target.split(' ').filter(Boolean);
+        const haystack = `${name} ${description || ''}`;
+        let hits = 0;
+        for (const word of targetWords) {
+            if (word.length > 1 && haystack.includes(word)) hits++;
+        }
+        return hits === targetWords.length ? 50 + hits : 0;
+    }
+
+    describeInventory() {
+        if (!this.inventory.length) {
+            this.showMessage('You are carrying nothing.');
+            return;
+        }
+        const names = this.inventory.map(id => this.items[id]?.name || id).join(', ');
+        this.showMessage(`You are carrying: ${names}.`);
     }
 
     // === AGI-INSPIRED: PRIORITY/DEPTH SYSTEM (OBJLIST) ===
@@ -1353,26 +1638,12 @@ class GameEngine {
             else d.ref.draw(ctx, this);
         }
 
-        this.drawHotspotLabel(ctx, room);
+        if (!this.classicMode) this.drawHotspotLabel(ctx, room);
 
-        // Current action indicator (Sierra-style menu bar)
+        // Current action indicator / Sierra status line
         if (!this.dead && !this.won) {
-            // Solid bar across top (EGA black)
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, this.WIDTH, 16);
-            ctx.fillStyle = '#555555';
-            ctx.fillRect(0, 16, this.WIDTH, 1);
-            const actionLabel = this.selectedItem
-                ? `Use ${this.items[this.selectedItem]?.name || '?'} on...`
-                : this.currentAction.charAt(0).toUpperCase() + this.currentAction.slice(1);
-            ctx.font = 'bold 11px "Courier New"';
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillText(actionLabel, 8, 12);
-            // Score in the bar
-            ctx.fillStyle = '#FFFF55';
-            ctx.textAlign = 'right';
-            ctx.fillText(`Score: ${this.score} / ${this.maxScore}`, this.WIDTH - 8, 12);
-            ctx.textAlign = 'left';
+            if (this.classicMode) this.drawClassicStatusBar(ctx);
+            else this.drawEnhancedStatusBar(ctx);
         }
 
         // AGI-inspired: Sierra text window overlay
@@ -1380,6 +1651,10 @@ class GameEngine {
 
         // AGS-inspired: dialog options overlay
         this._drawDialogOptions(ctx);
+
+        if (this.classicMode && !this.textWindow && !this.activeDialog && !this.cutscene) {
+            this.drawParserPrompt(ctx);
+        }
 
         if (this.dead) this.drawDeathOverlay(ctx);
         if (this.won) this.drawWinOverlay(ctx);
@@ -1441,6 +1716,57 @@ class GameEngine {
 
         // CRT vignette (pre-rendered)
         ctx.drawImage(this.vignetteCanvas, 0, 0);
+    }
+
+    drawClassicStatusBar(ctx) {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, this.WIDTH, 16);
+        ctx.fillStyle = '#555555';
+        ctx.fillRect(0, 16, this.WIDTH, 1);
+        ctx.font = 'bold 11px "Courier New"';
+        ctx.fillStyle = '#FFFFFF';
+        const room = this.rooms[this.currentRoomId];
+        ctx.fillText(room ? room.name.toUpperCase() : 'STAR SWEEPER', 8, 12);
+        ctx.textAlign = 'right';
+        ctx.fillText(`Score: ${this.score} of ${this.maxScore}`, this.WIDTH - 8, 12);
+        ctx.textAlign = 'left';
+    }
+
+    drawEnhancedStatusBar(ctx) {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, this.WIDTH, 16);
+        ctx.fillStyle = '#555555';
+        ctx.fillRect(0, 16, this.WIDTH, 1);
+        const actionLabel = this.selectedItem
+            ? `Use ${this.items[this.selectedItem]?.name || '?'} on...`
+            : this.currentAction.charAt(0).toUpperCase() + this.currentAction.slice(1);
+        ctx.font = 'bold 11px "Courier New"';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText(actionLabel, 8, 12);
+        ctx.fillStyle = '#FFFF55';
+        ctx.textAlign = 'right';
+        ctx.fillText(`Score: ${this.score} / ${this.maxScore}`, this.WIDTH - 8, 12);
+        ctx.textAlign = 'left';
+    }
+
+    drawParserPrompt(ctx) {
+        const y = this.HEIGHT - 22;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, this.HEIGHT - 38, this.WIDTH, 38);
+        ctx.strokeStyle = '#555555';
+        ctx.beginPath();
+        ctx.moveTo(0, this.HEIGHT - 38);
+        ctx.lineTo(this.WIDTH, this.HEIGHT - 38);
+        ctx.stroke();
+        ctx.font = 'bold 14px "Courier New"';
+        ctx.fillStyle = '#FFFFFF';
+        const cursor = Math.floor(this.animTimer / 350) % 2 ? '_' : ' ';
+        ctx.fillText(`${this.parserPrompt} ${this.commandLine}${cursor}`, 10, y);
+        ctx.font = '9px "Courier New"';
+        ctx.fillStyle = '#AAAAAA';
+        ctx.textAlign = 'right';
+        ctx.fillText('F3=again  F5=save  F7=restore  F10=enhanced', this.WIDTH - 10, this.HEIGHT - 8);
+        ctx.textAlign = 'left';
     }
 
     // ---- Title Screen ----
@@ -1635,14 +1961,14 @@ class GameEngine {
 
         ctx.font = '10px "Courier New"';
         ctx.fillStyle = '#555555';
-        ctx.fillText('Procedural pixel art  \u2022  No sprites  \u2022  Pure JavaScript', W / 2, H - 54);
+        ctx.fillText('Type commands. Use arrow keys to walk. F10 toggles enhanced controls.', W / 2, H - 54);
 
         // ---- Blinking prompt ----
         const blink = Math.floor(t / 600) % 2;
         if (blink) {
             ctx.font = 'bold 14px "Courier New"';
             ctx.fillStyle = '#FFFF55';
-            ctx.fillText('\u25B6  Click or press any key to begin  \u25C0', W / 2, H - 22);
+            ctx.fillText('\u25B6  Press any key to begin  \u25C0', W / 2, H - 22);
         }
 
         // Copyright
@@ -2075,10 +2401,11 @@ class GameEngine {
 
         // Score rating
         let rating = 'Space Janitor';
-        if (this.score >= 250) rating = 'Galactic Legend';
-        else if (this.score >= 220) rating = 'Space Hero';
-        else if (this.score >= 180) rating = 'Star Captain';
-        else if (this.score >= 120) rating = 'Cadet';
+        const pct = this.maxScore > 0 ? this.score / this.maxScore : 0;
+        if (pct >= 0.95) rating = 'Galactic Legend';
+        else if (pct >= 0.80) rating = 'Space Hero';
+        else if (pct >= 0.60) rating = 'Star Captain';
+        else if (pct >= 0.35) rating = 'Cadet';
         ctx.font = '14px "Courier New"';
         ctx.fillStyle = '#FFFF55';
         ctx.fillText(`Rank: ${rating}`, this.WIDTH / 2, by + 160);
@@ -2143,6 +2470,11 @@ class GameEngine {
                 typeof data.flags !== 'object' || data.flags === null || Array.isArray(data.flags)) {
                 this.showMessage('Save data is corrupted.'); return;
             }
+            if (!this.rooms[data.currentRoomId] ||
+                !Number.isFinite(data.playerX) ||
+                !Number.isFinite(data.playerY)) {
+                this.showMessage('Save data is corrupted.'); return;
+            }
             // Sanitize flags against prototype pollution
             const safeFlags = {};
             for (const [k, v] of Object.entries(data.flags)) {
@@ -2150,6 +2482,8 @@ class GameEngine {
                     safeFlags[k] = v;
                 }
             }
+            const playerX = Math.max(30, Math.min(610, data.playerX));
+            const playerY = Math.max(280, Math.min(370, data.playerY));
             // Filter inventory to known string item IDs
             this.inventory = data.inventory.filter(x => typeof x === 'string' && this.items[x]);
             this.score = Math.max(0, Math.min(this.maxScore, Math.floor(data.score)));
@@ -2171,7 +2505,10 @@ class GameEngine {
             // Restore modified item names/descriptions
             if (data.itemNames) {
                 for (const [id, info] of Object.entries(data.itemNames)) {
-                    if (this.items[id]) {
+                    if (this.items[id] &&
+                        info &&
+                        typeof info.name === 'string' &&
+                        typeof info.description === 'string') {
                         this.items[id].name = info.name;
                         this.items[id].description = info.description;
                     }
@@ -2179,7 +2516,7 @@ class GameEngine {
             }
             this.setAction('walk');
             this.updateInventoryUI();
-            this.goToRoom(data.currentRoomId, data.playerX, data.playerY);
+            this.goToRoom(data.currentRoomId, playerX, playerY);
             this.sound.save();
             this.showMessage(`Game loaded from Slot ${slot + 1}.`);
         } catch (err) {

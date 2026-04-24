@@ -20,8 +20,10 @@ Then browse to http://localhost:8080.
 
 | Input | Action |
 |---|---|
-| Mouse click / tap | Walk, or perform the current action on a hotspot |
+| Type command + `Enter` | Classic Sierra parser command |
+| Mouse click / tap | Walk, or perform the current action in Enhanced mode |
 | Arrow keys / D-pad | Walk |
+| `F3` | Repeat the last typed command |
 | `W` | Walk action |
 | `L` | Look action |
 | `G` | Get action |
@@ -34,8 +36,9 @@ Then browse to http://localhost:8080.
 | `F7` | Load game |
 | `M` | Toggle sound |
 | `R` | Restart (after death) |
+| `F10` | Toggle Classic parser / Enhanced point-and-click UI |
 
-Click an inventory item to select it, then click a hotspot to use them together.
+Classic mode is the default: try commands like `LOOK`, `GET MOP`, `USE KEYCARD ON DOOR`, `TALK TO PILOT`, `INVENTORY`, `SAVE`, and `RESTORE`. In Enhanced mode, click an inventory item to select it, then click a hotspot to use them together.
 
 ## Story
 
@@ -53,7 +56,8 @@ From your broom closet you'll sneak through a burning ship, launch the last esca
 - 10 fully hand-crafted rooms with Sierra-style pseudo-3D perspective
 - 5-slot save/load system using `localStorage`, with schema validation
 - Installable as a PWA (service worker + manifest for offline play)
-- Touch-friendly D-pad on small screens
+- Classic canvas-only parser interface, with optional enhanced point-and-click controls
+- Touch-friendly D-pad on small screens in Enhanced mode
 - Optional WebXR immersive mode
 
 ## Project Layout

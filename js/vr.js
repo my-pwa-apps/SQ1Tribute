@@ -158,7 +158,9 @@ class VRSystem {
         this.offCanvas.height = 400;
         this.offCtx = this.offCanvas.getContext('2d');
 
-        this._buildShaders();
+        if (!this._buildShaders()) {
+            return false;
+        }
         this._buildBackdrop();
         this._buildFloor();
         this._buildStarVBO();
@@ -188,6 +190,7 @@ class VRSystem {
             out vec4 o;
             void main(){ vec4 c=texture(uTex,vT); o=vec4(c.rgb*uBr,c.a); }`
         );
+        if (!this.texProg) return false;
         this.texU = this._locs(this.texProg, ['uProj','uView','uModel','uTex','uBr']);
 
         // Point-sprite markers (hotspots)
@@ -211,6 +214,7 @@ class VRSystem {
                 o=vec4(vC.rgb,(g*.5+r*.8)*vC.a);
             }`
         );
+        if (!this.markerProg) return false;
         this.mkU = this._locs(this.markerProg, ['uProj','uView','uSz']);
 
         // Lines / lasers (also reused for stars background)
@@ -236,6 +240,7 @@ class VRSystem {
                 }
             }`
         );
+        if (!this.lineProg) return false;
         this.lnU = this._locs(this.lineProg, ['uProj','uView','uSz','uMode','uColor']);
 
         // Cache attribute locations (static after linking)
@@ -248,6 +253,7 @@ class VRSystem {
         if (this.lineProg) {
             this.lnA = { aP: this.gl.getAttribLocation(this.lineProg, 'aP'), aC: this.gl.getAttribLocation(this.lineProg, 'aC') };
         }
+        return true;
     }
 
     _prog(vs, fs) {
@@ -285,6 +291,7 @@ class VRSystem {
 
     _locs(prog, names) {
         const m = {};
+        if (!prog) return m;
         for (const n of names) m[n] = this.gl.getUniformLocation(prog, n);
         return m;
     }

@@ -688,19 +688,35 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ========== DRAWING HELPERS ==========
+    const ditherPatternCache = new Map();
+
+    function getDitherPattern(ctx, c1, c2, ps) {
+        const key = `${c1}|${c2}|${ps}`;
+        const cached = ditherPatternCache.get(key);
+        if (cached) return cached;
+
+        const tile = document.createElement('canvas');
+        tile.width = ps * 2;
+        tile.height = ps * 2;
+        const tctx = tile.getContext('2d');
+        tctx.fillStyle = c1;
+        tctx.fillRect(0, 0, tile.width, tile.height);
+        tctx.fillStyle = c2;
+        tctx.fillRect(0, 0, ps, ps);
+        tctx.fillRect(ps, ps, ps, ps);
+        const pattern = ctx.createPattern(tile, 'repeat');
+        ditherPatternCache.set(key, pattern);
+        return pattern;
+    }
 
     /** Draw a dithered rectangle (checkerboard pattern of two colors — classic EGA look) */
     function ditherRect(ctx, x, y, w, h, c1, c2, patternSize) {
         const ps = patternSize || 2;
-        ctx.fillStyle = c1;
-        ctx.fillRect(x, y, w, h);
-        ctx.fillStyle = c2;
-        for (let py = y; py < y + h; py += ps) {
-            const offset = ((py - y) / ps) % 2 === 0 ? 0 : ps;
-            for (let px = x + offset; px < x + w; px += ps * 2) {
-                ctx.fillRect(px, py, ps, ps);
-            }
-        }
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.fillStyle = getDitherPattern(ctx, c1, c2, ps);
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
     }
 
     function stars(ctx, w, h, seed, count, yFraction) {
@@ -1627,6 +1643,28 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#fff'; ctx.font = '12px "Courier New"';
             ctx.fillText('Sprint for the airlock!', w / 2, h - 30); ctx.textAlign = 'left';
         }
+    }
+
+    function releasePrisoners(e, itemId, successMessage) {
+        if (e.getFlag('brig_cells_open')) {
+            e.showMessage('The cells are already open.');
+            return;
+        }
+        if (itemId === 'prisoner_badge') {
+            e.removeFromInventory('prisoner_badge');
+        }
+        e.setFlag('brig_cells_open');
+        e.setFlag('rescued_prisoners');
+        e.addScore(30);
+        e.playCutscene({
+            duration: 6500,
+            skippable: true,
+            draw: (ctx, w, h, prog, elapsed) => cutsceneBrigRescue(ctx, w, h, prog, elapsed),
+            onEnd: () => {
+                e.goToRoom('draknoid_ship', 200, 310);
+                e.showMessage(successMessage);
+            }
+        });
     }
 
     // ========== MINI-ANIMATION HELPERS ==========
@@ -3280,12 +3318,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     // The Data Cartridge is REQUIRED to beat the game — hard-block launch without it
                     // to prevent a late-game soft-lock on the Draknoid ship.
                     if (!e.hasItem('cartridge')) {
-                        e.showMessage('You hesitate before climbing in. Something nags at you... There\'s a lot of ship you haven\'t searched yet. You really should check the Science Lab before leaving forever — there might be critical data that can\'t be replaced.');
+                        e.showMessage('Something nags at you before you climb in. Some vital bit of shipboard business remains unfinished.');
                         return;
                     }
                     // Survival Kit is strongly recommended (you\'ll die in the desert without it) — warn once
                     if (!e.hasItem('survival_kit') && !e.getFlag('got_kit') && !e.getFlag('pod_warn_kit')) {
-                        e.showMessage('A survival instinct tells you to check for emergency supplies before launching into the unknown. That locker on the wall looks promising... (Click the pod again to launch anyway.)');
+                        e.showMessage('Your survival instinct clears its throat and glances toward the emergency locker.');
                         e.setFlag('pod_warn_kit');
                         return;
                     }
@@ -3590,7 +3628,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.setFlag('used_kit');
                         e.goToRoom('cave', 320, 310);
                     } else {
-                        e.showMessage('You start walking toward the rocks, but the twin suns are brutal. Without water or supplies, you won\'t survive the trek. You need your survival kit!');
+                        e.showMessage('You start toward the rocks. The suns start toward cooking you. You retreat.');
                     }
                 }
             },
@@ -4267,7 +4305,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (e.hasItem('nav_chip')) {
                         // Warn about missing weapon
                         if (!e.hasItem('pulsar_ray') && !e.getFlag('shuttle_warn_ray')) {
-                            e.showMessage('You\'re about to fly straight to a hostile warship. You feel like you should be better armed before leaving. Maybe the trading post has something useful...');
+                            e.showMessage('Flying unarmed toward a hostile warship feels like a career-limiting decision.');
                             e.setFlag('shuttle_warn_ray');
                             return;
                         }
@@ -4282,7 +4320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             skippable: true
                         });
                     } else {
-                        e.showMessage('The shuttle\'s navigation computer is blank. You need coordinates — a nav chip with the destination plotted.');
+                        e.showMessage('The nav computer blinks expectantly. It has no idea where to go.');
                     }
                 },
                 useItem: (e, itemId) => {
@@ -4293,7 +4331,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (itemId === 'nav_chip') {
                         // Warn about missing weapon
                         if (!e.hasItem('pulsar_ray') && !e.getFlag('shuttle_warn_ray')) {
-                            e.showMessage('You\'re about to fly straight to a hostile warship. You feel like you should be better armed before leaving. Maybe the trading post has something useful...');
+                            e.showMessage('Flying unarmed toward a hostile warship feels like a career-limiting decision.');
                             e.setFlag('shuttle_warn_ray');
                             return;
                         }
@@ -5657,7 +5695,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (id === 'medkit' && e.getFlag('korvak_freed')) {
                         e.showMessage('Korvak is already patched up as best as possible.');
                     } else {
-                        e.showMessage('That won\'t get the beam off him. He needs medical attention first.');
+                        e.showMessage('Moving the beam now would make you less rescuer and more accomplice.');
                     }
                 }
             },
@@ -5668,7 +5706,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 look: (e) => e.showMessage('The beam fell during the Draknoid attack. It weighs a tonne. There\'s a man pinned under the left end.'),
                 use: (e) => {
                     if (!e.getFlag('korvak_freed')) {
-                        e.showMessage('The beam is too heavy to move alone while someone is critically injured. You\'d need to stabilise him first.');
+                        e.showMessage('The beam refuses to budge. Korvak looks breakable enough already.');
                     } else {
                         e.showMessage('The beam has already been levered aside.');
                     }
@@ -6111,39 +6149,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 },
                 useItem: (e, id) => {
-                    if (!e.getFlag('brig_cells_open')) {
-                        if (id === 'prisoner_badge') {
-                            e.removeFromInventory('prisoner_badge');
-                            e.setFlag('brig_cells_open');
-                            e.setFlag('rescued_prisoners');
-                            e.addScore(30);
-                            e.playCutscene({
-                                duration: 6500,
-                                skippable: true,
-                                draw: (ctx, w, h, prog, elapsed) => cutsceneBrigRescue(ctx, w, h, prog, elapsed),
-                                onEnd: () => {
-                                    e.showMessage('"THANK YOU!" Jorv Vance clasps your hand. "Pipz — she\'s alive?" You nod. The big man blinks away tears. "Lead us out of here. Please."');
-                                    e.goToRoom('draknoid_ship', 200, 310);
-                                }
-                            });
-                        } else if (id === 'plasma_cutter') {
-                            e.setFlag('brig_cells_open');
-                            e.setFlag('rescued_prisoners');
-                            e.addScore(30);
-                            e.playCutscene({
-                                duration: 6500,
-                                skippable: true,
-                                draw: (ctx, w, h, prog, elapsed) => cutsceneBrigRescue(ctx, w, h, prog, elapsed),
-                                onEnd: () => {
-                                    e.showMessage('"You cut us out!" Jorv stares at the plasma-cut bars. "What took you so long?" Mella rolls her eyes. "He means thank you."');
-                                    e.goToRoom('draknoid_ship', 200, 310);
-                                }
-                            });
-                        } else {
-                            e.showMessage('That won\'t open a magnetic lock.');
-                        }
+                    if (id === 'prisoner_badge') {
+                        releasePrisoners(e, id, '"THANK YOU!" Jorv Vance clasps your hand. "Pipz — she\'s alive?" You nod. The big man blinks away tears. "Lead us out of here. Please."');
+                    } else if (id === 'plasma_cutter') {
+                        releasePrisoners(e, id, '"You cut us out!" Jorv stares at the plasma-cut bars. "What took you so long?" Mella rolls her eyes. "He means thank you."');
                     } else {
-                        e.showMessage('The cells are already open.');
+                        e.showMessage(e.getFlag('brig_cells_open') ? 'The cells are already open.' : 'That won\'t open a magnetic lock.');
                     }
                 }
             },
@@ -6173,21 +6184,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 useItem: (e, id) => {
                     if (id === 'prisoner_badge' && !e.getFlag('brig_cells_open')) {
-                        e.removeFromInventory('prisoner_badge');
-                        e.setFlag('brig_cells_open');
-                        e.setFlag('rescued_prisoners');
-                        e.addScore(30);
-                        e.playCutscene({
-                            duration: 6500,
-                            skippable: true,
-                            draw: (ctx, w, h, prog, elapsed) => cutsceneBrigRescue(ctx, w, h, prog, elapsed),
-                            onEnd: () => {
-                                e.showMessage('"THANK YOU!" Jorv Vance clasps your hand. "Pipz — she\'s alive?" You nod. The big man blinks away tears. "Lead us out of here. Please."');
-                                e.goToRoom('draknoid_ship', 200, 310);
-                            }
-                        });
+                        releasePrisoners(e, id, '"THANK YOU!" Jorv Vance clasps your hand. "Pipz — she\'s alive?" You nod. The big man blinks away tears. "Lead us out of here. Please."');
                     } else {
-                        e.showMessage('That doesn\'t interface with this control panel.');
+                        e.showMessage(e.getFlag('brig_cells_open') ? 'The cells are already unlocked.' : 'That doesn\'t interface with this control panel.');
                     }
                 }
             },
@@ -6198,19 +6197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 look: (e) => e.showMessage('A magnetic badge reader. Swipe an authorised access card to release all cell locks simultaneously.'),
                 useItem: (e, id) => {
                     if (id === 'prisoner_badge' && !e.getFlag('brig_cells_open')) {
-                        e.removeFromInventory('prisoner_badge');
-                        e.setFlag('brig_cells_open');
-                        e.setFlag('rescued_prisoners');
-                        e.addScore(30);
-                        e.playCutscene({
-                            duration: 6500,
-                            skippable: true,
-                            draw: (ctx, w, h, prog, elapsed) => cutsceneBrigRescue(ctx, w, h, prog, elapsed),
-                            onEnd: () => {
-                                e.showMessage('"THANK YOU!" Jorv Vance grasps your hand. "Pipz — she got away?" You nod. The big man\'s shoulders sag with relief. "Let\'s get off this ship."');
-                                e.goToRoom('draknoid_ship', 200, 310);
-                            }
-                        });
+                        releasePrisoners(e, id, '"THANK YOU!" Jorv Vance grasps your hand. "Pipz — she got away?" You nod. The big man\'s shoulders sag with relief. "Let\'s get off this ship."');
                     } else if (e.getFlag('brig_cells_open')) {
                         e.showMessage('Cells already released.');
                     } else {
@@ -6955,7 +6942,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.getFlag('guard_defeated')) {
                         e.showMessage('The Draknoid guard lies in several pieces on the floor. His arms are... elsewhere. Apparently Draknoid warriors aren\'t built as tough as they look.');
                     } else {
-                        e.showMessage('A massive Draknoid warrior in full battle armor. Red visor glowing menacingly. He\'s armed with a heavy plasma rifle and stands between you and the Quantum Drive. You\'ll need a weapon to deal with him.');
+                        e.showMessage('A Draknoid warrior blocks the way, all armor, visor, and plasma rifle. He looks allergic to janitors.');
                     }
                 },
                 walk: (e) => {
@@ -6969,7 +6956,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (e.getFlag('guard_defeated')) {
                         e.showMessage('His torso is over there, his arms are over HERE... this conversation is going nowhere.');
                     } else {
-                        e.showMessage('"HALT! INTRUDER! ONE MORE STEP AND I\'LL VAPORIZE YOU!" The guard raises his plasma rifle menacingly. You should probably deal with him from a safe distance... with a weapon.');
+                        e.showMessage('"HALT! ONE MORE STEP AND I VAPORIZE YOU!" He appears to mean the unfriendly kind of vaporize.');
                     }
                 },
                 use: (e) => {
@@ -7024,7 +7011,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.setFlag('field_down');
                         e.addScore(25);
                     } else {
-                        e.showMessage('The console has a data port but you need the right data to interface with it.');
+                        e.showMessage('The console waits for proper data. Yours does not impress it.');
                     }
                 },
                 useItem: (e, itemId) => {
@@ -7053,7 +7040,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!e.getFlag('guard_anim_done')) {
                         e.showMessage('Through the force field shimmer, you can see the Quantum Drive prototype. Its core pulses with incredible energy. This is what they stole from the Constellation. But first — that guard.');
                     } else if (!e.getFlag('field_down')) {
-                        e.showMessage('The Quantum Drive sits tantalizingly close, but the force field blocks you. You need to find a way to shut it down — the console on the right might help.');
+                        e.showMessage('The Quantum Drive sits just beyond the humming field. Close enough to admire, not close enough to steal.');
                     } else {
                         e.showMessage('The Quantum Drive prototype sits unprotected! Its core glows with mesmerizing blue energy. This is it — grab it and save the galaxy!');
                     }
@@ -7099,11 +7086,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 get hidden() { return engine.getFlag('field_down'); },
                 description: 'A shimmering energy force field.',
                 look: (e) => {
-                    e.showMessage('A powerful energy force field surrounds the Quantum Drive platform. It hums with lethal voltage. You\'ll need to find a way to shut it off — brute force won\'t work.');
+                    e.showMessage('A powerful force field surrounds the platform. It hums in the key of "do not touch."');
                 },
                 useItem: (e, id) => {
                     if (id === 'plasma_cutter') {
-                        e.showMessage('The plasma cutter sparks against the force field but can\'t penetrate it. The field is energy-based — you need to disable it at the console, not cut through it.');
+                        e.showMessage('The cutter spits sparks. The field remains professionally unimpressed.');
                     } else {
                         e.showMessage('That won\'t do anything to the force field. You need to find a way to shut it down from the ship\'s console.');
                     }

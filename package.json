@@ -5,7 +5,7 @@
     "private": true,
     "scripts": {
         "serve": "python -m http.server 8080",
-        "check": "node -c js/engine.js && node -c js/game.js && node -c js/sound.js && node -c js/vr.js && node -c serviceworker.js"
+        "check": "node -c js/engine.js && node -c js/game.js && node -c js/sound.js && node -c js/vr.js && node -c js/register-sw.js && node -c serviceworker.js && node tools/validate_content.js"
     },
     "keywords": ["game", "adventure", "sierra", "space-quest", "html5-canvas", "point-and-click"],
     "license": "MIT"

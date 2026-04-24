@@ -65,6 +65,25 @@
             border-bottom: 1px solid #222;
             touch-action: none;
         }
+        body.classic-mode #game-container {
+            width: 640px;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            background: #000;
+        }
+        body.classic-mode #title-bar,
+        body.classic-mode #action-bar,
+        body.classic-mode #inventory-bar,
+        body.classic-mode #save-load-bar,
+        body.classic-mode #message-area,
+        body.classic-mode #dpad {
+            display: none;
+        }
+        body.classic-mode #game-canvas {
+            cursor: default;
+            border-bottom: none;
+        }
         #action-bar {
             display: flex;
             gap: 2px;
@@ -338,7 +357,7 @@
         }
     </style>
 </head>
-<body>
+<body class="classic-mode">
     <div id="game-container">
         <div id="title-bar">
             <span id="game-title">&#9733; STAR SWEEPER: A Space Adventure</span>
@@ -382,14 +401,6 @@
     <script src="js/engine.js"></script>
     <script src="js/vr.js"></script>
     <script src="js/game.js"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('serviceworker.js').catch((err) => {
-                    console.warn('Service worker registration failed:', err);
-                });
-            });
-        }
-    </script>
+    <script src="js/register-sw.js"></script>
 </body>
 </html>
