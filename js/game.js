@@ -5,7 +5,37 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     'use strict';
-    const engine = new GameEngine();
+    const STAR_SWEEPER_GAME = {
+        id: 'star_sweeper',
+        title: 'STAR SWEEPER',
+        shortTitle: 'Star Sweeper',
+        subtitle: 'A   S P A C E   A D V E N T U R E',
+        creditsLine: 'A modern tribute to Sierra On-Line adventure games',
+        inspirationLine: 'Inspired by Space Quest: The Sarien Encounter (1986)',
+        copyright: '\u00A9 2025-2026',
+        storagePrefix: 'starsweeper',
+        maxScore: 450,
+        startRoom: 'broom_closet',
+        startX: 320,
+        startY: 310,
+        victory: {
+            headline: 'CONGRATULATIONS!',
+            subhead: 'You have saved the galaxy!',
+            ranks: [
+                { min: 0.95, title: 'Astral Champion, First Class', flavor: 'They will name a mop after you. Possibly two.' },
+                { min: 0.80, title: 'Galactic Hero', flavor: 'Headlines on six worlds. None of them spelled your name right.' },
+                { min: 0.60, title: 'Star Captain', flavor: 'Promotion paperwork is, regrettably, your problem now.' },
+                { min: 0.35, title: 'Spaceworthy Cadet', flavor: 'You did it the hard way. The galaxy noticed. Mostly.' },
+                { min: 0, title: 'Marginally Employed Janitor', flavor: 'You won. Technically. The galaxy will note this in the appendix.' }
+            ],
+            closingLines: [
+                'From humble janitor to galactic hero...',
+                'Your story will be told across the stars.'
+            ]
+        }
+    };
+
+    const engine = new GameEngine(STAR_SWEEPER_GAME);
 
     // ========== ITEMS ==========
     [
@@ -538,41 +568,47 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.fillRect(cpx - 5 * s, tY + 9 * s, 4 * s, 3 * s);
                         ctx.fillRect(cpx + 0 * s, tY + 9 * s, 4 * s, 3 * s);
                         // Legs
-                        ctx.fillStyle = '#2828AA';
+                        ctx.fillStyle = PLAYER_PALETTE.legs;
                         ctx.fillRect(cpx - 4 * s, tY + 1 * s, 3 * s, 8 * s);
                         ctx.fillRect(cpx + 1 * s, tY + 1 * s, 3 * s, 8 * s);
+                        ctx.fillStyle = PLAYER_PALETTE.legHighlight;
+                        ctx.fillRect(cpx - 3 * s, tY + 2 * s, 1 * s, 6 * s);
+                        ctx.fillRect(cpx + 2 * s, tY + 2 * s, 1 * s, 6 * s);
                         // Body
-                        ctx.fillStyle = '#4444DD';
+                        ctx.fillStyle = PLAYER_PALETTE.suit;
                         ctx.fillRect(cpx - 5 * s, tY - 10 * s, 10 * s, 11 * s);
+                        ctx.fillStyle = PLAYER_PALETTE.suitShadow;
+                        ctx.fillRect(cpx - 5 * s, tY - 10 * s, 1 * s, 11 * s);
+                        ctx.fillRect(cpx + 4 * s, tY - 10 * s, 1 * s, 11 * s);
                         // Collar
-                        ctx.fillStyle = '#CCAA44';
+                        ctx.fillStyle = PLAYER_PALETTE.collar;
                         ctx.fillRect(cpx - 4 * s, tY - 10 * s, 8 * s, 1 * s);
                         // Belt
-                        ctx.fillStyle = '#666666';
+                        ctx.fillStyle = PLAYER_PALETTE.belt;
                         ctx.fillRect(cpx - 5 * s, tY, 10 * s, 2 * s);
                         // Belt buckle
-                        ctx.fillStyle = '#DDCC22';
+                        ctx.fillStyle = PLAYER_PALETTE.buckle;
                         ctx.fillRect(cpx - 1.5 * s, tY - 0.5 * s, 3 * s, 2.5 * s);
                         // Arms (pushing off the floor, angled outward)
                         const armExtend = (1 - sitP) * 5 * s;
-                        ctx.fillStyle = '#4444DD';
+                        ctx.fillStyle = PLAYER_PALETTE.suit;
                         ctx.fillRect(cpx - 7 * s, tY - 4 * s + armExtend, 2 * s, 7 * s);
                         ctx.fillRect(cpx + 5 * s, tY - 4 * s + armExtend, 2 * s, 7 * s);
                         // Hands
-                        ctx.fillStyle = '#FFCC88';
+                        ctx.fillStyle = PLAYER_PALETTE.skin;
                         ctx.fillRect(cpx - 7 * s, tY + 3 * s + armExtend, 2 * s, 2.5 * s);
                         ctx.fillRect(cpx + 5 * s, tY + 3 * s + armExtend, 2 * s, 2.5 * s);
                         // Hair
-                        ctx.fillStyle = '#BB7733';
+                        ctx.fillStyle = PLAYER_PALETTE.hair;
                         ctx.fillRect(cpx - 4 * s, hY - 1 * s, 8 * s, 4 * s);
                         // Head
-                        ctx.fillStyle = '#FFCC88';
+                        ctx.fillStyle = PLAYER_PALETTE.skin;
                         ctx.fillRect(cpx - 4 * s, hY, 8 * s, 8 * s);
                         // Eyes
                         ctx.fillStyle = '#FFFFFF';
                         ctx.fillRect(cpx - 3 * s, hY + 3 * s, 2.5 * s, 2 * s);
                         ctx.fillRect(cpx + 0.5 * s, hY + 3 * s, 2.5 * s, 2 * s);
-                        ctx.fillStyle = '#4477CC';
+                        ctx.fillStyle = PLAYER_PALETTE.iris;
                         ctx.fillRect(cpx - 2.5 * s, hY + 3 * s, 1.5 * s, 2 * s);
                         ctx.fillRect(cpx + 1 * s, hY + 3 * s, 1.5 * s, 2 * s);
                     } else {
@@ -1630,11 +1666,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const baseX = w * 0.55 - p * 180;
             for (let i = 0; i < 3; i++) {
                 const bx = baseX + i * 22, by = h * 0.78;
-                ctx.fillStyle = i === 0 ? '#4444DD' : '#AA7755';
+                ctx.fillStyle = i === 0 ? PLAYER_PALETTE.suit : '#AA7755';
                 ctx.fillRect(bx - 4, by - 20, 8, 16);
                 ctx.fillStyle = i === 0 ? '#FFCC88' : '#CC9977';
                 ctx.beginPath(); ctx.arc(bx, by - 24, 5, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = i === 0 ? '#2828AA' : '#553322';
+                ctx.fillStyle = i === 0 ? PLAYER_PALETTE.legs : '#553322';
                 if (run) { ctx.fillRect(bx - 3, by - 4, 3, 8); ctx.fillRect(bx, by - 2, 3, 6); }
                 else { ctx.fillRect(bx - 3, by - 2, 3, 6); ctx.fillRect(bx, by - 4, 3, 8); }
             }
@@ -1673,47 +1709,62 @@ document.addEventListener('DOMContentLoaded', () => {
         if (room && room.draw) room.draw(ctx, w, h, engine);
     }
 
+    const PLAYER_PALETTE = {
+        suit: '#FFFFFF',
+        suitShadow: '#EEEEEE',
+        legs: '#BBBBBB',
+        legHighlight: '#DDDDDD',
+        collar: '#555555',
+        belt: '#333333',
+        buckle: '#AAAAAA',
+        skin: '#FFCC88',
+        skinShadow: '#EEBB77',
+        hair: '#BB7733',
+        iris: '#4477CC',
+        boots: '#222222'
+    };
+
     function drawPlayerBody(ctx, px, py, s, armAngle) {
         // Simplified front-facing player for mini-anims
         // Legs
-        ctx.fillStyle = '#BBBBBB';
+        ctx.fillStyle = PLAYER_PALETTE.legs;
         ctx.fillRect(px - 4 * s, py + 1 * s, 3 * s, 8 * s);
         ctx.fillRect(px + 1 * s, py + 1 * s, 3 * s, 8 * s);
         // Boots
-        ctx.fillStyle = '#222222';
+        ctx.fillStyle = PLAYER_PALETTE.boots;
         ctx.fillRect(px - 5 * s, py + 9 * s, 4 * s, 3 * s);
         ctx.fillRect(px + 0 * s, py + 9 * s, 4 * s, 3 * s);
         // Body
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = PLAYER_PALETTE.suit;
         ctx.fillRect(px - 5 * s, py - 10 * s, 10 * s, 11 * s);
         // Collar
-        ctx.fillStyle = '#555555';
+        ctx.fillStyle = PLAYER_PALETTE.collar;
         ctx.fillRect(px - 4 * s, py - 10 * s, 8 * s, 1 * s);
         // Belt
-        ctx.fillStyle = '#333333';
+        ctx.fillStyle = PLAYER_PALETTE.belt;
         ctx.fillRect(px - 5 * s, py, 10 * s, 2 * s);
-        ctx.fillStyle = '#DDCC22';
+        ctx.fillStyle = PLAYER_PALETTE.buckle;
         ctx.fillRect(px - 1.5 * s, py - 0.5 * s, 3 * s, 2.5 * s);
         // Head
-        ctx.fillStyle = '#FFCC88';
+        ctx.fillStyle = PLAYER_PALETTE.skin;
         ctx.fillRect(px - 4 * s, py - 18 * s, 8 * s, 8 * s);
         // Hair
-        ctx.fillStyle = '#BB7733';
+        ctx.fillStyle = PLAYER_PALETTE.hair;
         ctx.fillRect(px - 4 * s, py - 19 * s, 8 * s, 4 * s);
         // Eyes
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(px - 3 * s, py - 15 * s, 2.5 * s, 2 * s);
         ctx.fillRect(px + 0.5 * s, py - 15 * s, 2.5 * s, 2 * s);
-        ctx.fillStyle = '#4477CC';
+        ctx.fillStyle = PLAYER_PALETTE.iris;
         ctx.fillRect(px - 2.5 * s, py - 15 * s, 1.5 * s, 2 * s);
         ctx.fillRect(px + 1 * s, py - 15 * s, 1.5 * s, 2 * s);
         // Arms (with rotation based on armAngle: 0=down, 1=forward)
         const armOffY = -armAngle * 8 * s;
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = PLAYER_PALETTE.suit;
         ctx.fillRect(px - 7 * s, py - 8 * s + armOffY, 2 * s, 7 * s);
         ctx.fillRect(px + 5 * s, py - 8 * s + armOffY, 2 * s, 7 * s);
         // Hands
-        ctx.fillStyle = '#FFCC88';
+        ctx.fillStyle = PLAYER_PALETTE.skin;
         ctx.fillRect(px - 7 * s, py - 1 * s + armOffY, 2 * s, 2.5 * s);
         ctx.fillRect(px + 5 * s, py - 1 * s + armOffY, 2 * s, 2.5 * s);
     }
@@ -1733,50 +1784,50 @@ document.addEventListener('DOMContentLoaded', () => {
         const bootX = legX  + 8 * s;       // boots start right of legs
 
         // ---- BACK ARM (rendered first so it sits behind the body) ----
-        ctx.fillStyle = '#3333AA';          // slightly darker than shirt
+        ctx.fillStyle = PLAYER_PALETTE.suitShadow;
         ctx.fillRect(bodyX + 1 * s, cy + 3.5 * s, 8 * s, 2 * s);
-        ctx.fillStyle = '#EEBB77';          // hand (slightly shadowed)
+        ctx.fillStyle = PLAYER_PALETTE.skinShadow;
         ctx.fillRect(bodyX + 8.5 * s, cy + 3.5 * s, 2.5 * s, 2 * s);
 
         // ---- BOOTS ----
-        ctx.fillStyle = '#222222';
+        ctx.fillStyle = PLAYER_PALETTE.boots;
         ctx.fillRect(bootX, cy - 2 * s, 4 * s, 2 * s);   // near boot
         ctx.fillRect(bootX, cy + 1 * s, 4 * s, 2 * s);   // far boot (offset)
 
         // ---- LEGS ----
-        ctx.fillStyle = '#BBBBBB';
+        ctx.fillStyle = PLAYER_PALETTE.legs;
         ctx.fillRect(legX, cy - 4 * s, 8 * s, 3 * s);    // near leg
         ctx.fillRect(legX, cy + 1 * s, 8 * s, 3 * s);    // far leg
 
         // ---- BODY ----
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = PLAYER_PALETTE.suit;
         ctx.fillRect(bodyX, cy - 5 * s, 11 * s, 10 * s);
 
         // Collar strip at neck end of body
-        ctx.fillStyle = '#555555';
+        ctx.fillStyle = PLAYER_PALETTE.collar;
         ctx.fillRect(bodyX, cy - 4 * s, 2 * s, 8 * s);
 
         // Belt (runs vertically across body when lying)
-        ctx.fillStyle = '#333333';
+        ctx.fillStyle = PLAYER_PALETTE.belt;
         ctx.fillRect(beltX - 1 * s, cy - 5 * s, 2 * s, 10 * s);
         // Belt buckle
-        ctx.fillStyle = '#DDCC22';
+        ctx.fillStyle = PLAYER_PALETTE.buckle;
         ctx.fillRect(beltX - 1.5 * s, cy - 1.5 * s, 3 * s, 3 * s);
 
         // ---- FRONT ARM (resting above body surface) ----
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = PLAYER_PALETTE.suit;
         ctx.fillRect(bodyX + 1 * s, cy - 7.5 * s, 8 * s, 2 * s);
         // Hand
-        ctx.fillStyle = '#FFCC88';
+        ctx.fillStyle = PLAYER_PALETTE.skin;
         ctx.fillRect(bodyX + 8.5 * s, cy - 7.5 * s, 2.5 * s, 2 * s);
 
         // ---- HAIR ----
-        ctx.fillStyle = '#BB7733';
+        ctx.fillStyle = PLAYER_PALETTE.hair;
         ctx.fillRect(bx - 1 * s, cy - 4 * s, 3 * s, 8 * s);  // hair behind head
         ctx.fillRect(bx, cy - 5 * s, 8 * s, 2 * s);           // hair across top of head
 
         // ---- HEAD ----
-        ctx.fillStyle = '#FFCC88';
+        ctx.fillStyle = PLAYER_PALETTE.skin;
         ctx.fillRect(bx, cy - 4 * s, 8 * s, 8 * s);
 
         // ---- EYES (face up — two eyes stacked vertically on screen) ----
@@ -1794,7 +1845,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(bx + 3 * s, cy - 1.5 * s - eyeH, eyeW, eyeH);
             ctx.fillRect(bx + 3 * s, cy + 1.5 * s,        eyeW, eyeH);
             // Iris
-            ctx.fillStyle = '#4477CC';
+            ctx.fillStyle = PLAYER_PALETTE.iris;
             ctx.fillRect(bx + 3.5 * s, cy - 1.5 * s - eyeH, iW, eyeH);
             ctx.fillRect(bx + 3.5 * s, cy + 1.5 * s,        iW, eyeH);
         }
@@ -2629,33 +2680,32 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = eng.getFlag('pod_bay_unlocked') ? '#22AA22' : '#AA2222';
             ctx.fillRect(534, 170, 6, 10);
 
-            // Engine room door (right wall — lower section, perspective trapezoid)
-            // Further along the right wall than the pod door — at t=0.55..0.85
+            // Engine room door (right wall — further down-corridor than the pod door)
             ctx.fillStyle = '#3e4e5e';
             ctx.beginPath();
-            ctx.moveTo(598, 150); ctx.lineTo(536, 158);
-            ctx.lineTo(536, 258); ctx.lineTo(598, 264);
+            ctx.moveTo(520, 134); ctx.lineTo(464, 143);
+            ctx.lineTo(464, 250); ctx.lineTo(520, 257);
             ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#4e6070';
             ctx.beginPath();
-            ctx.moveTo(594, 154); ctx.lineTo(540, 161);
-            ctx.lineTo(540, 255); ctx.lineTo(594, 261);
+            ctx.moveTo(516, 138); ctx.lineTo(468, 146);
+            ctx.lineTo(468, 247); ctx.lineTo(516, 253);
             ctx.closePath(); ctx.fill();
             // Door bent/forced open — slight offset on top panel
             ctx.fillStyle = '#3a3848';
             ctx.beginPath();
-            ctx.moveTo(594, 154); ctx.lineTo(566, 157); ctx.lineTo(566, 205); ctx.lineTo(594, 204);
+            ctx.moveTo(516, 138); ctx.lineTo(490, 142); ctx.lineTo(490, 193); ctx.lineTo(516, 194);
             ctx.closePath(); ctx.fill();
             // Eerie red glow from engine room leaking through gap
             ctx.fillStyle = 'rgba(200,50,20,0.18)';
             ctx.beginPath();
-            ctx.moveTo(566, 157); ctx.lineTo(594, 154); ctx.lineTo(594, 204); ctx.lineTo(566, 205);
+            ctx.moveTo(490, 142); ctx.lineTo(516, 138); ctx.lineTo(516, 194); ctx.lineTo(490, 193);
             ctx.closePath(); ctx.fill();
             // Engine room label
             ctx.font = '8px "Courier New"';
             ctx.fillStyle = '#88AACC';
-            ctx.fillText('ENGINE', 548, 195);
-            ctx.fillText('  ROOM', 548, 206);
+            ctx.fillText('ENGINE', 474, 183);
+            ctx.fillText('  ROOM', 474, 194);
 
             // Supply Closet door (back wall)
             ctx.fillStyle = '#4a5e70';
@@ -2796,11 +2846,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Closed eyes (she's gone)
-            if (eng.getFlag('examined_crew')) {
-                ctx.fillStyle = '#222233';
-                ctx.fillRect(384, 331, 2, 1);
-                ctx.fillRect(389, 331, 2, 1);
-            }
+            ctx.fillStyle = '#222233';
+            ctx.fillRect(384, 331, 2, 1);
+            ctx.fillRect(389, 331, 2, 1);
 
             // Emergency lights
             alarmLight(ctx, 140, 6, eng);
@@ -2890,7 +2938,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 get: (e) => e.showMessage('The sign is bolted to the bulkhead. You\'d need a power tool to remove it— and leaving evidence of your graffiti is probably unwise anyway.')
             },
             {
-                name: 'Engine Room', x: 430, y: 55, w: 110, h: 200, isExit: true, walkToX: 530, walkToY: 285,
+                name: 'Engine Room', x: 455, y: 120, w: 75, h: 145, isExit: true, walkToX: 500, walkToY: 285,
                 description: 'A door labeled "ENGINE ROOM". Something must have gone badly wrong in there — you can see the glow of emergency lighting through the gap.',
                 look: (e) => e.showMessage('The engine room door on the starboard wall. It\'s been forced open — the blast impact must have bent the frame. Flickering red light seeps through the gap.'),
                 onExit: (e) => e.goToRoom('engine_room', 55, 340)
@@ -3641,7 +3689,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!e.hasItem('medkit') && !e.getFlag('got_medkit_wreck') && !e.getFlag('korvak_freed')) {
                         e.addToInventory('medkit');
                         e.setFlag('got_medkit_wreck');
-                        e.setFlag('got_medkit');
                         e.addScore(3);
                         e.showMessage('You pry the medkit free of the wreckage. The seal is cracked but the contents look intact. Past-you, who forgot to grab one in the pod bay, owes present-you a drink.');
                     } else {
@@ -5691,6 +5738,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillRect(48, 263, 8, 10);
                 ctx.fillStyle = '#FF4444';
                 ctx.fillRect(44, 266, 16, 4);
+            } else if (eng.getFlag('cabinet_opened') && !eng.getFlag('fire_suppressed')) {
+                ctx.fillStyle = '#CCCCDD';
+                ctx.fillRect(42, 262, 20, 14);
+                ctx.fillStyle = '#77AAFF';
+                ctx.fillRect(46, 265, 12, 8);
             }
 
             // Room label
@@ -5774,8 +5826,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 get hidden() { return engine.getFlag('got_medkit') && engine.getFlag('fire_suppressed'); },
                 description: 'A red fire suppression cabinet bolted to the left wall.',
                 look: (e) => {
-                    if (e.getFlag('cabinet_opened')) {
+                    if (e.getFlag('cabinet_opened') && !e.getFlag('got_medkit')) {
                         e.showMessage('The cabinet door hangs open. A medkit is inside — standard emergency kit.');
+                    } else if (e.getFlag('cabinet_opened') && !e.getFlag('fire_suppressed')) {
+                        e.showMessage('The cabinet door hangs open. The medkit slot is empty, but the fire suppression canister is still clipped inside.');
+                    } else if (e.getFlag('cabinet_opened')) {
+                        e.showMessage('The cabinet hangs open and empty. It has contributed more to this emergency than several crew meetings ever did.');
                     } else {
                         e.showMessage('A fire suppression cabinet. It\'s locked with an emergency seal — a security measure against unauthorised access during drills.');
                     }
@@ -5787,17 +5843,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.showMessage('You find the emergency override switch behind a small panel. A click, and the cabinet door swings open. Inside: a medkit and a fire suppression canister.');
                     } else if (!e.getFlag('got_medkit')) {
                         e.showMessage('The medkit is sitting right there. Use GET to pick it up.');
+                    } else if (!e.getFlag('fire_suppressed')) {
+                        e.showMessage('The medkit slot is empty. The suppression canister is still ready for the conduit fire.');
                     } else {
-                        e.showMessage('The cabinet is empty now.');
+                        e.showMessage('The cabinet is empty now. Against all odds, it did its job.');
                     }
                 },
                 get: (e) => {
                     if (e.getFlag('cabinet_opened') && !e.getFlag('got_medkit')) {
-                        e.addToInventory('medkit');
                         e.setFlag('got_medkit');
-                        e.showMessage('You grab the medkit.');
+                        if (e.hasItem('medkit')) {
+                            e.showMessage('You already have a medkit, so you leave this spare for whoever survives your next idea. The suppression canister remains clipped inside.');
+                        } else {
+                            e.addToInventory('medkit');
+                            e.showMessage('You grab the medkit.');
+                        }
                     } else if (!e.getFlag('cabinet_opened')) {
                         e.showMessage('The cabinet is locked. Find a way to open it first.');
+                    } else if (!e.getFlag('fire_suppressed')) {
+                        e.showMessage('The medkit is gone. The suppression canister is fixed in place until you use it on the fire.');
                     } else {
                         e.showMessage('The cabinet is empty.');
                     }
@@ -5813,6 +5877,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.setFlag('fire_suppressed');
                         e.addScore(5);
                         e.showMessage('You grab the suppression canister from the cabinet and blast the conduit fire. The flames gutter out with a satisfying hiss. The room smells of chemical foam and char.');
+                    } else if (e.getFlag('cabinet_opened') && e.getFlag('fire_suppressed')) {
+                        e.showMessage('The cabinet is already open and the fire is already out. This is what success looks like, apparently.');
                     } else {
                         e.showMessage('That won\'t open a locked cabinet.');
                     }

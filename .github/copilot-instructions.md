@@ -5,8 +5,11 @@
 A Sierra-style point-and-click adventure game (Space Quest 1 tribute) built with **pure JavaScript and HTML5 Canvas** (640×400, `image-rendering: pixelated`). No frameworks, no build system, no dependencies.
 
 - [index.html](../index.html) — UI shell: canvas, action buttons (Walk/Look/Get/Use/Talk), inventory bar, save/load modal, message area
-- [js/engine.js](../js/engine.js) — `GameEngine` class: rendering loop, input handling, player sprite, click-to-walk + arrow key movement, cutscene system, save/load (localStorage, 5 slots), room transitions
-- [js/game.js](../js/game.js) — All game content: 10 rooms with procedural pixel art, 8 items, puzzles, hotspots, cutscene animations, drawing helpers. Wrapped in a single `DOMContentLoaded` listener using `engine` as a closure variable.
+- [js/engine.js](../js/engine.js) — reusable `GameEngine` class: rendering loop, input handling, player sprite, click-to-walk + arrow key movement, cutscene system, save/load (localStorage, 5 slots), room transitions, title/victory overlays driven by a game definition object
+- [js/game.js](../js/game.js) — Star Sweeper game definition plus all game content: procedural pixel art, items, puzzles, hotspots, cutscene animations, drawing helpers. Wrapped in a single `DOMContentLoaded` listener using `engine` as a closure variable.
+
+### Reusable Engine Boundary
+Create tribute-game variants by supplying `new GameEngine({ id, title, shortTitle, subtitle, storagePrefix, maxScore, startRoom, startX, startY, victory, drawTitleBackdrop? })` from the content script. Keep storyline, puzzle flags, item IDs, room art, custom cutscenes, score values, and victory rank copy in the game content file. Keep reusable systems (input, parser, inventory, save/load, cutscenes, dialogs, NPCs, depth scaling, overlays) in [js/engine.js](../js/engine.js).
 
 ## Key Patterns
 
@@ -25,7 +28,7 @@ Rooms are registered via `engine.registerRoom({ id, name, description, draw, hot
 ### State Management
 - **Flags** (`engine.setFlag(name)` / `engine.getFlag(name)`) control puzzle progression and conditional drawing
 - **Critical bug pattern**: Never gate drawing of persistent objects (NPCs, bodies) on a flag set by `look`. The `examined_crew` bug (looking at Dr. Chen made her disappear) was caused by `if (!flag)` wrapping both body drawing AND the flag being set by the look handler. Gate visuals on action-specific flags (e.g., `got_keycard_corridor` for pickup).
-- **Score**: `engine.addScore(pts)`, max 215 (capped automatically). Guard against double-scoring with flags.
+- **Score**: `engine.addScore(pts)`, max 450 (capped automatically). Guard against double-scoring with flags.
 
 ### Cutscene System
 ```js

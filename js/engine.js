@@ -1,10 +1,11 @@
 // ============================================================
-// STAR SWEEPER - GAME ENGINE
-// A tribute to classic Sierra-style space adventure games
+// SIERRA-STYLE ADVENTURE ENGINE
+// Reusable core for classic parser / point-and-click tribute games
 // ============================================================
 
 class GameEngine {
-    constructor() {
+    constructor(gameDefinition = {}) {
+        this.game = this.createGameDefinition(gameDefinition);
         this.canvas = document.getElementById('game-canvas');
         this.ctx = this.canvas.getContext('2d');
         this.WIDTH = 640;
@@ -31,7 +32,7 @@ class GameEngine {
         this.currentRoomId = null;
         this.inventory = [];
         this.score = 0;
-        this.maxScore = 450;
+        this.maxScore = this.game.maxScore;
         this.lastScoreDelta = 0;
         this.scoreFlashUntil = 0;
         this.pickupSparkleX = 0;
@@ -62,9 +63,7 @@ class GameEngine {
         this.classicMode = this.loadInterfacePreference() !== 'enhanced';
         this.commandLine = '';
         this.lastCommand = '';
-        this.lastMessage = '';
         this.parserPrompt = '>';
-        this.parserFlash = 0;
 
         // Arrow key state
         this.keysDown = {};
@@ -115,7 +114,7 @@ class GameEngine {
         vigCtx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
         this.crtEffects = true;
 
-        this.sound = new SoundEngine();
+        this.sound = this.game.sound || (this.game.soundFactory ? this.game.soundFactory() : new SoundEngine());
 
         // Screen shake (intensity decays over time)
         this.screenShake = 0;
@@ -174,6 +173,40 @@ class GameEngine {
 
         this.setupInput();
         this.applyInterfaceMode();
+    }
+
+    createGameDefinition(definition) {
+        const victory = definition.victory || {};
+        return {
+            id: definition.id || 'sierra_tribute',
+            title: definition.title || 'ADVENTURE GAME',
+            shortTitle: definition.shortTitle || definition.title || 'ADVENTURE GAME',
+            subtitle: definition.subtitle || 'A   S I E R R A - S T Y L E   A D V E N T U R E',
+            creditsLine: definition.creditsLine || 'A modern tribute to classic adventure games',
+            inspirationLine: definition.inspirationLine || '',
+            copyright: definition.copyright || '',
+            storagePrefix: definition.storagePrefix || definition.id || 'sierra_tribute',
+            maxScore: definition.maxScore ?? 100,
+            startRoom: definition.startRoom || null,
+            startX: definition.startX ?? 320,
+            startY: definition.startY ?? 310,
+            onStart: definition.onStart || null,
+            drawTitleBackdrop: definition.drawTitleBackdrop || null,
+            sound: definition.sound || null,
+            soundFactory: definition.soundFactory || null,
+            victory: {
+                headline: victory.headline || 'CONGRATULATIONS!',
+                subhead: victory.subhead || 'You have completed the adventure!',
+                closingLines: victory.closingLines || ['Your story will be told wherever players still save early and often.'],
+                ranks: victory.ranks && victory.ranks.length ? victory.ranks : [
+                    { min: 0.95, title: 'Legend', flavor: 'That was a proper adventure-game performance.' },
+                    { min: 0.80, title: 'Hero', flavor: 'Elegant, efficient, and only occasionally reckless.' },
+                    { min: 0.60, title: 'Adventurer', flavor: 'You solved the important parts. Mostly on purpose.' },
+                    { min: 0.35, title: 'Explorer', flavor: 'You arrived with questions and left with slightly fewer.' },
+                    { min: 0, title: 'Survivor', flavor: 'You won. Technically, that is the best kind of won.' }
+                ]
+            }
+        };
     }
 
     // ---- Input ----
@@ -456,7 +489,7 @@ class GameEngine {
 
     loadInterfacePreference() {
         try {
-            return localStorage.getItem('starsweeper_interface_mode') || 'classic';
+            return localStorage.getItem(`${this.game.storagePrefix}_interface_mode`) || 'classic';
         } catch {
             return 'classic';
         }
@@ -465,7 +498,7 @@ class GameEngine {
     setInterfaceMode(mode, persist) {
         this.classicMode = mode !== 'enhanced';
         if (persist) {
-            try { localStorage.setItem('starsweeper_interface_mode', this.classicMode ? 'classic' : 'enhanced'); } catch { /* storage unavailable */ }
+            try { localStorage.setItem(`${this.game.storagePrefix}_interface_mode`, this.classicMode ? 'classic' : 'enhanced'); } catch { /* storage unavailable */ }
         }
         this.applyInterfaceMode();
     }
@@ -498,10 +531,13 @@ class GameEngine {
         this.titleScreen = false;
         this.setInterfaceMode(this.classicMode ? 'classic' : 'enhanced', true);
         this.sound.gameStart();
-        if (this.onGameStart) {
-            this.onGameStart();
+        const startHook = this.onGameStart || this.game.onStart;
+        if (startHook) {
+            startHook(this);
+        } else if (this.game.startRoom) {
+            this.goToRoom(this.game.startRoom, this.game.startX, this.game.startY);
         } else {
-            this.goToRoom('broom_closet', 320, 310);
+            console.error('No start room configured for game:', this.game.id);
         }
     }
 
@@ -610,7 +646,6 @@ class GameEngine {
     showMessage(text) {
         const displayText = this.classicMode ? this.sierraTrim(text) : text;
         this.message = displayText;
-        this.lastMessage = displayText;
         const el = this.dom.messageText;
         el.textContent = displayText;
         el.parentElement.scrollTop = el.parentElement.scrollHeight;
@@ -707,7 +742,9 @@ class GameEngine {
         this.sound.stopAmbient();
         this.setAction('walk');
         this.updateInventoryUI();
-        this.goToRoom('broom_closet', 320, 310);
+        if (this.game.startRoom) {
+            this.goToRoom(this.game.startRoom, this.game.startX, this.game.startY);
+        }
     }
 
     // ---- Click Handling ----
@@ -1496,21 +1533,19 @@ class GameEngine {
             const movingX = arrowLeft || arrowRight;
             const movingY = arrowUp || arrowDown;
             const diagFactor = (movingX && movingY) ? Math.SQRT1_2 : 1;
-            if (movingX) {
-                const newX = Math.max(30, Math.min(610, this.playerX + spd * diagFactor * this.playerDir));
-                if (!this.collidesBarrier(newX, this.playerY)) {
-                    this.playerX = newX;
-                }
-            }
-            // Move Y (respect horizon like AGI)
-            if (movingY) {
-                const yDir = arrowUp ? -1 : 1;
-                const minY = Math.max(this.horizon, 280);
-                const newY = Math.max(minY, Math.min(370, this.playerY + spd * diagFactor * yDir));
-                // Check combined position first, then axis-only fallback (match click-walk behavior)
-                if (!this.collidesBarrier(this.playerX, newY)) {
-                    this.playerY = newY;
-                }
+            const startX = this.playerX;
+            const startY = this.playerY;
+            const yDir = arrowUp ? -1 : 1;
+            const minY = Math.max(this.horizon, 280);
+            const newX = movingX ? Math.max(30, Math.min(610, startX + spd * diagFactor * this.playerDir)) : startX;
+            const newY = movingY ? Math.max(minY, Math.min(370, startY + spd * diagFactor * yDir)) : startY;
+            if (!this.collidesBarrier(newX, newY)) {
+                this.playerX = newX;
+                this.playerY = newY;
+            } else if (movingX && !this.collidesBarrier(newX, startY)) {
+                this.playerX = newX;
+            } else if (movingY && !this.collidesBarrier(startX, newY)) {
+                this.playerY = newY;
             }
             this.playerFrameTimer += dt;
             if (this.playerFrameTimer > 140) {
@@ -1853,7 +1888,7 @@ class GameEngine {
         ctx.font = 'bold 11px "Courier New"';
         ctx.fillStyle = '#FFFFFF';
         const room = this.rooms[this.currentRoomId];
-        ctx.fillText(room ? room.name.toUpperCase() : 'STAR SWEEPER', 8, 12);
+        ctx.fillText(room ? room.name.toUpperCase() : this.game.shortTitle.toUpperCase(), 8, 12);
         ctx.textAlign = 'right';
         const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta > 0 ? `  +${this.lastScoreDelta}` : '';
         ctx.fillText(`Score: ${this.score} of ${this.maxScore}${delta}`, this.WIDTH - 8, 12);
@@ -1902,6 +1937,10 @@ class GameEngine {
     drawTitleScreen(ctx) {
         const W = this.WIDTH, H = this.HEIGHT;
         const t = this.animTimer;
+
+        if (this.game.drawTitleBackdrop) {
+            this.game.drawTitleBackdrop(ctx, W, H, this, t);
+        } else {
 
         // ---- Deep space background ----
         ctx.fillStyle = '#000008';
@@ -2000,7 +2039,7 @@ class GameEngine {
         ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
         ctx.fill();
 
-        // ---- ISS Constellation flying across (animated) ----
+        // ---- Animated title ship ----
         const shipCycle = (t % 20000) / 20000; // 20s loop
         const shipX = -80 + shipCycle * (W + 160);
         const shipY = 175 + Math.sin(shipCycle * Math.PI * 2) * 8;
@@ -2052,24 +2091,25 @@ class GameEngine {
         ctx.fillStyle = `rgba(80,200,255,${eGlow})`;
         ctx.fillRect(shipX - 44 * shipS, shipY - 5 * shipS, 3 * shipS, 2 * shipS);
         ctx.fillRect(shipX - 44 * shipS, shipY + 3 * shipS, 3 * shipS, 2 * shipS);
+        }
 
         // ---- Title text (SQ1 style: big, dramatic, spaced out) ----
         ctx.textAlign = 'center';
 
-        // "STAR SWEEPER" main title with shadow
+        // Main title with shadow
         ctx.font = 'bold 44px "Courier New"';
         // Drop shadow
         ctx.fillStyle = '#0000AA';
-        ctx.fillText('STAR SWEEPER', W / 2 + 3, 58);
+        ctx.fillText(this.game.title, W / 2 + 3, 58);
         // Main text (AGI-style: 2-frame blink between yellow and white)
         const titleBlink = Math.floor(t / 600) % 2;
         ctx.fillStyle = titleBlink ? '#FFFF55' : '#FFFFFF';
-        ctx.fillText('STAR SWEEPER', W / 2, 55);
+        ctx.fillText(this.game.title, W / 2, 55);
 
         // Subtitle
         ctx.font = '15px "Courier New"';
         ctx.fillStyle = '#55FFFF';
-        ctx.fillText('A   S P A C E   A D V E N T U R E', W / 2, 78);
+        ctx.fillText(this.game.subtitle, W / 2, 78);
 
         // Thin decorative line under subtitle
         ctx.strokeStyle = '#5555FF';
@@ -2082,11 +2122,11 @@ class GameEngine {
         // ---- SQ1-style scrolling credits area (bottom third) ----
         ctx.font = '12px "Courier New"';
         ctx.fillStyle = '#AAAAAA';
-        ctx.fillText('A modern tribute to Sierra On-Line adventure games', W / 2, H - 90);
+        ctx.fillText(this.game.creditsLine, W / 2, H - 90);
 
         ctx.font = '11px "Courier New"';
         ctx.fillStyle = '#5555FF';
-        ctx.fillText('Inspired by Space Quest: The Sarien Encounter (1986)', W / 2, H - 72);
+        if (this.game.inspirationLine) ctx.fillText(this.game.inspirationLine, W / 2, H - 72);
 
         ctx.font = '10px "Courier New"';
         ctx.fillStyle = '#777777';
@@ -2105,7 +2145,7 @@ class GameEngine {
         // Copyright
         ctx.font = '9px "Courier New"';
         ctx.fillStyle = '#555555';
-        ctx.fillText('\u00A9 2025-2026', W / 2, H - 6);
+        if (this.game.copyright) ctx.fillText(this.game.copyright, W / 2, H - 6);
 
         ctx.textAlign = 'left';
     }
@@ -2585,44 +2625,31 @@ class GameEngine {
         ctx.font = 'bold 30px "Courier New"';
         const congratsBlink = Math.floor(this.animTimer / 400) % 2;
         ctx.fillStyle = congratsBlink ? '#FFFF55' : '#FFFFFF';
-        ctx.fillText('CONGRATULATIONS!', this.WIDTH / 2, by + 55);
+        ctx.fillText(this.game.victory.headline, this.WIDTH / 2, by + 55);
 
         ctx.font = '16px "Courier New"';
         ctx.fillStyle = '#FFFFFF';
-        ctx.fillText('You have saved the galaxy!', this.WIDTH / 2, by + 95);
+        ctx.fillText(this.game.victory.subhead, this.WIDTH / 2, by + 95);
 
         ctx.font = 'bold 18px "Courier New"';
         ctx.fillStyle = '#55FF55';
         ctx.fillText(`Final Score: ${this.score} / ${this.maxScore}`, this.WIDTH / 2, by + 135);
 
-        // Score rating — Sierra-style hint-book tier names with dry commentary
+        // Score rating: the game definition supplies tier names and flavor text.
         const pct = this.maxScore > 0 ? this.score / this.maxScore : 0;
-        let rating = 'Marginally Employed Janitor';
-        let flavor = 'You won. Technically. The galaxy will note this in the appendix.';
-        if (pct >= 0.95) {
-            rating = 'Astral Champion, First Class';
-            flavor = 'They will name a mop after you. Possibly two.';
-        } else if (pct >= 0.80) {
-            rating = 'Galactic Hero';
-            flavor = 'Headlines on six worlds. None of them spelled your name right.';
-        } else if (pct >= 0.60) {
-            rating = 'Star Captain';
-            flavor = 'Promotion paperwork is, regrettably, your problem now.';
-        } else if (pct >= 0.35) {
-            rating = 'Spaceworthy Cadet';
-            flavor = 'You did it the hard way. The galaxy noticed. Mostly.';
-        }
+        const rank = this.game.victory.ranks.find((tier) => pct >= tier.min) || this.game.victory.ranks[this.game.victory.ranks.length - 1];
         ctx.font = '14px "Courier New"';
         ctx.fillStyle = '#FFFF55';
-        ctx.fillText(`Rank: ${rating}`, this.WIDTH / 2, by + 160);
+        ctx.fillText(`Rank: ${rank.title}`, this.WIDTH / 2, by + 160);
         ctx.font = '11px "Courier New"';
         ctx.fillStyle = '#AAAAFF';
-        ctx.fillText(flavor, this.WIDTH / 2, by + 178);
+        ctx.fillText(rank.flavor, this.WIDTH / 2, by + 178);
 
         ctx.font = '14px "Courier New"';
         ctx.fillStyle = '#55FFFF';
-        ctx.fillText('From humble janitor to galactic hero...', this.WIDTH / 2, by + 195);
-        ctx.fillText('Your story will be told across the stars.', this.WIDTH / 2, by + 215);
+        this.game.victory.closingLines.slice(0, 2).forEach((line, index) => {
+            ctx.fillText(line, this.WIDTH / 2, by + 195 + index * 20);
+        });
 
         if (Math.floor(this.animTimer / 700) % 2) {
             ctx.font = '14px "Courier New"';
@@ -2633,7 +2660,7 @@ class GameEngine {
     }
 
     // ---- Save / Load ----
-    getSaveKey(slot) { return `starsweeper_save_${slot}`; }
+    getSaveKey(slot) { return `${this.game.storagePrefix}_save_${slot}`; }
 
     getSaveData() {
         return {
