@@ -2253,14 +2253,14 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Purple Bottle', x: 126, y: 58, w: 16, h: 32,
                 description: 'A tall bottle of mysterious purple liquid.',
-                look: (e) => e.showMessage('A tall bottle with no proper label — just "???" scrawled in yellow marker. The cap is loose and purple liquid has been slowly leaking down the shelf for months. The liquid seems to glow faintly. You\'ve filed three maintenance reports about this. All ignored.'),
-                get: (e) => e.showMessage('You reach for the bottle and your fingers tingle on contact. It\'s warm. Unnervingly warm. You decide to leave it where it is. Some mysteries are better left unsolved.'),
+                look: (e) => e.showMessage('A tall bottle labeled only "???" in yellow marker. It glows faintly and has ignored three maintenance reports.'),
+                get: (e) => e.showMessage('Your fingers tingle before you even touch it. Some mysteries are best left shelved.'),
                 use: (e) => e.showMessage('You tighten the cap. Purple liquid immediately begins seeping through the threads. This bottle does not respect the laws of fluid dynamics.')
             },
             {
                 name: 'Air Freshener', x: 168, y: 66, w: 18, h: 24,
                 description: 'A can of industrial air freshener.',
-                look: (e) => e.showMessage('"FreshAir Industrial Odor Neutralizer — Starship Strength." You need this stuff. A ship full of crew who think deodorant is optional. The can feels light — almost empty, like your will to live.'),
+                look: (e) => e.showMessage('"FreshAir Industrial Odor Neutralizer — Starship Strength." The can is nearly empty, like your will to live.'),
                 get: (e) => e.showMessage('You pick it up and shake it. Barely a rattle. Even at full capacity it couldn\'t mask what\'s happening to this ship right now.'),
                 use: (e) => {
                     const px = engine.playerX, py = engine.playerY;
@@ -2825,7 +2825,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.showMessage('You swipe Dr. Chen\'s keycard. The reader beeps green and the door slides open...');
                         e.goToRoom('pod_bay', 100, 310);
                     } else {
-                        e.showMessage('The keycard reader flashes red. ACCESS DENIED. You need a Level 3 security keycard.');
+                        e.showMessage('ACCESS DENIED: LEVEL 3 SCIENCE CLEARANCE REQUIRED. Science clearance. You passed a scientist in the corridor, though she is not in any condition to object to paperwork.');
                     }
                 }
             },
@@ -3315,10 +3315,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.showMessage('The pod is already gone.');
                         return;
                     }
-                    // The Data Cartridge is REQUIRED to beat the game — hard-block launch without it
-                    // to prevent a late-game soft-lock on the Draknoid ship.
-                    if (!e.hasItem('cartridge')) {
-                        e.showMessage('Something nags at you before you climb in. Some vital bit of shipboard business remains unfinished.');
+                    if (!e.hasItem('cartridge') && !e.getFlag('pod_warn_cartridge')) {
+                        e.showMessage('Some uncharacteristically merciful instinct stops you. The science lab still has the sort of vital shipboard business that becomes a terrible problem three planets later.');
+                        e.setFlag('pod_warn_cartridge');
                         return;
                     }
                     // Survival Kit is strongly recommended (you\'ll die in the desert without it) — warn once
@@ -4305,12 +4304,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (e.hasItem('nav_chip')) {
                         // Warn about missing weapon
                         if (!e.hasItem('pulsar_ray') && !e.getFlag('shuttle_warn_ray')) {
-                            e.showMessage('Flying unarmed toward a hostile warship feels like a career-limiting decision.');
+                            e.showMessage('Somewhere in the back of your mind, a save disk clears its throat. Flying unarmed at a warship is bold. So is juggling reactor rods.');
                             e.setFlag('shuttle_warn_ray');
                             return;
                         }
+                        if (!e.hasItem('pulsar_ray')) {
+                            e.setFlag('flew_unarmed');
+                            e.showMessage('You ignore the raised eyebrow and launch anyway. Somewhere, a parser smiles thinly.');
+                        } else {
+                            e.showMessage('You load the nav chip into the shuttle\'s computer. Coordinates to the Draknoid flagship locked in! The engines roar to life and you blast off into space...');
+                        }
                         engine.sound.hyperspace();
-                        e.showMessage('You load the nav chip into the shuttle\'s computer. Coordinates to the Draknoid flagship locked in! The engines roar to life and you blast off into space...');
                         e.setFlag('flew_away');
                         e.addScore(15);
                         e.playCutscene({
@@ -4331,12 +4335,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (itemId === 'nav_chip') {
                         // Warn about missing weapon
                         if (!e.hasItem('pulsar_ray') && !e.getFlag('shuttle_warn_ray')) {
-                            e.showMessage('Flying unarmed toward a hostile warship feels like a career-limiting decision.');
+                            e.showMessage('Somewhere in the back of your mind, a save disk clears its throat. Flying unarmed at a warship is bold. So is juggling reactor rods.');
                             e.setFlag('shuttle_warn_ray');
                             return;
                         }
+                        if (!e.hasItem('pulsar_ray')) {
+                            e.setFlag('flew_unarmed');
+                            e.showMessage('You ignore the raised eyebrow and launch anyway. Somewhere, a parser smiles thinly.');
+                        } else {
+                            e.showMessage('You insert the nav chip into the shuttle\'s navigation computer. Coordinates locked — destination: Draknoid Flagship! You strap in and blast off!');
+                        }
                         engine.sound.hyperspace();
-                        e.showMessage('You insert the nav chip into the shuttle\'s navigation computer. Coordinates locked — destination: Draknoid Flagship! You strap in and blast off!');
                         e.setFlag('flew_away');
                         e.addScore(15);
                         e.playCutscene({
@@ -6215,6 +6224,13 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
     });
 
+    function finalVictoryMessage(e) {
+        if (e.getFlag('rescued_prisoners')) {
+            return 'You grab the Quantum Drive and run for the airlock! The freed prisoners are already aboard your shuttle, which is now both a getaway craft and a serious fire-code violation. You blast away as the flagship turns to pursue, then jump to hyperspace with the Quantum Drive and the survivors safely aboard. From humble janitor to galactic hero... and, annoyingly, still the person everyone expects to clean up afterward. THE END.';
+        }
+        return 'You grab the Quantum Drive and run for the airlock! Behind you, alarms blare as the Draknoids realize what\'s happened. You sprint through the corridors, leap into your shuttle, and blast away just as the flagship turns to pursue. But it\'s too late — you jump to hyperspace with the Quantum Drive safely aboard. From humble janitor to galactic hero... the galaxy owes its future to one unlikely sanitation engineer. THE END.';
+    }
+
     // ========== ROOM 10: DRAKNOID SHIP ==========
     engine.registerRoom({
         id: 'draknoid_ship',
@@ -6240,6 +6256,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         onUpdate: (e) => {
+            if (e.getFlag('flew_unarmed') && !e.getFlag('unarmed_arrival_notice')) {
+                e.setFlag('unarmed_arrival_notice');
+                e.showMessage('You arrive at the Draknoid flagship without a weapon. This is either courage, optimism, or a save file about to learn humility.');
+            }
             // Set guard_anim_done flag once the 7.5s defeat animation finishes
             const shootStart = e.getFlag('guard_shoot_start');
             if (shootStart && !e.getFlag('guard_anim_done') && e.animTimer - shootStart >= 7500) {
@@ -6684,17 +6704,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // ---- SPEECH BUBBLES ----
                 if (guardT >= SPEECH1_START && guardT < SPEECH1_END) {
-                    drawSpeechBubble(ctx, 210, 110, "'TIS BUT A SCRATCH!");
+                    drawSpeechBubble(ctx, 210, 110, 'HONOR SYSTEM FAILURE!');
                 }
                 if (guardT >= SPEECH2_START && guardT < SPEECH2_END) {
-                    drawSpeechBubble(ctx, 210, 110, "MERELY A FLESH WOUND!");
+                    drawSpeechBubble(ctx, 210, 110, 'AUTOMATED COWARDICE!');
                 }
 
                 // "COME BACK HERE!" as guard falls
                 if (guardT >= FALL_START && guardT < FALL_END) {
                     const fallP = (guardT - FALL_START) / (FALL_END - FALL_START);
                     if (fallP < 0.5) {
-                        drawSpeechBubble(ctx, 200, 100 + fallP * 40, "I'LL BITE YOUR LEGS OFF!");
+                        drawSpeechBubble(ctx, 200, 100 + fallP * 40, 'I DID NOT AUTHORIZE THAT!');
                     }
                 }
 
@@ -6992,42 +7012,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: 'Console', x: 455, y: 145, w: 110, h: 100,
                 description: 'A Draknoid computer console.',
                 look: (e) => {
-                    if (!e.getFlag('guard_anim_done')) {
+                    if (!e.getFlag('guard_defeated')) {
                         e.showMessage('You can\'t get a good look with that guard pointing a gun at you.');
                     } else if (e.getFlag('field_down')) {
                         e.showMessage('The console shows "FORCE FIELD OFFLINE". The data cartridge is still plugged in.');
                     } else {
-                        e.showMessage('A Draknoid computer console. The screen says "FORCE FIELD: ACTIVE" and there\'s a data port labeled "READY". If you had the right data, you might be able to override the force field.');
+                        e.showMessage('A Draknoid console. FORCE FIELD: ACTIVE. DATA PORT: READY. It wants technical specs, not moral support.');
                     }
                 },
                 use: (e) => {
-                    if (!e.getFlag('guard_anim_done')) {
+                    if (!e.getFlag('guard_defeated')) {
                         e.showMessage('Deal with the guard first!');
                     } else if (e.getFlag('field_down')) {
                         e.showMessage('The force field is already down.');
                     } else if (e.hasItem('cartridge')) {
-                        e.showMessage('You insert the Quantum Drive data cartridge into the console. The system recognizes the technical specs and initiates an override... The force field SHIMMERS and DROPS! The Quantum Drive is exposed!');
+                        e.showMessage('You insert the Quantum Drive cartridge. The system accepts the specs, the field drops, and for once your plan survives contact with a computer.');
                         e.removeFromInventory('cartridge');
                         e.setFlag('field_down');
                         e.addScore(25);
+                    } else if (e.getFlag('rescued_prisoners') && e.hasItem('cargo_manifest') && e.hasItem('frequency_chip')) {
+                        e.showMessage('You cross-load the freighter manifest through the frequency chip and add the prisoners\' overheard access cadence. The console mistakes it for a Draknoid maintenance burst and drops the field. Sloppy, desperate, effective.');
+                        e.setFlag('field_down');
+                        e.setFlag('field_bypassed_without_cartridge');
+                        e.addScore(5);
                     } else {
-                        e.showMessage('The console waits for proper data. Yours does not impress it.');
+                        e.showMessage('The console wants Quantum Drive specs. Without them, you\'ll need an ugly workaround involving ship records, a signal source, and someone who has heard Draknoid detention traffic up close.');
                     }
                 },
                 useItem: (e, itemId) => {
-                    if (!e.getFlag('guard_anim_done')) {
+                    if (!e.getFlag('guard_defeated')) {
                         e.showMessage('The guard won\'t let you near the console!');
                     } else if (itemId === 'cartridge' && !e.getFlag('field_down')) {
-                        e.showMessage('You slot the data cartridge into the console. The Draknoid system reads the Quantum Drive specs and, thinking it\'s an authorized maintenance override, disables the force field! Brilliant!');
+                        e.showMessage('You slot in the cartridge. The console accepts the specs and drops the field. Brilliant, or at least adequately labeled.');
                         e.removeFromInventory('cartridge');
                         e.setFlag('field_down');
                         e.addScore(25);
                     } else if (e.getFlag('field_down')) {
                         e.showMessage('Force field is already offline.');
+                    } else if ((itemId === 'cargo_manifest' || itemId === 'frequency_chip') && e.getFlag('rescued_prisoners') && e.hasItem('cargo_manifest') && e.hasItem('frequency_chip')) {
+                        e.showMessage('You pair the manifest with the frequency chip and the prisoners\' stolen access cadence, spoofing a maintenance burst. Somewhere, an engineer wakes up angry and does not know why.');
+                        e.setFlag('field_down');
+                        e.setFlag('field_bypassed_without_cartridge');
+                        e.addScore(5);
                     } else if (itemId === 'cargo_manifest') {
-                        e.showMessage('The console scans the cargo manifest but doesn\'t recognize the format. It\'s a civilian document — useless to a Draknoid military system.');
+                        e.showMessage('The manifest has ship IDs, but no way to transmit them and no Draknoid access rhythm to hide inside. It needs more context.');
                     } else if (itemId === 'frequency_chip') {
-                        e.showMessage('You try the frequency chip but the Draknoid comms array operates on completely different bands. It\'s incompatible.');
+                        e.showMessage('The chip can transmit, but it has nothing useful to say. It needs records and a believable Draknoid signal pattern.');
                     } else {
                         e.showMessage('The console doesn\'t accept that.');
                     }
@@ -7037,7 +7067,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: 'Quantum Drive', x: 275, y: 150, w: 90, h: 110,
                 description: 'The stolen Quantum Drive prototype!',
                 look: (e) => {
-                    if (!e.getFlag('guard_anim_done')) {
+                    if (!e.getFlag('guard_defeated')) {
                         e.showMessage('Through the force field shimmer, you can see the Quantum Drive prototype. Its core pulses with incredible energy. This is what they stole from the Constellation. But first — that guard.');
                     } else if (!e.getFlag('field_down')) {
                         e.showMessage('The Quantum Drive sits just beyond the humming field. Close enough to admire, not close enough to steal.');
@@ -7046,7 +7076,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 },
                 get: (e) => {
-                    if (!e.getFlag('guard_anim_done')) {
+                    if (!e.getFlag('guard_defeated')) {
                         e.showMessage('You can\'t get past the guard, let alone the force field!');
                     } else if (!e.getFlag('field_down')) {
                         e.showMessage('ZAP! The force field shocks you as you reach for it. You need to disable the field first!');
@@ -7054,7 +7084,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         // VICTORY!
                         e.setFlag('grabbed_quantum_drive');
                         e.addScore(20);
-                        const victoryMsg = 'You grab the Quantum Drive and run for the airlock! Behind you, alarms blare as the Draknoids realize what\'s happened. You sprint through the corridors, leap into your shuttle, and blast away just as the flagship turns to pursue. But it\'s too late — you jump to hyperspace with the Quantum Drive safely aboard. From humble janitor to galactic hero... the galaxy owes its future to one unlikely sanitation engineer. THE END.';
+                        const victoryMsg = finalVictoryMessage(e);
                         e.playCutscene({
                             duration: 8000,
                             draw: cutsceneVictoryEscape,
@@ -7064,14 +7094,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 },
                 use: (e) => {
-                    if (!e.getFlag('guard_anim_done')) {
+                    if (!e.getFlag('guard_defeated')) {
                         e.showMessage('You can\'t get past the guard!');
                     } else if (!e.getFlag('field_down')) {
                         e.showMessage('ZAP! The force field blocks you!');
                     } else if (!e.getFlag('grabbed_quantum_drive')) {
                         e.setFlag('grabbed_quantum_drive');
                         e.addScore(20);
-                        const victoryMsg = 'You grab the Quantum Drive and run for the airlock! Behind you, alarms blare as the Draknoids realize what\'s happened. You sprint through the corridors, leap into your shuttle, and blast away just as the flagship turns to pursue. But it\'s too late — you jump to hyperspace with the Quantum Drive safely aboard. From humble janitor to galactic hero... the galaxy owes its future to one unlikely sanitation engineer. THE END.';
+                        const victoryMsg = finalVictoryMessage(e);
                         e.playCutscene({
                             duration: 8000,
                             draw: cutsceneVictoryEscape,

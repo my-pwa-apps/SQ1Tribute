@@ -31,6 +31,8 @@ class GameEngine {
         this.inventory = [];
         this.score = 0;
         this.maxScore = 450;
+        this.lastScoreDelta = 0;
+        this.scoreFlashUntil = 0;
         this.flags = {};
         this.dead = false;
         this.won = false;
@@ -53,7 +55,7 @@ class GameEngine {
         this.currentAction = 'walk';
         this.selectedItem = null;
         this.pendingAction = null;
-        this.classicMode = true;
+        this.classicMode = this.loadInterfacePreference() !== 'enhanced';
         this.commandLine = '';
         this.lastCommand = '';
         this.lastMessage = '';
@@ -107,6 +109,7 @@ class GameEngine {
         vig.addColorStop(1, 'rgba(0,0,0,0.3)');
         vigCtx.fillStyle = vig;
         vigCtx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
+        this.crtEffects = true;
 
         this.sound = new SoundEngine();
 
@@ -188,7 +191,8 @@ class GameEngine {
                 return;
             }
             if (this.titleScreen) {
-                this.startNewGame();
+                const coords = this.getCanvasCoords(e);
+                this.handleTitleInput(coords.x, coords.y);
                 return;
             }
             if (this.dead || this.won) return;
@@ -233,8 +237,13 @@ class GameEngine {
                 this.toggleInterfaceMode();
                 return;
             }
+            if (e.key === 'F9') {
+                e.preventDefault();
+                this.toggleCrtEffects();
+                return;
+            }
             if (this.titleScreen) {
-                this.startNewGame();
+                this.handleTitleKey(e);
                 return;
             }
             if (this.cutscene) {
@@ -296,6 +305,7 @@ class GameEngine {
             }
             if (e.key === 'F5') { e.preventDefault(); this.openSaveModal('save'); }
             if (e.key === 'F7') { e.preventDefault(); this.openSaveModal('load'); }
+            if (e.key === 'F9') { e.preventDefault(); this.toggleCrtEffects(); }
             if (e.key === 'Escape') this.closeSaveModal();
             if (this.dom.saveModal.classList.contains('open')) return;
             if (e.key === 'l') this.setAction('look');
@@ -344,7 +354,7 @@ class GameEngine {
             this.mouseY = coords.y;
             if (this.cutscene) { this.skipCutscene(); return; }
             if (this.titleScreen) {
-                this.startNewGame();
+                this.handleTitleInput(coords.x, coords.y);
                 return;
             }
             if (this.dead || this.won) return;
@@ -433,16 +443,36 @@ class GameEngine {
     }
 
     toggleInterfaceMode() {
-        this.classicMode = !this.classicMode;
-        this.applyInterfaceMode();
+        this.setInterfaceMode(this.classicMode ? 'enhanced' : 'classic', true);
         this.showMessage(this.classicMode
             ? 'Classic parser interface selected.'
             : 'Enhanced point-and-click interface selected.');
     }
 
+    loadInterfacePreference() {
+        try {
+            return localStorage.getItem('starsweeper_interface_mode') || 'classic';
+        } catch {
+            return 'classic';
+        }
+    }
+
+    setInterfaceMode(mode, persist) {
+        this.classicMode = mode !== 'enhanced';
+        if (persist) {
+            try { localStorage.setItem('starsweeper_interface_mode', this.classicMode ? 'classic' : 'enhanced'); } catch { /* storage unavailable */ }
+        }
+        this.applyInterfaceMode();
+    }
+
     applyInterfaceMode() {
         document.body.classList.toggle('classic-mode', this.classicMode);
         document.body.classList.toggle('enhanced-mode', !this.classicMode);
+    }
+
+    toggleCrtEffects() {
+        this.crtEffects = !this.crtEffects;
+        this.showMessage(this.crtEffects ? 'CRT display effects enabled.' : 'Clean pixel display enabled. Nostalgia has been temporarily degaussed.');
     }
 
     setAction(action) {
@@ -461,6 +491,7 @@ class GameEngine {
 
     startNewGame() {
         this.titleScreen = false;
+        this.setInterfaceMode(this.classicMode ? 'classic' : 'enhanced', true);
         this.sound.gameStart();
         if (this.onGameStart) {
             this.onGameStart();
@@ -540,6 +571,8 @@ class GameEngine {
     // ---- Score & Flags ----
     addScore(pts) {
         this.score = Math.min(this.score + pts, this.maxScore);
+        this.lastScoreDelta = pts;
+        this.scoreFlashUntil = this.animTimer + 1600;
         this.sound.scoreUp();
     }
 
@@ -627,6 +660,8 @@ class GameEngine {
     restart() {
         this.inventory = [];
         this.score = 0;
+        this.lastScoreDelta = 0;
+        this.scoreFlashUntil = 0;
         this.flags = {};
         this.dead = false;
         this.won = false;
@@ -760,7 +795,12 @@ class GameEngine {
 
         const parsed = this.parseVerbPhrase(command);
         if (!parsed) {
-            this.showMessage("I don't understand.");
+            this.showMessage(this.parserConfusion(command));
+            return;
+        }
+
+        if (!parsed.object) {
+            this.showMessage(this.parserNeedsObject(parsed.verb));
             return;
         }
 
@@ -819,7 +859,27 @@ class GameEngine {
             return;
         }
 
-        this.showMessage("You don't see that here.");
+        this.showMessage(this.parserCantSee(parsed.object));
+    }
+
+    parserConfusion(command) {
+        const replies = [
+            "That sentence would baffle even a vintage parser, and those things once argued with toddlers.",
+            "You can't do that. The game checked twice, then looked embarrassed for you.",
+            "The parser considers your request, files it under 'bold but unhelpful,' and moves on.",
+            "Try a verb the universe currently supports. LOOK, GET, USE, TALK, and WALK are feeling cooperative."
+        ];
+        const idx = command.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % replies.length;
+        return replies[idx];
+    }
+
+    parserNeedsObject(verb) {
+        const labels = { look: 'look at', get: 'get', use: 'use', talk: 'talk to', walk: 'walk to' };
+        return `${labels[verb] || verb} what? Be specific. The parser is old-fashioned, not psychic.`;
+    }
+
+    parserCantSee(objectName) {
+        return `You don't see any ${objectName} here. If it is invisible, it is also unhelpful.`;
     }
 
     normalizeParserText(text) {
@@ -832,10 +892,10 @@ class GameEngine {
 
     parseVerbPhrase(command) {
         const verbAliases = {
-            examine: 'look', inspect: 'look', read: 'look', search: 'look',
-            take: 'get', grab: 'get', pick: 'get', pickup: 'get',
+            examine: 'look', inspect: 'look', read: 'look', search: 'look', smell: 'look', listen: 'look',
+            take: 'get', grab: 'get', pick: 'get', pickup: 'get', steal: 'get',
             talk: 'talk', speak: 'talk', ask: 'talk',
-            use: 'use', open: 'use', unlock: 'use', pry: 'use', cut: 'use',
+            use: 'use', open: 'use', unlock: 'use', pry: 'use', cut: 'use', push: 'use', press: 'use', touch: 'use', drink: 'use', eat: 'use', shoot: 'use', fire: 'use',
             go: 'walk', walk: 'walk', enter: 'walk'
         };
         const words = command.split(' ');
@@ -1711,11 +1771,10 @@ class GameEngine {
         // Restore screen shake transform before overlays
         if (this.screenShake > 0) ctx.restore();
 
-        // CRT scanline overlay
-        ctx.drawImage(this.scanlineCanvas, 0, 0);
-
-        // CRT vignette (pre-rendered)
-        ctx.drawImage(this.vignetteCanvas, 0, 0);
+        if (this.crtEffects) {
+            ctx.drawImage(this.scanlineCanvas, 0, 0);
+            ctx.drawImage(this.vignetteCanvas, 0, 0);
+        }
     }
 
     drawClassicStatusBar(ctx) {
@@ -1728,7 +1787,8 @@ class GameEngine {
         const room = this.rooms[this.currentRoomId];
         ctx.fillText(room ? room.name.toUpperCase() : 'STAR SWEEPER', 8, 12);
         ctx.textAlign = 'right';
-        ctx.fillText(`Score: ${this.score} of ${this.maxScore}`, this.WIDTH - 8, 12);
+        const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta > 0 ? `  +${this.lastScoreDelta}` : '';
+        ctx.fillText(`Score: ${this.score} of ${this.maxScore}${delta}`, this.WIDTH - 8, 12);
         ctx.textAlign = 'left';
     }
 
@@ -1745,7 +1805,8 @@ class GameEngine {
         ctx.fillText(actionLabel, 8, 12);
         ctx.fillStyle = '#FFFF55';
         ctx.textAlign = 'right';
-        ctx.fillText(`Score: ${this.score} / ${this.maxScore}`, this.WIDTH - 8, 12);
+        const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta > 0 ? `  +${this.lastScoreDelta}` : '';
+        ctx.fillText(`Score: ${this.score} / ${this.maxScore}${delta}`, this.WIDTH - 8, 12);
         ctx.textAlign = 'left';
     }
 
@@ -1953,23 +2014,25 @@ class GameEngine {
         // ---- SQ1-style scrolling credits area (bottom third) ----
         ctx.font = '12px "Courier New"';
         ctx.fillStyle = '#AAAAAA';
-        ctx.fillText('A tribute to Sierra On-Line adventure games', W / 2, H - 90);
+        ctx.fillText('A modern tribute to Sierra On-Line adventure games', W / 2, H - 90);
 
         ctx.font = '11px "Courier New"';
         ctx.fillStyle = '#5555FF';
         ctx.fillText('Inspired by Space Quest: The Sarien Encounter (1986)', W / 2, H - 72);
 
         ctx.font = '10px "Courier New"';
-        ctx.fillStyle = '#555555';
-        ctx.fillText('Type commands. Use arrow keys to walk. F10 toggles enhanced controls.', W / 2, H - 54);
+        ctx.fillStyle = '#777777';
+        ctx.fillText('Choose your interface. F10 still toggles later.', W / 2, H - 54);
 
-        // ---- Blinking prompt ----
+        const classicRect = this.getTitleButtonRect('classic');
+        const enhancedRect = this.getTitleButtonRect('enhanced');
+        this.drawTitleButton(ctx, classicRect, 'C  CLASSIC PARSER', this.classicMode);
+        this.drawTitleButton(ctx, enhancedRect, 'E  ENHANCED CLICK', !this.classicMode);
+
         const blink = Math.floor(t / 600) % 2;
-        if (blink) {
-            ctx.font = 'bold 14px "Courier New"';
-            ctx.fillStyle = '#FFFF55';
-            ctx.fillText('\u25B6  Press any key to begin  \u25C0', W / 2, H - 22);
-        }
+        ctx.font = '10px "Courier New"';
+        ctx.fillStyle = blink ? '#FFFF55' : '#777744';
+        ctx.fillText('ENTER starts with the highlighted mode', W / 2, H - 16);
 
         // Copyright
         ctx.font = '9px "Courier New"';
@@ -1977,6 +2040,71 @@ class GameEngine {
         ctx.fillText('\u00A9 2025-2026', W / 2, H - 6);
 
         ctx.textAlign = 'left';
+    }
+
+    getTitleButtonRect(mode) {
+        const y = this.HEIGHT - 44;
+        return mode === 'classic'
+            ? { x: 132, y, w: 176, h: 24 }
+            : { x: 332, y, w: 176, h: 24 };
+    }
+
+    drawTitleButton(ctx, rect, label, selected) {
+        ctx.fillStyle = selected ? '#0000AA' : '#000044';
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+        ctx.strokeStyle = selected ? '#FFFF55' : '#5555FF';
+        ctx.lineWidth = selected ? 2 : 1;
+        ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+        ctx.font = 'bold 11px "Courier New"';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = selected ? '#FFFFFF' : '#AAAAAA';
+        ctx.fillText(label, rect.x + rect.w / 2, rect.y + 16);
+        ctx.textAlign = 'left';
+        ctx.lineWidth = 1;
+    }
+
+    handleTitleInput(x, y) {
+        const classicRect = this.getTitleButtonRect('classic');
+        const enhancedRect = this.getTitleButtonRect('enhanced');
+        if (this.pointInRect(x, y, classicRect)) {
+            this.setInterfaceMode('classic', true);
+            this.startNewGame();
+            return;
+        }
+        if (this.pointInRect(x, y, enhancedRect)) {
+            this.setInterfaceMode('enhanced', true);
+            this.startNewGame();
+            return;
+        }
+        this.startNewGame();
+    }
+
+    handleTitleKey(e) {
+        if (e.key === 'c' || e.key === 'C') {
+            e.preventDefault();
+            this.setInterfaceMode('classic', true);
+            this.startNewGame();
+            return;
+        }
+        if (e.key === 'e' || e.key === 'E') {
+            e.preventDefault();
+            this.setInterfaceMode('enhanced', true);
+            this.startNewGame();
+            return;
+        }
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            this.setInterfaceMode(this.classicMode ? 'enhanced' : 'classic', true);
+            return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            this.startNewGame();
+        }
+    }
+
+    pointInRect(x, y, rect) {
+        return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
     }
 
     // ---- Player Sprite ----
@@ -2435,6 +2563,7 @@ class GameEngine {
             playerY: this.playerY,
             playerDir: this.playerDir,
             playerFacing: this.playerFacing,
+            crtEffects: this.crtEffects,
             inventory: [...this.inventory],
             score: this.score,
             flags: JSON.parse(JSON.stringify(this.flags)),
@@ -2501,6 +2630,7 @@ class GameEngine {
             this.pendingAction = null;
             this.playerDir = data.playerDir || 1;
             this.playerFacing = data.playerFacing || 'toward';
+            this.crtEffects = data.crtEffects !== false;
             this.screenShake = 0;
             // Restore modified item names/descriptions
             if (data.itemNames) {
