@@ -20,6 +20,7 @@ class GameEngine {
             saveModalClose: document.getElementById('save-modal-close'),
             btnSave: document.getElementById('btn-save'),
             btnLoad: document.getElementById('btn-load'),
+            btnHint: document.getElementById('btn-hint'),
             btnMute: document.getElementById('btn-mute')
         };
         this.actionButtons = Array.from(document.querySelectorAll('.action-btn'));
@@ -33,6 +34,9 @@ class GameEngine {
         this.maxScore = 450;
         this.lastScoreDelta = 0;
         this.scoreFlashUntil = 0;
+        this.pickupSparkleX = 0;
+        this.pickupSparkleY = 0;
+        this.pickupSparkleUntil = 0;
         this.flags = {};
         this.dead = false;
         this.won = false;
@@ -332,6 +336,7 @@ class GameEngine {
 
         this.dom.btnSave.addEventListener('click', () => this.openSaveModal('save'));
         this.dom.btnLoad.addEventListener('click', () => this.openSaveModal('load'));
+        if (this.dom.btnHint) this.dom.btnHint.addEventListener('click', () => this.showHint());
         if (this.dom.btnMute) {
             this.dom.btnMute.addEventListener('click', () => {
                 this.sound.init();
@@ -525,6 +530,9 @@ class GameEngine {
         if (!this.inventory.includes(itemId)) {
             this.inventory.push(itemId);
             this.sound.pickup();
+            this.pickupSparkleX = this.playerX;
+            this.pickupSparkleY = this.playerY - 18;
+            this.pickupSparkleUntil = this.animTimer + 480;
             this.updateInventoryUI();
         }
     }
@@ -578,6 +586,25 @@ class GameEngine {
 
     setFlag(f, v) { this.flags[f] = (v === undefined) ? true : v; }
     getFlag(f) { return this.flags[f] ?? false; }
+
+    // ---- Hint System ----
+    // Each room may declare a `hint` string (or function returning a string).
+    // First hint per room is free; subsequent hints in the same room cost 2 score.
+    showHint() {
+        const room = this.rooms[this.currentRoomId];
+        if (!room) return;
+        const raw = (typeof room.hint === 'function') ? room.hint(this) : room.hint;
+        const text = raw || 'No hint available here. Try looking around, talking to anyone present, and combining what you have.';
+        const usedFlag = `hint_used_${this.currentRoomId}`;
+        if (this.getFlag(usedFlag)) {
+            this.score = Math.max(0, this.score - 2);
+            this.lastScoreDelta = -2;
+            this.scoreFlashUntil = this.animTimer + 1600;
+        } else {
+            this.setFlag(usedFlag);
+        }
+        this.showMessage('HINT: ' + text);
+    }
 
     // ---- Messages ----
     showMessage(text) {
@@ -662,6 +689,7 @@ class GameEngine {
         this.score = 0;
         this.lastScoreDelta = 0;
         this.scoreFlashUntil = 0;
+        this.pickupSparkleUntil = 0;
         this.flags = {};
         this.dead = false;
         this.won = false;
@@ -760,7 +788,11 @@ class GameEngine {
             return;
         }
         if (['help', 'commands'].includes(command)) {
-            this.showMessage('Try LOOK, GET object, USE object ON object, TALK TO person, INVENTORY, SAVE, RESTORE. F10 toggles enhanced mode.');
+            this.showMessage('Try LOOK, GET object, USE object ON object, TALK TO person, INVENTORY, HINT, SAVE, RESTORE. F10 toggles enhanced mode.');
+            return;
+        }
+        if (['hint', 'hints', 'clue', 'help me'].includes(command)) {
+            this.showHint();
             return;
         }
         if (['enhanced', 'enhanced mode', 'point click', 'point and click'].includes(command)) {
@@ -1647,6 +1679,24 @@ class GameEngine {
             const cs = this.cutscene;
             const progress = Math.min(cs.elapsed / cs.duration, 1);
             cs.draw(ctx, this.WIDTH, this.HEIGHT, progress, cs.elapsed);
+            // Sierra-style fade in / out at cutscene boundaries (200ms each)
+            const fadeIn = cs.elapsed < 200 ? 1 - cs.elapsed / 200 : 0;
+            const remaining = cs.duration - cs.elapsed;
+            const fadeOut = remaining < 200 ? 1 - remaining / 200 : 0;
+            const fade = Math.max(fadeIn, fadeOut);
+            if (fade > 0) {
+                ctx.fillStyle = `rgba(0,0,0,${fade})`;
+                ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
+            }
+            // In-cutscene score toast (visible while status bar is hidden)
+            if (this.animTimer < this.scoreFlashUntil && this.lastScoreDelta !== 0) {
+                const sign = this.lastScoreDelta > 0 ? '+' : '';
+                ctx.font = 'bold 14px "Courier New"';
+                ctx.fillStyle = this.lastScoreDelta > 0 ? '#55FF55' : '#FF8855';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${sign}${this.lastScoreDelta} score`, this.WIDTH / 2, 22);
+                ctx.textAlign = 'left';
+            }
             // Skip hint
             if (cs.skippable && cs.elapsed > 500) {
                 ctx.fillStyle = 'rgba(255,255,255,0.25)';
@@ -1771,6 +1821,24 @@ class GameEngine {
         // Restore screen shake transform before overlays
         if (this.screenShake > 0) ctx.restore();
 
+        // Pickup sparkle (drawn after shake restore so it sits steady on screen)
+        if (this.animTimer < this.pickupSparkleUntil) {
+            const remaining = this.pickupSparkleUntil - this.animTimer;
+            const p = 1 - remaining / 480;
+            const sx = this.pickupSparkleX;
+            const sy = this.pickupSparkleY - p * 12;
+            const alpha = 1 - p;
+            ctx.fillStyle = `rgba(255,255,180,${alpha})`;
+            // four-pixel cross sparkles
+            const r = 1 + p * 4;
+            ctx.fillRect(sx - r, sy, 2, 2);
+            ctx.fillRect(sx + r, sy, 2, 2);
+            ctx.fillRect(sx, sy - r, 2, 2);
+            ctx.fillRect(sx, sy + r, 2, 2);
+            ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+            ctx.fillRect(sx, sy, 2, 2);
+        }
+
         if (this.crtEffects) {
             ctx.drawImage(this.scanlineCanvas, 0, 0);
             ctx.drawImage(this.vignetteCanvas, 0, 0);
@@ -1826,7 +1894,7 @@ class GameEngine {
         ctx.font = '9px "Courier New"';
         ctx.fillStyle = '#AAAAAA';
         ctx.textAlign = 'right';
-        ctx.fillText('F3=again  F5=save  F7=restore  F10=enhanced', this.WIDTH - 10, this.HEIGHT - 8);
+        ctx.fillText('F3=again  F5=save  F7=restore  F10=enhanced  HINT=clue', this.WIDTH - 10, this.HEIGHT - 8);
         ctx.textAlign = 'left';
     }
 
@@ -2527,16 +2595,29 @@ class GameEngine {
         ctx.fillStyle = '#55FF55';
         ctx.fillText(`Final Score: ${this.score} / ${this.maxScore}`, this.WIDTH / 2, by + 135);
 
-        // Score rating
-        let rating = 'Space Janitor';
+        // Score rating — Sierra-style hint-book tier names with dry commentary
         const pct = this.maxScore > 0 ? this.score / this.maxScore : 0;
-        if (pct >= 0.95) rating = 'Galactic Legend';
-        else if (pct >= 0.80) rating = 'Space Hero';
-        else if (pct >= 0.60) rating = 'Star Captain';
-        else if (pct >= 0.35) rating = 'Cadet';
+        let rating = 'Marginally Employed Janitor';
+        let flavor = 'You won. Technically. The galaxy will note this in the appendix.';
+        if (pct >= 0.95) {
+            rating = 'Astral Champion, First Class';
+            flavor = 'They will name a mop after you. Possibly two.';
+        } else if (pct >= 0.80) {
+            rating = 'Galactic Hero';
+            flavor = 'Headlines on six worlds. None of them spelled your name right.';
+        } else if (pct >= 0.60) {
+            rating = 'Star Captain';
+            flavor = 'Promotion paperwork is, regrettably, your problem now.';
+        } else if (pct >= 0.35) {
+            rating = 'Spaceworthy Cadet';
+            flavor = 'You did it the hard way. The galaxy noticed. Mostly.';
+        }
         ctx.font = '14px "Courier New"';
         ctx.fillStyle = '#FFFF55';
         ctx.fillText(`Rank: ${rating}`, this.WIDTH / 2, by + 160);
+        ctx.font = '11px "Courier New"';
+        ctx.fillStyle = '#AAAAFF';
+        ctx.fillText(flavor, this.WIDTH / 2, by + 178);
 
         ctx.font = '14px "Courier New"';
         ctx.fillStyle = '#55FFFF';

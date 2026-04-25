@@ -198,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     {
                         text: 'Let me take a look at that leg.',
-                        response: '"It\'s not pretty. I could survive if I had a medkit — there should be one in the fire suppression locker on the back wall. I\'d get it myself but... well."',
+                        response: '"It\'s not pretty. I could survive if I had a medkit — there should be one in the fire suppression cabinet on the left wall, right here in this room. If you scavenged the crashed pod on the desert, that wreck had one too. I\'d get it myself but... well."',
                         once: true
                     },
                     {
@@ -1803,6 +1803,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 1: BROOM CLOSET ==========
     engine.registerRoom({
         id: 'broom_closet',
+        hint: 'You are locked in. Look around for something long and rigid you can use as a lever on the door.',
         name: 'Broom Closet',
         description: 'You wake up groggy in the ship\'s broom closet — your favorite napping spot, and, until recently, your finest idea. Alarms wail. Red lights flash. Something terrible has happened aboard the ISS Constellation. Typical Monday.',
         onEnter: (e) => {
@@ -2472,6 +2473,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 2: CORRIDOR ==========
     engine.registerRoom({
         id: 'corridor',
+        hint: (e) => {
+            if (!e.hasItem('keycard')) return 'Dr. Chen will not be objecting to anything. Take her science clearance keycard.';
+            if (!e.hasItem('cartridge')) return 'The science lab is east. Use Chen\'s keycard there.';
+            return 'Head to the escape pod bay. Bring back-up supplies if you can find any.';
+        },
         name: 'Ship Corridor',
         description: 'The main corridor of the ISS Constellation. Emergency lights cast an eerie red glow over devastation. Blast marks scar the walls. The ship has been attacked.',
         onEnter: (e) => {
@@ -2895,6 +2901,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 3: SCIENCE LAB ==========
     engine.registerRoom({
         id: 'science_lab',
+        hint: 'Look for a data cartridge among the smashed equipment. The Draknoids missed it.',
         name: 'Science Lab',
         description: 'The ship\'s science lab. Equipment is smashed and overturned, but some computers still flicker with power. The attackers were looking for something specific.',
         onEnter: (e) => {
@@ -3121,6 +3128,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 4: ESCAPE POD BAY ==========
     engine.registerRoom({
         id: 'pod_bay',
+        hint: (e) => {
+            if (!e.hasItem('survival_kit') || !e.hasItem('medkit')) return 'The emergency locker has a survival kit and a medkit. Take BOTH before launching the pod — you will not be able to come back.';
+            return 'Board the pod and use the launch controls. There is no way back, so make sure your inventory is complete.';
+        },
         name: 'Escape Pod Bay',
         description: 'The Escape Pod Bay. Most pods have already launched. One remains — your ticket off this doomed ship.',
         onEnter: (e) => {
@@ -3403,6 +3414,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 5: DESERT ==========
     engine.registerRoom({
         id: 'desert',
+        hint: (e) => {
+            if (!e.hasItem('medkit')) return 'The pod broke open on impact. Search the wreckage — the emergency kit may have spilled something useful.';
+            if (!e.hasItem('crystal')) return 'There is a cave to the north. Something valuable lives in it.';
+            return 'Head to the outpost. A xenon crystal is worth real buckazoids to the right buyer.';
+        },
         name: 'Desert Planet',
         description: 'Your pod crashlands on a scorching desert planet — Kerona, if the charts are right; Unnamed Sandtrap if you\'re being honest. Twin suns blaze overhead. The air is dry as dust. You need to find shelter — preferably before you become a skeleton with a mop.',
         onEnter: (e) => {
@@ -3613,8 +3629,25 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Crashed Pod', x: 75, y: 250, w: 145, h: 60,
                 description: 'The wreckage of your escape pod.',
-                look: (e) => { if (!engine.getFlag('looked_crashed_pod')) { engine.setFlag('looked_crashed_pod'); e.addScore(3); } e.showMessage('Your escape pod is totaled — half-buried in the sand and smoking. It\'s not going anywhere. You\'re stranded on this desert world.'); },
-                get: (e) => e.showMessage('The pod is completely wrecked. Nothing salvageable remains.'),
+                look: (e) => {
+                    if (!engine.getFlag('looked_crashed_pod')) { engine.setFlag('looked_crashed_pod'); e.addScore(3); }
+                    if (!e.hasItem('medkit') && !e.getFlag('got_medkit_wreck') && !e.getFlag('korvak_freed')) {
+                        e.showMessage('Your escape pod is totaled \u2014 half-buried in the sand and smoking. The fire suppression locker burst open on impact; a battered medkit is wedged in the debris.');
+                    } else {
+                        e.showMessage('Your escape pod is totaled \u2014 half-buried in the sand and smoking. It\'s not going anywhere. You\'re stranded on this desert world.');
+                    }
+                },
+                get: (e) => {
+                    if (!e.hasItem('medkit') && !e.getFlag('got_medkit_wreck') && !e.getFlag('korvak_freed')) {
+                        e.addToInventory('medkit');
+                        e.setFlag('got_medkit_wreck');
+                        e.setFlag('got_medkit');
+                        e.addScore(3);
+                        e.showMessage('You pry the medkit free of the wreckage. The seal is cracked but the contents look intact. Past-you, who forgot to grab one in the pod bay, owes present-you a drink.');
+                    } else {
+                        e.showMessage('The pod is completely wrecked. Nothing else salvageable remains.');
+                    }
+                },
                 use: (e) => e.showMessage('The pod is beyond repair. Time to find another way off this rock.')
             },
             {
@@ -3671,6 +3704,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 6: CAVE ==========
     engine.registerRoom({
         id: 'cave',
+        hint: 'A glowing xenon crystal is somewhere in here. Take it without inviting whatever lives in here to dinner.',
         name: 'Underground Cave',
         description: 'A cool underground cave — blessed relief from the desert heat. Crystalline formations glitter on the walls. A tunnel leads deeper underground.',
         onEnter: (e) => {
@@ -4005,6 +4039,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 7: OUTPOST ==========
     engine.registerRoom({
         id: 'outpost',
+        hint: 'Sell your crystal to the alien trader for buckazoids. You will need them in the cantina and the shop.',
         name: 'Frontier Outpost',
         description: 'A ramshackle alien frontier town — Ulence Flats. Odd buildings line a dusty street. A cantina, a trading post, and a landing pad are visible.',
         onEnter: (e) => {
@@ -4410,6 +4445,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 8: CANTINA ==========
     engine.registerRoom({
         id: 'cantina',
+        hint: (e) => {
+            if (!e.hasItem('drink')) return 'Buy a Keronian Ale at the bar.';
+            if (!e.hasItem('nav_chip')) return 'The pilot at the back will trade a nav chip for a drink. Use the ale on him.';
+            return 'You have what you need here. Try the shop next door for a weapon.';
+        },
         name: 'Cantina',
         description: 'The cantina is smoky and dim. Alien music plays from somewhere questionable. A three-eyed bartender polishes glasses with three hands. A crystalline being hums at the bar. An insectoid clicks over a fizzing drink. A purple blob watches you with its one big eye. A weary pilot nurses an empty glass. You feel extremely smoothskin.',
         onEnter: (e) => {
@@ -5057,6 +5097,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 9: SHOP ==========
     engine.registerRoom({
         id: 'shop',
+        hint: 'Buy the Pulsar Ray. Draknoid armor laughs at anything else.',
         name: 'Trading Post',
         description: 'The interior of the trading post. An alien merchant stands behind a counter displaying various goods — weapons, tools, and curiosities from across the galaxy.',
         onEnter: (e) => {
@@ -5502,6 +5543,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 11: ENGINE ROOM ==========
     engine.registerRoom({
         id: 'engine_room',
+        hint: (e) => {
+            if (!e.getFlag('cabinet_opened')) return 'The fire suppression cabinet on the left wall is locked. Plasma cutters are good at locks. Korvak has one.';
+            if (!e.hasItem('medkit') && !e.getFlag('korvak_freed')) return 'Open the cabinet and take the medkit. Then use it on Korvak.';
+            if (!e.getFlag('korvak_freed')) return 'Use the medkit on Korvak.';
+            return 'You are done here. Time to deal with the Draknoids.';
+        },
         name: 'Engine Room',
         description: 'The ship\'s engine room. Emergency lighting casts everything in sickly red. The smell of burnt circuitry and hydraulic fluid hangs heavy in the air.',
         onEnter: (e) => {
@@ -5790,6 +5837,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 12: DOCKING BAY (Kerona Starport) ==========
     engine.registerRoom({
         id: 'docking_bay',
+        hint: 'Find your shuttle. You will need a nav chip and, ideally, a weapon before flying anywhere dangerous.',
         name: 'Kerona Docking Bay',
         description: 'A ramshackle docking bay on the outskirts of Kerona\'s frontier post. The wrecked cargo freighter Ironclad Star dominates the far end, half-buried in sand.',
         onEnter: (e) => {
@@ -6018,6 +6066,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 13: DRAKNOID BRIG ==========
     engine.registerRoom({
         id: 'draknoid_brig',
+        hint: (e) => {
+            if (!e.hasItem('plasma_cutter')) return 'You will not get the prisoners out without a plasma cutter. Korvak in the engine room had one.';
+            if (!e.getFlag('rescued_prisoners')) return 'Use the plasma cutter on the cell bars.';
+            return 'Time to deal with the Draknoid flagship itself.';
+        },
         name: 'Draknoid Brig',
         description: 'A dimly lit detention block deep inside the Draknoid flagship. Rows of cells line both sides of a narrow corridor, their bar doors sealed magnetically.',
         onEnter: (e) => {
@@ -6234,6 +6287,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // ========== ROOM 10: DRAKNOID SHIP ==========
     engine.registerRoom({
         id: 'draknoid_ship',
+        hint: (e) => {
+            if (!e.getFlag('guard_defeated')) return 'Use the Pulsar Ray on the guard. Stand back. Way back.';
+            if (!e.getFlag('guard_anim_done')) return 'Wait for the dust to settle. The guard is still arguing with physics.';
+            if (!e.getFlag('field_down')) return 'The console wants Quantum Drive specs. Use the data cartridge on it.';
+            return 'Grab the Quantum Drive. Run.';
+        },
         name: 'Draknoid Flagship',
         description: 'You\'ve infiltrated the Draknoid flagship. A massive chamber houses the stolen Quantum Drive prototype, protected by a shimmering force field. A Draknoid guard stands watch.',
         onEnter: (e) => {
@@ -6258,7 +6317,7 @@ document.addEventListener('DOMContentLoaded', () => {
         onUpdate: (e) => {
             if (e.getFlag('flew_unarmed') && !e.getFlag('unarmed_arrival_notice')) {
                 e.setFlag('unarmed_arrival_notice');
-                e.showMessage('You arrive at the Draknoid flagship without a weapon. This is either courage, optimism, or a save file about to learn humility.');
+                e.showMessage('You arrive at the Draknoid flagship without a weapon. The only thing aboard scarier than a Draknoid is a Draknoid who cannot believe what he is seeing.');
             }
             // Set guard_anim_done flag once the 7.5s defeat animation finishes
             const shootStart = e.getFlag('guard_shoot_start');
@@ -6959,21 +7018,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: 'Draknoid Guard', x: 78, y: 115, w: 90, h: 180,
                 description: 'A heavily armored Draknoid guard.',
                 look: (e) => {
-                    if (e.getFlag('guard_defeated')) {
+                    if (e.getFlag('guard_defeated') && !e.getFlag('guard_anim_done')) {
+                        e.showMessage('You wait for the dust to settle. The Draknoid is still busy disagreeing with physics.');
+                    } else if (e.getFlag('guard_defeated')) {
                         e.showMessage('The Draknoid guard lies in several pieces on the floor. His arms are... elsewhere. Apparently Draknoid warriors aren\'t built as tough as they look.');
                     } else {
                         e.showMessage('A Draknoid warrior blocks the way, all armor, visor, and plasma rifle. He looks allergic to janitors.');
                     }
                 },
                 walk: (e) => {
-                    if (e.getFlag('guard_defeated')) {
+                    if (e.getFlag('guard_defeated') && !e.getFlag('guard_anim_done')) {
+                        e.showMessage('You wait for the dust to settle before stepping anywhere near him.');
+                    } else if (e.getFlag('guard_defeated')) {
                         e.showMessage('You step over the smouldering remains of the guard. Best not to look too closely.');
                     } else {
                         e.die('You try to sneak past the Draknoid guard. Bad idea. He spots you instantly and opens fire with his plasma rifle. You should have found a weapon first.');
                     }
                 },
                 talk: (e) => {
-                    if (e.getFlag('guard_defeated')) {
+                    if (e.getFlag('guard_defeated') && !e.getFlag('guard_anim_done')) {
+                        e.showMessage('He is, at this exact moment, busy. You should let the cinematic finish.');
+                    } else if (e.getFlag('guard_defeated')) {
                         e.showMessage('His torso is over there, his arms are over HERE... this conversation is going nowhere.');
                     } else {
                         e.showMessage('"HALT! ONE MORE STEP AND I VAPORIZE YOU!" He appears to mean the unfriendly kind of vaporize.');
