@@ -13,8 +13,10 @@ function read(file) {
 const game = read('js/game.js');
 const html = read('index.html');
 const sw = read('serviceworker.js');
+const headers = read('_headers');
+const content = require('../js/content.js');
 
-const itemIds = new Set([...game.matchAll(/\{\s*id:\s*'([^']+)'/g)].map((m) => m[1]));
+const itemIds = new Set(content.items.map((item) => item.id));
 const roomIds = new Set([...game.matchAll(/engine\.registerRoom\(\{\s*id:\s*'([^']+)'/g)].map((m) => m[1]));
 const roomRefs = [...game.matchAll(/goToRoom\('([^']+)'/g)].map((m) => m[1]);
 const itemRefs = [...game.matchAll(/(?:hasItem|addToInventory|removeFromInventory)\('([^']+)'\)|(?:itemId|id)\s*===\s*'([^']+)'/g)]
@@ -26,6 +28,14 @@ for (const roomId of roomRefs) {
 
 for (const itemId of itemRefs) {
     if (!itemIds.has(itemId)) fail(`Unknown item reference: ${itemId}`);
+}
+
+if (html.indexOf('js/content.js') > html.indexOf('js/game.js')) {
+    fail('js/content.js must load before js/game.js.');
+}
+
+for (const directive of ['frame-ancestors', 'X-Content-Type-Options', 'Referrer-Policy']) {
+    if (!headers.includes(directive)) fail(`Missing production security header: ${directive}`);
 }
 
 const inlineScripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)]

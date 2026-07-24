@@ -2,17 +2,35 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Star Sweeper: A Space Adventure — a modern Sierra-style tribute adventure built with HTML5 Canvas and JavaScript.">
     <meta name="theme-color" content="#080818">
+    <meta name="color-scheme" content="dark">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self'; connect-src 'self'; img-src 'self' data:;">
     <meta property="og:title" content="Star Sweeper: A Space Adventure">
     <meta property="og:description" content="A modern Sierra-style space adventure tribute. From humble janitor to galactic hero.">
     <meta property="og:type" content="website">
     <title>Star Sweeper: A Space Adventure</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🌟</text></svg>">
+    <link rel="apple-touch-icon" href="icons/star-192.svg">
     <link rel="manifest" href="manifest.json">
     <style>
+        /* Bundled pixel/bitmap typeface (VT323, SIL OFL 1.1 — see fonts/VT323-OFL.txt).
+           Declared under the 'Courier New' family so every existing reference across the
+           DOM chrome and the canvas render path (~160 call sites) adopts the Sierra-style
+           pixel font with zero churn. The weight range maps bold requests onto the single
+           pixel face to avoid faux-bold smearing, and local('Courier New') is the last-resort
+           fallback if the woff2 is unavailable before it is cached. */
+        @font-face {
+            font-family: 'Courier New';
+            src: url('fonts/vt323-latin-400-normal.woff2') format('woff2'),
+                 local('Courier New'), local('Courier');
+            font-weight: 100 900;
+            font-style: normal;
+            font-display: swap;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             background: #080818;
@@ -83,6 +101,23 @@
         body.classic-mode #game-canvas {
             cursor: default;
             border-bottom: none;
+        }
+        body.title-screen #title-bar,
+        body.title-screen #action-bar,
+        body.title-screen #inventory-bar,
+        body.title-screen #save-load-bar,
+        body.title-screen #touch-parser,
+        body.title-screen #message-area,
+        body.title-screen #dpad {
+            display: none;
+        }
+        .sr-only {
+            position: fixed;
+            left: -10000px;
+            top: auto;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
         }
         #action-bar {
             display: flex;
@@ -187,6 +222,19 @@
         }
         .save-btn:hover { background: #0000CC; color: #FFFFFF; transform: translateY(-1px); }
         .save-btn:active { transform: translateY(1px); }
+        .vr-launch-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 50;
+            background: #006600;
+            border-color: #00AA00;
+            color: #FFFFFF;
+        }
+        .vr-launch-btn.active {
+            background: #660000;
+            border-color: #AA0000;
+        }
         #save-load-bar {
             display: flex;
             gap: 6px;
@@ -194,6 +242,23 @@
             background: linear-gradient(to right, #000066, #0000AA);
             border-top: 1px solid #333388;
             align-items: center;
+        }
+        #touch-parser {
+            display: none;
+            gap: 6px;
+            padding: 6px;
+            background: #000066;
+            border-top: 1px solid #5555FF;
+        }
+        #touch-parser-input {
+            min-width: 0;
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #FFFFFF;
+            background: #000000;
+            color: #FFFFFF;
+            font: 16px 'Courier New', monospace;
+            text-transform: uppercase;
         }
         #save-modal {
             display: none;
@@ -355,9 +420,21 @@
                 padding: 14px;
             }
         }
+        @media (pointer: coarse) {
+            body.classic-mode:not(.title-screen) #save-load-bar,
+            body.classic-mode:not(.title-screen) #touch-parser {
+                display: flex;
+            }
+            body.classic-mode:not(.title-screen) #dpad {
+                display: block;
+            }
+            body.classic-mode:not(.title-screen) #message-area {
+                display: block;
+            }
+        }
     </style>
 </head>
-<body class="classic-mode">
+<body class="classic-mode title-screen">
     <div id="game-container">
         <div id="title-bar">
             <span id="game-title">&#9733; STAR SWEEPER: A Space Adventure</span>
@@ -380,6 +457,11 @@
             <button class="save-btn" type="button" id="btn-hint" title="Hint (first per room is free)">Hint</button>
             <button class="save-btn" type="button" id="btn-mute" title="Toggle Sound (M)">Sound: ON</button>
         </div>
+        <form id="touch-parser" autocomplete="off">
+            <input id="touch-parser-input" type="text" maxlength="64" aria-label="Classic parser command" placeholder="TYPE A COMMAND">
+            <button class="save-btn" type="submit">Send</button>
+            <button class="save-btn" type="button" id="btn-enhanced">Enhanced</button>
+        </form>
         <div id="dpad">
             <div id="dpad-center"></div>
             <button class="dpad-btn" id="dpad-up" aria-label="Up">&#9650;</button>
@@ -388,9 +470,13 @@
             <button class="dpad-btn" id="dpad-right" aria-label="Right">&#9654;</button>
         </div>
         <div id="message-area" aria-live="polite">
-            <p id="message-text">Loading...</p>
+            <p id="message-text">Choose Classic Parser or Enhanced Click to begin.</p>
         </div>
     </div>
+    <div id="canvas-accessibility" class="sr-only" role="status" aria-live="polite" aria-atomic="true">Choose Classic Parser or Enhanced Click to begin.</div>
+    <section id="dialog-accessibility" class="sr-only" aria-label="Conversation choices">
+        <div id="dialog-accessibility-options"></div>
+    </section>
     <div id="save-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div id="save-modal-inner">
             <h3 id="modal-title">Save Game</h3>
@@ -398,9 +484,11 @@
             <button id="save-modal-close">Cancel</button>
         </div>
     </div>
+    <script src="js/palette.js"></script>
     <script src="js/sound.js"></script>
     <script src="js/engine.js"></script>
     <script src="js/vr.js"></script>
+    <script src="js/content.js"></script>
     <script src="js/game.js"></script>
     <script src="js/register-sw.js"></script>
 </body>

@@ -118,16 +118,14 @@ class VRSystem {
     }
 
     _addButton() {
-        const bar = document.getElementById('save-load-bar');
-        if (!bar) return;
+        if (document.getElementById('btn-vr')) return;
         const b = document.createElement('button');
-        b.className = 'save-btn';
+        b.className = 'save-btn vr-launch-btn';
         b.id = 'btn-vr';
         b.title = 'Enter VR (Quest 3S)';
         b.textContent = 'Enter VR';
-        b.style.cssText = 'background:#006600;border-color:#00AA00;';
         b.addEventListener('click', () => this.enterVR());
-        bar.appendChild(b);
+        document.body.appendChild(b);
     }
 
     // ===========================================================
@@ -443,7 +441,7 @@ class VRSystem {
             const btn = document.getElementById('btn-vr');
             if (btn) {
                 btn.textContent = 'Exit VR';
-                btn.style.cssText = 'background:#660000;border-color:#AA0000;';
+                btn.classList.add('active');
                 btn.onclick = () => this.exitVR();
             }
         } catch (e) {
@@ -476,7 +474,7 @@ class VRSystem {
         const btn = document.getElementById('btn-vr');
         if (btn) {
             btn.textContent = 'Enter VR';
-            btn.style.cssText = 'background:#006600;border-color:#00AA00;';
+            btn.classList.remove('active');
             btn.onclick = () => this.enterVR();
         }
     }

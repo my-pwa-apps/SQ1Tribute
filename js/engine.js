@@ -3,6 +3,16 @@
 // Reusable core for classic parser / point-and-click tribute games
 // ============================================================
 
+// Shared colour vocabulary (js/palette.js). Falls back to inline
+// values so the engine still renders if the palette fails to load.
+const PAL = (typeof window !== 'undefined' && window.SS_PALETTE) || {
+    OUTLINE: '#000000', EDGE_HIGHLIGHT: '#AAAAAA', PANEL_SEAM: '#555555',
+    WINDOW_PAPER: '#FFFFFF', WINDOW_BORDER: '#AA0000', WINDOW_INK: '#000000',
+    WINDOW_HINT_DIM: '#777777', WINDOW_BLUE: '#0000AA',
+    TEXT_PRIMARY: '#FFFFFF', TEXT_ACCENT: '#FFFF55', TEXT_POSITIVE: '#55FF55',
+    TEXT_NEGATIVE: '#FF8855', TEXT_MUTED: '#AAAAAA'
+};
+
 class GameEngine {
     constructor(gameDefinition = {}) {
         this.game = this.createGameDefinition(gameDefinition);
@@ -22,7 +32,12 @@ class GameEngine {
             btnSave: document.getElementById('btn-save'),
             btnLoad: document.getElementById('btn-load'),
             btnHint: document.getElementById('btn-hint'),
-            btnMute: document.getElementById('btn-mute')
+            btnMute: document.getElementById('btn-mute'),
+            touchParser: document.getElementById('touch-parser'),
+            touchParserInput: document.getElementById('touch-parser-input'),
+            btnEnhanced: document.getElementById('btn-enhanced'),
+            accessibility: document.getElementById('canvas-accessibility'),
+            dialogAccessibilityOptions: document.getElementById('dialog-accessibility-options')
         };
         this.actionButtons = Array.from(document.querySelectorAll('.action-btn'));
 
@@ -84,6 +99,7 @@ class GameEngine {
 
         // Room transition fade
         this.roomTransition = 0;
+        this.roomTransitionStyle = 'fade'; // 'fade' | 'iris' | 'wipe'
         this.exitCooldown = 0;
 
         // Reusable drawables array for Y-sorted rendering (avoid per-frame allocation)
@@ -94,9 +110,18 @@ class GameEngine {
         this.scanlineCanvas.width = this.WIDTH;
         this.scanlineCanvas.height = this.HEIGHT;
         const slCtx = this.scanlineCanvas.getContext('2d');
-        slCtx.fillStyle = 'rgba(0,0,0,0.12)';
+        // Horizontal scanlines
+        slCtx.fillStyle = 'rgba(0,0,0,0.16)';
         for (let y = 0; y < this.HEIGHT; y += 2) {
             slCtx.fillRect(0, y, this.WIDTH, 1);
+        }
+        // Faint aperture-grille RGB triads — gives the phosphor character that makes
+        // CRT mode visibly distinct from clean mode even in a static frame, while
+        // staying subtle enough to keep puzzle-critical pixels legible.
+        for (let x = 0; x < this.WIDTH; x += 3) {
+            slCtx.fillStyle = 'rgba(255,40,40,0.05)'; slCtx.fillRect(x, 0, 1, this.HEIGHT);
+            slCtx.fillStyle = 'rgba(40,255,40,0.05)'; slCtx.fillRect(x + 1, 0, 1, this.HEIGHT);
+            slCtx.fillStyle = 'rgba(60,60,255,0.05)'; slCtx.fillRect(x + 2, 0, 1, this.HEIGHT);
         }
 
         // CRT vignette overlay (pre-rendered for performance)
@@ -112,9 +137,20 @@ class GameEngine {
         vig.addColorStop(1, 'rgba(0,0,0,0.3)');
         vigCtx.fillStyle = vig;
         vigCtx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
+        // Soft glass glare in the upper-left — a gentle screen reflection highlight.
+        const glare = vigCtx.createLinearGradient(0, 0, this.WIDTH * 0.55, this.HEIGHT * 0.55);
+        glare.addColorStop(0, 'rgba(180,200,255,0.05)');
+        glare.addColorStop(0.35, 'rgba(180,200,255,0)');
+        vigCtx.fillStyle = glare;
+        vigCtx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
         this.crtEffects = true;
 
         this.sound = this.game.sound || (this.game.soundFactory ? this.game.soundFactory() : new SoundEngine());
+        this.sound.onStateChange = () => this.updateSoundUI();
+        // Caption significant sounds the player cannot hear, so muted and
+        // hearing-impaired players still receive the audio-only feedback.
+        this.sound.onInaudibleCue = (label) => this.showSoundCaption(label);
+        this.soundCaption = null; // { text, until }
 
         // Screen shake (intensity decays over time)
         this.screenShake = 0;
@@ -148,6 +184,11 @@ class GameEngine {
 
         // Sierra-style text window (drawn on canvas, AGI PRINT/TEXTWIN)
         this.textWindow = null; // { text, x, y, w, h, timer, duration }
+
+        // Typewriter reveal for text windows (AGI's character-at-a-time PRINT).
+        // Disabled for reduced-motion users and deterministic capture runs.
+        this.textRevealSpeed = 55; // characters per second
+        this.textRevealEnabled = !this._prefersReducedMotion() && !this._isDeterministicCapture();
 
         // === AGS-INSPIRED SYSTEMS ===
 
@@ -268,7 +309,30 @@ class GameEngine {
 
         document.addEventListener('keydown', (e) => {
             this.keysDown[e.key] = true;
-            this.sound.init();
+            this.sound.init().finally(() => this.updateSoundUI());
+
+            // Focus trapping inside modal
+            if (this.dom.saveModal.classList.contains('open')) {
+                if (e.key === 'Tab') {
+                    const focusables = Array.from(this.dom.saveModal.querySelectorAll('button, [tabindex]:not([tabindex="-1"])'));
+                    if (focusables.length > 0) {
+                        const first = focusables[0];
+                        const last = focusables[focusables.length - 1];
+                        if (e.shiftKey) {
+                            if (document.activeElement === first) {
+                                e.preventDefault();
+                                last.focus();
+                            }
+                        } else {
+                            if (document.activeElement === last) {
+                                e.preventDefault();
+                                first.focus();
+                            }
+                        }
+                    }
+                }
+            }
+
             if (e.key === 'F10') {
                 e.preventDefault();
                 this.toggleInterfaceMode();
@@ -342,7 +406,6 @@ class GameEngine {
             }
             if (e.key === 'F5') { e.preventDefault(); this.openSaveModal('save'); }
             if (e.key === 'F7') { e.preventDefault(); this.openSaveModal('load'); }
-            if (e.key === 'F9') { e.preventDefault(); this.toggleCrtEffects(); }
             if (e.key === 'Escape') this.closeSaveModal();
             if (this.dom.saveModal.classList.contains('open')) return;
             if (e.key === 'l') this.setAction('look');
@@ -352,8 +415,8 @@ class GameEngine {
             if (e.key === 'w') this.setAction('walk');
             if (e.key === 'm' || e.key === 'M') {
                 if (!this.dead && !this.won && !this.titleScreen) {
-                    const muted = this.sound.toggleMute();
-                    if (this.dom.btnMute) this.dom.btnMute.textContent = muted ? 'Sound: OFF' : 'Sound: ON';
+                    this.sound.toggleMute();
+                    this.updateSoundUI();
                 }
             }
         });
@@ -367,20 +430,36 @@ class GameEngine {
             this.keysDown = {};
         });
 
-        this.dom.btnSave.addEventListener('click', () => this.openSaveModal('save'));
-        this.dom.btnLoad.addEventListener('click', () => this.openSaveModal('load'));
+        if (this.dom.btnSave) this.dom.btnSave.addEventListener('click', () => this.openSaveModal('save'));
+        if (this.dom.btnLoad) this.dom.btnLoad.addEventListener('click', () => this.openSaveModal('load'));
         if (this.dom.btnHint) this.dom.btnHint.addEventListener('click', () => this.showHint());
         if (this.dom.btnMute) {
             this.dom.btnMute.addEventListener('click', () => {
-                this.sound.init();
-                const muted = this.sound.toggleMute();
-                this.dom.btnMute.textContent = muted ? 'Sound: OFF' : 'Sound: ON';
+                this.sound.init().finally(() => this.updateSoundUI());
+                this.sound.toggleMute();
+                this.updateSoundUI();
             });
         }
         this.dom.saveModalClose.addEventListener('click', () => this.closeSaveModal());
         this.dom.saveModal.addEventListener('click', (e) => {
             if (e.target === this.dom.saveModal) this.closeSaveModal();
         });
+        if (this.dom.touchParser) {
+            this.dom.touchParser.addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (this.titleScreen || this.dead || this.won) return;
+                const command = this.dom.touchParserInput.value.trim();
+                if (!command) return;
+                this.lastCommand = command;
+                this.commandLine = '';
+                this.dom.touchParserInput.value = '';
+                this.executeParserCommand(command);
+                this.dom.touchParserInput.focus();
+            });
+        }
+        if (this.dom.btnEnhanced) {
+            this.dom.btnEnhanced.addEventListener('click', () => this.setInterfaceMode('enhanced', true));
+        }
 
         // Touch support for canvas
         this.canvas.addEventListener('touchstart', (e) => {
@@ -487,18 +566,44 @@ class GameEngine {
             : 'Enhanced point-and-click interface selected.');
     }
 
-    loadInterfacePreference() {
+    safeStorageGet(key) {
         try {
-            return localStorage.getItem(`${this.game.storagePrefix}_interface_mode`) || 'classic';
+            return typeof localStorage !== 'undefined' && localStorage ? localStorage.getItem(key) : null;
         } catch {
-            return 'classic';
+            return null;
         }
+    }
+
+    safeStorageSet(key, val) {
+        try {
+            if (typeof localStorage !== 'undefined' && localStorage) {
+                localStorage.setItem(key, val);
+                return true;
+            }
+        } catch {}
+        return false;
+    }
+
+    safeStorageRemove(key) {
+        try {
+            if (typeof localStorage !== 'undefined' && localStorage) {
+                localStorage.removeItem(key);
+                return true;
+            }
+        } catch {}
+        return false;
+    }
+
+    loadInterfacePreference() {
+        const saved = this.safeStorageGet(`${this.game.storagePrefix}_interface_mode`);
+        if (saved) return saved;
+        return window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 'enhanced' : 'classic';
     }
 
     setInterfaceMode(mode, persist) {
         this.classicMode = mode !== 'enhanced';
         if (persist) {
-            try { localStorage.setItem(`${this.game.storagePrefix}_interface_mode`, this.classicMode ? 'classic' : 'enhanced'); } catch { /* storage unavailable */ }
+            this.safeStorageSet(`${this.game.storagePrefix}_interface_mode`, this.classicMode ? 'classic' : 'enhanced');
         }
         this.applyInterfaceMode();
     }
@@ -506,11 +611,47 @@ class GameEngine {
     applyInterfaceMode() {
         document.body.classList.toggle('classic-mode', this.classicMode);
         document.body.classList.toggle('enhanced-mode', !this.classicMode);
+        document.body.classList.toggle('title-screen', this.titleScreen);
     }
 
     toggleCrtEffects() {
         this.crtEffects = !this.crtEffects;
         this.showMessage(this.crtEffects ? 'CRT display effects enabled.' : 'Clean pixel display enabled. Nostalgia has been temporarily degaussed.');
+    }
+
+    updateSoundUI() {
+        if (!this.dom.btnMute) return;
+        const status = this.sound.getStatus ? this.sound.getStatus() : (this.sound.muted ? 'off' : 'on');
+        this.dom.btnMute.textContent = `Sound: ${status.toUpperCase()}`;
+        this.dom.btnMute.title = status === 'blocked'
+            ? 'Sound is unavailable in this browser'
+            : status === 'paused'
+                ? 'Sound is paused; activate the page to resume'
+                : 'Toggle Sound (M)';
+    }
+
+    createDitherPattern(color1, color2) {
+        if (!this._ditherCache) this._ditherCache = {};
+        const key = `${color1}_${color2}`;
+        if (this._ditherCache[key]) return this._ditherCache[key];
+
+        const pCanvas = document.createElement('canvas');
+        pCanvas.width = 2;
+        pCanvas.height = 2;
+        const pCtx = pCanvas.getContext('2d');
+        pCtx.fillStyle = color1;
+        pCtx.fillRect(0, 0, 2, 2);
+        pCtx.fillStyle = color2;
+        pCtx.fillRect(1, 0, 1, 1);
+        pCtx.fillRect(0, 1, 1, 1);
+
+        try {
+            const pat = this.ctx.createPattern(pCanvas, 'repeat');
+            this._ditherCache[key] = pat;
+            return pat;
+        } catch {
+            return color1;
+        }
     }
 
     setAction(action) {
@@ -530,6 +671,7 @@ class GameEngine {
     startNewGame() {
         this.titleScreen = false;
         this.setInterfaceMode(this.classicMode ? 'classic' : 'enhanced', true);
+        this.announce('Opening sequence started. Press Space or tap the game to advance narration.');
         this.sound.gameStart();
         const startHook = this.onGameStart || this.game.onStart;
         if (startHook) {
@@ -545,6 +687,8 @@ class GameEngine {
         const room = this.rooms[roomId];
         if (!room) { console.error('Room not found:', roomId); return; }
         this.roomTransition = 1.0; // Start fade-in
+        // Rooms may pick a Sierra transition: 'fade' (default), 'iris' or 'wipe'.
+        this.roomTransitionStyle = room.transition || 'fade';
         this.exitCooldown = 500; // Prevent immediate re-exit when spawning near an exit
         this.sound.roomTransition();
         this.sound.stopAmbient(); // Stop ambient from previous room
@@ -599,7 +743,7 @@ class GameEngine {
         const item = this.items[itemId];
         if (!item) return;
         if (this.currentAction === 'look') {
-            this.showMessage(item.description);
+            this.showItemCloseUp(item);
         } else if (this.currentAction === 'use') {
             this.selectedItem = (this.selectedItem === itemId) ? null : itemId;
             if (this.selectedItem) this.showMessage(`Using ${item.name}. Click on something to use it with.`);
@@ -610,6 +754,11 @@ class GameEngine {
             this.showMessage(`Selected ${item.name}. Click somewhere to use it.`);
             this.updateInventoryUI();
         }
+    }
+
+    showItemCloseUp(item) {
+        this.itemCloseUp = item;
+        this.showMessage(item.description);
     }
 
     // ---- Score & Flags ----
@@ -643,13 +792,40 @@ class GameEngine {
     }
 
     // ---- Messages ----
+    announce(text) {
+        if (!this.dom.accessibility || !text) return;
+        this.dom.accessibility.textContent = text;
+    }
+
+    clearAccessibleDialogOptions() {
+        if (this.dom.dialogAccessibilityOptions) {
+            this.dom.dialogAccessibilityOptions.textContent = '';
+        }
+    }
+
+    renderAccessibleDialogOptions(lines) {
+        const container = this.dom.dialogAccessibilityOptions;
+        if (!container) return;
+        container.textContent = '';
+        lines.forEach((line, index) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = line.text;
+            button.addEventListener('click', () => this.selectDialogOption(index));
+            container.appendChild(button);
+        });
+        this.announce('Conversation choices available. Use the numbered options or navigate to the conversation choices region.');
+    }
+
     showMessage(text) {
         const displayText = this.classicMode ? this.sierraTrim(text) : text;
         this.message = displayText;
         const el = this.dom.messageText;
         el.textContent = displayText;
+        this.announce(displayText);
         el.parentElement.scrollTop = el.parentElement.scrollHeight;
-        if (this.classicMode && !this.titleScreen && !this.cutscene && !this.dead && !this.won) {
+        if ((this.classicMode || this._showActionWindow) &&
+            !this.titleScreen && !this.cutscene && !this.dead && !this.won) {
             this.showTextWindow(displayText, { color: '#FFFFFF', duration: 0, maxWidth: 440 });
         }
     }
@@ -732,6 +908,7 @@ class GameEngine {
         this.selectedItem = null;
         this.cutscene = null;
         this.roomTransition = 0;
+        this.roomTransitionStyle = 'fade';
         this.screenShake = 0;
         this.playerVisible = true;
         this.playerFacing = 'toward';
@@ -767,7 +944,11 @@ class GameEngine {
                 this.playerWalking = true;
                 this.pendingAction = null;
             } else if (hotspot) {
-                this.showMessage(hotspot.description || 'You see nothing noteworthy.');
+                // Clicking an object above the floor while walking gives its look response.
+                const previousAction = this.currentAction;
+                this.currentAction = 'look';
+                this.performAction(hotspot);
+                this.currentAction = previousAction;
             }
         } else {
             if (hotspot) {
@@ -791,27 +972,61 @@ class GameEngine {
 
     performAction(hotspot) {
         const action = this.currentAction;
-        if (action === 'use' && this.selectedItem) {
-            if (hotspot.useItem) {
-                hotspot.useItem(this, this.selectedItem);
-            } else {
-                this.sound.error();
-                this.showMessage("That doesn't seem to work.");
+        this._showActionWindow = true;
+        try {
+            if (action === 'use' && this.selectedItem) {
+                if (hotspot.useItem) {
+                    hotspot.useItem(this, this.selectedItem);
+                } else {
+                    const itemObj = this.items[this.selectedItem];
+                    const itemName = itemObj ? itemObj.name : 'that';
+                    const hsName = hotspot.name || 'that';
+                    const useItemSnarks = [
+                        `You attempt to combine ${itemName} with ${hsName}. Physics offers a stern, polite refusal.`,
+                        `Applying ${itemName} to ${hsName} produces no measurable scientific or janitorial progress.`,
+                        `You wave ${itemName} near ${hsName}. It looks unimpressed.`,
+                        `That doesn't seem to do anything except waste valuable escaping time.`
+                    ];
+                    const hash = (this.selectedItem + hsName).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+                    this.sound.error();
+                    this.showMessage(useItemSnarks[hash % useItemSnarks.length]);
+                }
+                return;
             }
-            return;
-        }
-        const handler = hotspot[action];
-        if (handler) {
-            handler(this);
-        } else {
-            const fallback = {
-                look: hotspot.description || "Nothing special about that.",
-                get: "You can't take that.",
-                use: "You can't use that right now.",
-                talk: "It doesn't seem very talkative."
-            };
-            this.sound.error();
-            this.showMessage(fallback[action] || "Nothing happens.");
+            const handler = hotspot[action];
+            if (handler) {
+                handler(this);
+            } else {
+                const hsName = hotspot.name || 'that';
+                const hash = (hsName + action).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+                const snarks = {
+                    look: [
+                        hotspot.description || "You inspect it carefully. It's magnificent in its sheer lack of significance.",
+                        hotspot.description || "You stare intently at it. It gazes back with inanimate indifference.",
+                        hotspot.description || "Yep, that's definitely what it appears to be. Further analysis yields nothing."
+                    ],
+                    get: [
+                        `Your janitor hands reach out for ${hsName}, but universe physics (and common sense) intervene.`,
+                        `You attempt to stuff ${hsName} into your pockets. Reality politely declines.`,
+                        `Taking ${hsName} seems like a fine idea until you realize it's securely attached to the universe.`
+                    ],
+                    use: [
+                        `You fiddle with ${hsName} briefly. Science remains entirely unbothered.`,
+                        `You apply your finest janitorial technique to ${hsName}. Nothing happens, but you look remarkably focused.`,
+                        `You push, pull, and poke at ${hsName}. It resolutely resists your enthusiasm.`
+                    ],
+                    talk: [
+                        `You offer a warm greeting to ${hsName}. It maintains a dignified, stony silence.`,
+                        `You strike up a friendly conversation with ${hsName}. It's a decidedly one-sided affair.`,
+                        `You whisper sweet nothings to ${hsName}. Nothing happens, but you feel slightly foolish.`
+                    ]
+                };
+                const list = snarks[action] || ["Nothing happens."];
+                this.sound.error();
+                this.showMessage(list[hash % list.length]);
+            }
+        } finally {
+            this._showActionWindow = false;
         }
     }
 
@@ -895,7 +1110,16 @@ class GameEngine {
                 return;
             }
             if (hotspot.useItem) hotspot.useItem(this, item.id);
-            else this.showMessage("That doesn't seem to do anything.");
+            else {
+                const useItemSnarks = [
+                    `You attempt to combine ${item.name} with ${hotspot.name}. Physics offers a stern, polite refusal.`,
+                    `Applying ${item.name} to ${hotspot.name} produces no measurable scientific or janitorial progress.`,
+                    `You wave ${item.name} near ${hotspot.name}. It looks unimpressed.`,
+                    `That doesn't seem to do anything except waste valuable escaping time.`
+                ];
+                const hash = (item.id + (hotspot.name || '')).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+                this.showMessage(useItemSnarks[hash % useItemSnarks.length]);
+            }
             return;
         }
 
@@ -924,7 +1148,7 @@ class GameEngine {
 
         const item = this.findParserItem(parsed.object);
         if (item && parsed.verb === 'look') {
-            this.showMessage(item.description);
+            this.showItemCloseUp(item);
             return;
         }
 
@@ -959,13 +1183,27 @@ class GameEngine {
             .trim();
     }
 
+    /** Fold common English plurals so "shelf" matches "shelves", "boxes" matches "box", etc. */
+    stemParserWord(word) {
+        if (!word || word.length < 4) return word;
+        // -ves -> -f (shelves -> shelf, knives -> knife, leaves -> leaf)
+        if (word.endsWith('ves')) return word.slice(0, -3) + 'f';
+        // -ies -> -y (bodies -> body)
+        if (word.endsWith('ies')) return word.slice(0, -3) + 'y';
+        // -xes/-ses/-ches/-shes -> drop -es (boxes -> box, dishes -> dish)
+        if (word.endsWith('xes') || word.endsWith('ses') || word.endsWith('ches') || word.endsWith('shes')) return word.slice(0, -2);
+        // -s -> drop (shelves stays handled above; cards -> card)
+        if (word.endsWith('s') && !word.endsWith('ss') && !word.endsWith('us')) return word.slice(0, -1);
+        return word;
+    }
+
     parseVerbPhrase(command) {
         const verbAliases = {
-            examine: 'look', inspect: 'look', read: 'look', search: 'look', smell: 'look', listen: 'look',
-            take: 'get', grab: 'get', pick: 'get', pickup: 'get', steal: 'get',
-            talk: 'talk', speak: 'talk', ask: 'talk',
-            use: 'use', open: 'use', unlock: 'use', pry: 'use', cut: 'use', push: 'use', press: 'use', touch: 'use', drink: 'use', eat: 'use', shoot: 'use', fire: 'use',
-            go: 'walk', walk: 'walk', enter: 'walk'
+            look: 'look', examine: 'look', inspect: 'look', read: 'look', search: 'look', smell: 'look', listen: 'look', check: 'look',
+            get: 'get', take: 'get', grab: 'get', pick: 'get', pickup: 'get', steal: 'get', acquire: 'get', collect: 'get',
+            talk: 'talk', speak: 'talk', ask: 'talk', chat: 'talk', converse: 'talk',
+            use: 'use', open: 'use', unlock: 'use', pry: 'use', cut: 'use', push: 'use', press: 'use', touch: 'use', drink: 'use', eat: 'use', shoot: 'use', fire: 'use', activate: 'use', apply: 'use',
+            go: 'walk', walk: 'walk', enter: 'walk', run: 'walk'
         };
         const words = command.split(' ');
         let verb = verbAliases[words[0]];
@@ -1021,13 +1259,78 @@ class GameEngine {
         if (!target) return 0;
         if (name === target) return 100;
         if (name.includes(target) || target.includes(name)) return 80;
+        // Match compact (no-space) typings like "jetpack" → "jet pack",
+        // "forcefield" → "force field".
+        const compactName = name.replace(/\s+/g, '');
+        const compactTarget = target.replace(/\s+/g, '');
+        if (compactName && compactTarget && (compactName === compactTarget ||
+            compactName.includes(compactTarget) || compactTarget.includes(compactName))) {
+            return 75;
+        }
         const targetWords = target.split(' ').filter(Boolean);
         const haystack = `${name} ${description || ''}`;
+        const haystackWords = haystack.split(/\s+/).filter(Boolean);
+        const stemmedHaystack = haystackWords.map(w => this.stemParserWord(w));
         let hits = 0;
         for (const word of targetWords) {
-            if (word.length > 1 && haystack.includes(word)) hits++;
+            if (word.length <= 1) continue;
+            if (haystack.includes(word)) { hits++; continue; }
+            const stem = this.stemParserWord(word);
+            if (stem !== word && (haystack.includes(stem) || stemmedHaystack.includes(stem))) { hits++; continue; }
+            if (stemmedHaystack.includes(word)) { hits++; continue; }
+            // Synonyms (e.g., "gun" → "pulsar ray", "ship" → "freighter")
+            const syns = this.parserSynonyms(word);
+            let synHit = false;
+            for (const syn of syns) {
+                if (haystack.includes(syn)) { synHit = true; break; }
+            }
+            if (synHit) { hits++; continue; }
         }
         return hits === targetWords.length ? 50 + hits : 0;
+    }
+
+    /** Map common player synonyms to words that may appear in hotspot names/descriptions. */
+    parserSynonyms(word) {
+        const map = {
+            gun: ['pulsar', 'ray', 'weapon', 'sidearm', 'blaster'],
+            weapon: ['pulsar', 'ray', 'mop', 'cutter', 'plasma', 'sidearm'],
+            blaster: ['pulsar', 'ray', 'weapon'],
+            ship: ['pod', 'freighter', 'star', 'flagship', 'shuttle', 'vessel'],
+            shuttle: ['pod'],
+            spaceship: ['ship', 'pod', 'freighter', 'flagship'],
+            money: ['credits', 'buckazoid', 'buckazoids'],
+            currency: ['credits', 'buckazoid'],
+            cash: ['credits', 'buckazoid'],
+            chip: ['cartridge', 'card'],
+            keycard: ['card', 'keycard'],
+            card: ['keycard', 'badge'],
+            book: ['manifest', 'cartridge'],
+            barrier: ['field', 'force'],
+            shield: ['field', 'force', 'belt'],
+            light: ['alarm', 'lamp'],
+            lamp: ['light'],
+            food: ['nutrient', 'kit'],
+            booze: ['ale', 'drink'],
+            beer: ['ale', 'drink'],
+            alcohol: ['ale', 'drink'],
+            mushroom: ['mushrooms'],
+            crystals: ['crystal'],
+            sun: ['suns'],
+            moon: ['suns'],
+            painting: ['paintings'],
+            window: ['view', 'glass'],
+            tool: ['cutter', 'wrench', 'mop'],
+            person: ['crew', 'chen', 'bartender', 'barman', 'merchant', 'pilot', 'guard'],
+            man: ['crew', 'chen', 'bartender', 'barman', 'merchant', 'pilot', 'guard'],
+            bartender: ['bartender', 'barman', 'grix'],
+            barman: ['bartender', 'barman', 'grix'],
+            alien: ['blorp', 'skritch', 'crystar', 'pipz', 'pilot', 'zorthak'],
+            pilot: ['zorthak', 'pilot'],
+            crew: ['chen', 'crew'],
+            corpse: ['chen', 'crew', 'body'],
+            body: ['chen', 'crew', 'corpse']
+        };
+        return map[word] || [];
     }
 
     describeInventory() {
@@ -1131,10 +1434,11 @@ class GameEngine {
 
         const lineH = 16;
         const pad = 12;
+        const hintH = 20;
         const boxW = maxLineW + pad * 2 + 16;
-        const boxH = lines.length * lineH + pad * 2 + 4;
+        const boxH = lines.length * lineH + pad * 2 + hintH;
         const boxX = opts.x !== undefined ? opts.x : Math.round((this.WIDTH - boxW) / 2);
-        const boxY = opts.y !== undefined ? opts.y : Math.round((this.HEIGHT - boxH) / 2 - 40);
+        const boxY = opts.y !== undefined ? opts.y : Math.round((this.HEIGHT - boxH) / 2);
 
         this.textWindow = {
             text: text,
@@ -1142,9 +1446,44 @@ class GameEngine {
             x: boxX, y: boxY, w: boxW, h: boxH,
             timer: 0,
             duration: opts.duration || 0, // 0 = click to dismiss
-            color: opts.color || '#FFFF55',
-            bgColor: opts.bgColor || '#0000AA'
+            color: opts.color || PAL.TEXT_ACCENT,
+            bgColor: opts.bgColor || PAL.WINDOW_BLUE,
+            // Typewriter state: number of characters currently revealed.
+            reveal: this.textRevealEnabled ? 0 : Infinity,
+            revealTotal: lines.reduce((n, l) => n + l.length, 0)
         };
+        this.announce(text);
+    }
+
+    /** True when the platform reports a reduced-motion accessibility preference. */
+    _prefersReducedMotion() {
+        try {
+            return typeof window !== 'undefined' &&
+                typeof window.matchMedia === 'function' &&
+                window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /** True in the deterministic screenshot-capture run, where animation is frozen. */
+    _isDeterministicCapture() {
+        try {
+            return new URLSearchParams(window.location.search).has('visual-test');
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /** True once every character of the active text window has been drawn. */
+    isTextFullyRevealed() {
+        const tw = this.textWindow;
+        return !tw || tw.reveal >= tw.revealTotal;
+    }
+
+    /** Snap the typewriter to the end of the current text window. */
+    completeTextReveal() {
+        if (this.textWindow) this.textWindow.reveal = Infinity;
     }
 
     /** Draw the Sierra-style text window (called during render). */
@@ -1152,34 +1491,189 @@ class GameEngine {
         if (!this.textWindow) return;
         const tw = this.textWindow;
 
-        // AGI-style box: solid EGA blue background, double border
-        ctx.fillStyle = tw.bgColor;
+        // AGI-style print window: white paper, black edge, red inset border.
+        ctx.fillStyle = PAL.OUTLINE;
         ctx.fillRect(tw.x, tw.y, tw.w, tw.h);
-
-        // Outer border (white)
-        ctx.strokeStyle = '#FFFFFF';
+        ctx.fillStyle = PAL.WINDOW_PAPER;
+        ctx.fillRect(tw.x + 2, tw.y + 2, tw.w - 4, tw.h - 4);
+        ctx.strokeStyle = PAL.WINDOW_BORDER;
         ctx.lineWidth = 2;
+        ctx.strokeRect(tw.x + 7, tw.y + 7, tw.w - 14, tw.h - 14);
+        ctx.strokeStyle = PAL.OUTLINE;
+        ctx.lineWidth = 1;
         ctx.strokeRect(tw.x + 1, tw.y + 1, tw.w - 2, tw.h - 2);
 
-        // Inner border (lighter blue)
-        ctx.strokeStyle = '#5555FF';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(tw.x + 4, tw.y + 4, tw.w - 8, tw.h - 8);
-
-        // Text
-        ctx.font = '13px "Courier New"';
-        ctx.fillStyle = tw.color;
+        // Text (revealed a character at a time, AGI-style)
+        ctx.font = 'bold 13px "Courier New"';
+        ctx.fillStyle = PAL.WINDOW_INK;
         ctx.textAlign = 'left';
-        const startY = tw.y + 12 + 10;
+        const startY = tw.y + 14 + 10;
+        let budget = tw.reveal;
         for (let i = 0; i < tw.lines.length; i++) {
-            ctx.fillText(tw.lines[i], tw.x + 16, startY + i * 16);
+            const line = tw.lines[i];
+            if (budget <= 0) break;
+            const shown = budget >= line.length ? line : line.slice(0, Math.floor(budget));
+            ctx.fillText(shown, tw.x + 18, startY + i * 16);
+            budget -= line.length;
+        }
+
+        // Dismiss hint (only when there's no auto-dismiss timer and text has finished)
+        if (!tw.duration && this.isTextFullyRevealed()) {
+            const blink = Math.floor(this.animTimer / 500) % 2;
+            ctx.font = 'bold 11px "Courier New"';
+            ctx.fillStyle = blink ? PAL.WINDOW_INK : PAL.WINDOW_HINT_DIM;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('[ Click or press SPACE to continue ]', tw.x + tw.w / 2, tw.y + tw.h - 11);
+            ctx.textBaseline = 'alphabetic';
         }
 
         ctx.textAlign = 'left';
     }
 
+    drawItemCloseUpWindow(ctx) {
+        if (!this.itemCloseUp || !this.textWindow) return;
+        const tw = this.textWindow;
+        const item = this.itemCloseUp;
+        // Position a 64x64 item inspection box at the top right of the text window
+        const boxSize = 56;
+        const bx = tw.x + tw.w - boxSize - 16;
+        const by = tw.y + 14;
+
+        ctx.fillStyle = '#000044';
+        ctx.fillRect(bx, by, boxSize, boxSize);
+        ctx.strokeStyle = '#0000AA';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx, by, boxSize, boxSize);
+        ctx.strokeStyle = '#5555FF';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx + 2, by + 2, boxSize - 4, boxSize - 4);
+
+        // Render pixel art item representation based on item.id
+        ctx.save();
+        const cx = bx + boxSize / 2;
+        const cy = by + boxSize / 2;
+        const t = this.animTimer;
+
+        if (item.id === 'keycard') {
+            ctx.fillStyle = '#00AA00';
+            ctx.fillRect(cx - 16, cy - 12, 32, 24);
+            ctx.fillStyle = '#00FF00';
+            ctx.fillRect(cx - 14, cy - 10, 28, 6);
+            ctx.fillStyle = '#003300';
+            ctx.fillRect(cx - 12, cy - 1, 24, 8);
+            ctx.fillStyle = '#FFFF55';
+            ctx.fillRect(cx + 8, cy + 2, 4, 3);
+        } else if (item.id === 'cartridge') {
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(cx - 14, cy - 18, 28, 36);
+            ctx.fillStyle = '#555555';
+            ctx.fillRect(cx - 12, cy - 16, 24, 10);
+            ctx.fillStyle = '#AA0000';
+            ctx.fillRect(cx - 10, cy - 2, 20, 16);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '8px "Courier New"';
+            ctx.fillText('v3.1', cx - 8, cy + 8);
+        } else if (item.id === 'survival_kit') {
+            ctx.fillStyle = '#AA5500';
+            ctx.fillRect(cx - 18, cy - 14, 36, 28);
+            ctx.fillStyle = '#FFAA00';
+            ctx.fillRect(cx - 18, cy - 14, 36, 6);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(cx - 4, cy - 4, 8, 16);
+            ctx.fillRect(cx - 10, cy + 0, 20, 8);
+        } else if (item.id === 'crystal') {
+            const glow = 0.5 + Math.sin(t / 200) * 0.3;
+            ctx.fillStyle = `rgba(0,255,255,${glow})`;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - 20);
+            ctx.lineTo(cx + 14, cy - 4);
+            ctx.lineTo(cx + 10, cy + 18);
+            ctx.lineTo(cx - 10, cy + 18);
+            ctx.lineTo(cx - 14, cy - 4);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.stroke();
+        } else if (item.id === 'credits') {
+            ctx.fillStyle = '#FFFF55';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#AAAA00';
+            ctx.beginPath();
+            ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 16px "Courier New"';
+            ctx.textAlign = 'center';
+            ctx.fillText('B', cx, cy + 5);
+            ctx.textAlign = 'left';
+        } else if (item.id === 'pulsar_ray') {
+            ctx.fillStyle = '#555555';
+            ctx.fillRect(cx - 16, cy - 4, 28, 8);
+            ctx.fillRect(cx - 8, cy + 4, 8, 14);
+            ctx.fillStyle = '#FF5555';
+            ctx.fillRect(cx + 8, cy - 6, 6, 12);
+            ctx.fillStyle = '#FFFF55';
+            ctx.fillRect(cx + 12, cy - 2, 4, 4);
+        } else if (item.id === 'drink') {
+            ctx.fillStyle = 'rgba(255,255,255,0.4)';
+            ctx.fillRect(cx - 10, cy - 16, 20, 32);
+            ctx.fillStyle = '#55FF55';
+            ctx.fillRect(cx - 8, cy - 8, 16, 22);
+            ctx.fillStyle = '#AAFFAA';
+            ctx.fillRect(cx - 6, cy - 6, 12, 4);
+        } else if (item.id === 'nav_chip') {
+            ctx.fillStyle = '#0000AA';
+            ctx.fillRect(cx - 14, cy - 14, 28, 28);
+            ctx.fillStyle = '#5555FF';
+            ctx.fillRect(cx - 10, cy - 10, 20, 20);
+            ctx.fillStyle = '#FFFF55';
+            ctx.fillRect(cx - 4, cy - 4, 8, 8);
+        } else if (item.id === 'mop_handle') {
+            ctx.fillStyle = '#AAAAAA';
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(-Math.PI / 4);
+            ctx.fillRect(-22, -3, 44, 6);
+            ctx.fillStyle = '#DDDDDD';
+            ctx.fillRect(-22, -3, 44, 2);
+            ctx.restore();
+        } else if (item.id === 'plasma_cutter') {
+            ctx.fillStyle = '#AA0000';
+            ctx.fillRect(cx - 14, cy - 8, 28, 16);
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(cx - 6, cy + 8, 8, 10);
+            const spark = Math.floor(t / 100) % 2;
+            ctx.fillStyle = spark ? '#55FFFF' : '#FFFFFF';
+            ctx.fillRect(cx + 14, cy - 2, 8, 4);
+        } else if (item.id === 'medkit') {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(cx - 18, cy - 14, 36, 28);
+            ctx.fillStyle = '#FF5555';
+            ctx.fillRect(cx - 4, cy - 10, 8, 20);
+            ctx.fillRect(cx - 12, cy - 2, 24, 8);
+        } else {
+            // Default generic item icon
+            ctx.fillStyle = '#FFFF55';
+            ctx.font = 'bold 24px "Courier New"';
+            ctx.textAlign = 'center';
+            ctx.fillText('?', cx, cy + 8);
+            ctx.textAlign = 'left';
+        }
+        ctx.restore();
+    }
+
     dismissTextWindow() {
+        // First click/keypress snaps the typewriter to the end rather than
+        // dismissing, so fast readers never lose text they haven't seen.
+        if (!this.isTextFullyRevealed()) {
+            this.completeTextReveal();
+            return;
+        }
         this.textWindow = null;
+        this.itemCloseUp = null;
         // AGS-inspired: advance dialog state if in an active dialog
         if (this.activeDialog) {
             this._advanceDialog();
@@ -1218,6 +1712,7 @@ class GameEngine {
         this.clearNPCs();
         this.textWindow = null;
         this.activeDialog = null;
+        this.clearAccessibleDialogOptions();
         this.depthScaling = null;
         // Reset idle animation so it starts fresh in new room
         this.idleTimer = 0;
@@ -1244,7 +1739,8 @@ class GameEngine {
         if (y >= ds.nearY) return ds.nearScale;
         if (ds.nearY === ds.farY) return ds.nearScale;
         const t = (y - ds.farY) / (ds.nearY - ds.farY);
-        return ds.farScale + t * (ds.nearScale - ds.farScale);
+        const scale = ds.farScale + t * (ds.nearScale - ds.farScale);
+        return Math.round(scale * 20) / 20;
     }
 
     // === AGS-INSPIRED: DIALOG TREE SYSTEM (Dialog/DialogTopic) ===
@@ -1339,6 +1835,7 @@ class GameEngine {
         this.activeDialog.phase = 'options';
         this.activeDialog.visibleOptions = lines;
         this.activeDialog.selectedIndex = 0; // keyboard selection
+        this.renderAccessibleDialogOptions(lines);
 
         // We don't use showTextWindow for this — we render a custom options panel
         this.textWindow = null; // clear any existing text window
@@ -1354,6 +1851,7 @@ class GameEngine {
         const topic = dlg.topics.find(t => t.id === this.activeDialog.topicId);
         const optInfo = lines[displayIndex];
         const opt = topic.options[optInfo.optIndex];
+        this.clearAccessibleDialogOptions();
 
         // Mark as chosen (AGS DFLG_HASBEENCHOSEN)
         dlg.chosenOptions[this.activeDialog.topicId + '_' + optInfo.optIndex] = true;
@@ -1486,7 +1984,10 @@ class GameEngine {
 
     // ---- Update Loop ----
     update(dt) {
-        this.animTimer += dt;
+        const visualTestMode = new URLSearchParams(window.location.search).has('visual-test');
+        if (!visualTestMode) {
+            this.animTimer += dt;
+        }
 
         // Cutscene update
         if (this.cutscene) {
@@ -1501,6 +2002,12 @@ class GameEngine {
         }
 
         if (this.dead || this.won || this.titleScreen) return;
+        if (visualTestMode) {
+            // Deterministic capture mode: never let the room-transition fade linger,
+            // otherwise loaded rooms render as a full-black overlay frame.
+            this.roomTransition = 0;
+            return;
+        }
 
         // Decrement exit cooldown unconditionally
         if (this.exitCooldown > 0) this.exitCooldown -= dt;
@@ -1548,10 +2055,10 @@ class GameEngine {
                 this.playerY = newY;
             }
             this.playerFrameTimer += dt;
-            if (this.playerFrameTimer > 140) {
-                this.playerFrame = (this.playerFrame + 1) % 4;
+            if (this.playerFrameTimer > 110) {
+                this.playerFrame = (this.playerFrame + 1) % 6;
                 this.playerFrameTimer = 0;
-                if (this.playerFrame % 2 === 0) this.sound.footstep();
+                if (this.playerFrame === 0 || this.playerFrame === 3) this.sound.footstep();
             }
             // Check if player walked into an exit hotspot at its walk-to position
             const room = this.rooms[this.currentRoomId];
@@ -1625,10 +2132,10 @@ class GameEngine {
                     this.playerTargetY = null;
                 }
                 this.playerFrameTimer += dt;
-                if (this.playerFrameTimer > 140) {
-                    this.playerFrame = (this.playerFrame + 1) % 4;
+                if (this.playerFrameTimer > 110) {
+                    this.playerFrame = (this.playerFrame + 1) % 6;
                     this.playerFrameTimer = 0;
-                    if (this.playerFrame % 2 === 0) this.sound.footstep();
+                    if (this.playerFrame === 0 || this.playerFrame === 3) this.sound.footstep();
                 }
             }
         } else {
@@ -1677,11 +2184,16 @@ class GameEngine {
             npc.update(dt, this);
         }
 
-        // AGI-inspired: dismiss timed text windows
-        if (this.textWindow && this.textWindow.duration > 0) {
-            this.textWindow.timer += dt;
-            if (this.textWindow.timer >= this.textWindow.duration) {
-                this.textWindow = null;
+        // AGI-inspired: advance typewriter reveal, then dismiss timed text windows
+        if (this.textWindow) {
+            if (this.textWindow.reveal < this.textWindow.revealTotal) {
+                this.textWindow.reveal += (dt / 1000) * this.textRevealSpeed;
+            }
+            if (this.textWindow.duration > 0) {
+                this.textWindow.timer += dt;
+                if (this.textWindow.timer >= this.textWindow.duration) {
+                    this.textWindow = null;
+                }
             }
         }
 
@@ -1702,45 +2214,17 @@ class GameEngine {
         ctx.clearRect(0, 0, this.WIDTH, this.HEIGHT);
 
         // Apply screen shake offset
-        if (this.screenShake > 0) {
+        const shaking = this.screenShake > 0;
+        if (shaking) {
             const shakeX = (Math.random() - 0.5) * this.screenShake * 2;
             const shakeY = (Math.random() - 0.5) * this.screenShake * 2;
             ctx.save();
             ctx.translate(shakeX, shakeY);
         }
 
-        // Cutscene rendering
         if (this.cutscene) {
-            const cs = this.cutscene;
-            const progress = Math.min(cs.elapsed / cs.duration, 1);
-            cs.draw(ctx, this.WIDTH, this.HEIGHT, progress, cs.elapsed);
-            // Sierra-style fade in / out at cutscene boundaries (200ms each)
-            const fadeIn = cs.elapsed < 200 ? 1 - cs.elapsed / 200 : 0;
-            const remaining = cs.duration - cs.elapsed;
-            const fadeOut = remaining < 200 ? 1 - remaining / 200 : 0;
-            const fade = Math.max(fadeIn, fadeOut);
-            if (fade > 0) {
-                ctx.fillStyle = `rgba(0,0,0,${fade})`;
-                ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
-            }
-            // In-cutscene score toast (visible while status bar is hidden)
-            if (this.animTimer < this.scoreFlashUntil && this.lastScoreDelta !== 0) {
-                const sign = this.lastScoreDelta > 0 ? '+' : '';
-                ctx.font = 'bold 14px "Courier New"';
-                ctx.fillStyle = this.lastScoreDelta > 0 ? '#55FF55' : '#FF8855';
-                ctx.textAlign = 'center';
-                ctx.fillText(`${sign}${this.lastScoreDelta} score`, this.WIDTH / 2, 22);
-                ctx.textAlign = 'left';
-            }
-            // Skip hint
-            if (cs.skippable && cs.elapsed > 500) {
-                ctx.fillStyle = 'rgba(255,255,255,0.25)';
-                ctx.font = '10px "Courier New"';
-                ctx.textAlign = 'right';
-                ctx.fillText('Click to skip', this.WIDTH - 10, this.HEIGHT - 8);
-                ctx.textAlign = 'left';
-            }
-            if (this.screenShake > 0) ctx.restore();
+            this.drawCutsceneFrame(ctx);
+            if (shaking) ctx.restore();
             return;
         }
 
@@ -1750,6 +2234,57 @@ class GameEngine {
         }
 
         const room = this.rooms[this.currentRoomId];
+        this.drawScene(ctx, room);
+        this.drawHud(ctx, room);
+
+        // Room transition (fade / iris / wipe)
+        if (this.roomTransition > 0) {
+            this.drawRoomTransition(ctx);
+        }
+
+        // Restore screen shake transform before steady overlays
+        if (shaking) ctx.restore();
+
+        this.drawPickupSparkle(ctx);
+        this.drawSoundCaption(ctx);
+        this.drawCrtEffects(ctx);
+    }
+
+    /** Render the active cutscene plus its boundary fades and overlays. */
+    drawCutsceneFrame(ctx) {
+        const cs = this.cutscene;
+        const progress = Math.min(cs.elapsed / cs.duration, 1);
+        cs.draw(ctx, this.WIDTH, this.HEIGHT, progress, cs.elapsed);
+        // Sierra-style fade in / out at cutscene boundaries (200ms each)
+        const fadeIn = cs.elapsed < 200 ? 1 - cs.elapsed / 200 : 0;
+        const remaining = cs.duration - cs.elapsed;
+        const fadeOut = remaining < 200 ? 1 - remaining / 200 : 0;
+        const fade = Math.max(fadeIn, fadeOut);
+        if (fade > 0) {
+            ctx.fillStyle = `rgba(0,0,0,${fade})`;
+            ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
+        }
+        // In-cutscene score toast (visible while status bar is hidden)
+        if (this.animTimer < this.scoreFlashUntil && this.lastScoreDelta !== 0) {
+            const sign = this.lastScoreDelta > 0 ? '+' : '';
+            ctx.font = 'bold 14px "Courier New"';
+            ctx.fillStyle = this.lastScoreDelta > 0 ? PAL.TEXT_POSITIVE : PAL.TEXT_NEGATIVE;
+            ctx.textAlign = 'center';
+            ctx.fillText(`${sign}${this.lastScoreDelta} score`, this.WIDTH / 2, 22);
+            ctx.textAlign = 'left';
+        }
+        // Skip hint
+        if (cs.skippable && cs.elapsed > 500) {
+            ctx.fillStyle = 'rgba(255,255,255,0.25)';
+            ctx.font = '10px "Courier New"';
+            ctx.textAlign = 'right';
+            ctx.fillText('Click to skip', this.WIDTH - 10, this.HEIGHT - 8);
+            ctx.textAlign = 'left';
+        }
+    }
+
+    /** Draw the room art and every Y-sorted actor / foreground layer in it. */
+    drawScene(ctx, room) {
         if (room && room.draw) room.draw(ctx, this.WIDTH, this.HEIGHT, this);
 
         // === AGI-INSPIRED: Y-SORTED RENDERING (OBJLIST priority system) ===
@@ -1779,10 +2314,19 @@ class GameEngine {
         // Draw all in sorted order
         for (const d of this._drawables) {
             if (d.type === 'player') this.drawPlayer(ctx);
-            else if (d.type === 'npc') d.ref.draw(ctx, this);
+            else if (d.type === 'npc') {
+                if (d.ref.shadow) {
+                    const sc = d.ref.shadow.scale || 1;
+                    this.drawContactShadow(ctx, d.ref.x, d.ref.y + (d.ref.shadow.offsetY || 0), sc, d.ref.shadow);
+                }
+                d.ref.draw(ctx, this);
+            }
             else d.ref.draw(ctx, this);
         }
+    }
 
+    /** Draw status bars, text windows, dialog options and end-game overlays. */
+    drawHud(ctx, room) {
         if (!this.classicMode) this.drawHotspotLabel(ctx, room);
 
         // Current action indicator / Sierra status line
@@ -1793,6 +2337,7 @@ class GameEngine {
 
         // AGI-inspired: Sierra text window overlay
         this.drawTextWindow(ctx);
+        this.drawItemCloseUpWindow(ctx);
 
         // AGS-inspired: dialog options overlay
         this._drawDialogOptions(ctx);
@@ -1804,94 +2349,171 @@ class GameEngine {
         if (this.dead) this.drawDeathOverlay(ctx);
         if (this.won) this.drawWinOverlay(ctx);
 
-        // VR HUD: render message + inventory on canvas (visible on panorama)
         if (this.vrActive && !this.dead && !this.won && !this.cutscene && !this.titleScreen) {
-            // Message area background
-            ctx.fillStyle = 'rgba(0, 0, 100, 0.85)';
-            ctx.fillRect(0, 350, this.WIDTH, 50);
-            ctx.strokeStyle = '#5555FF';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(0, 350, this.WIDTH, 50);
-            // Message text (word-wrapped)
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '12px "Courier New"';
-            ctx.textAlign = 'left';
-            const maxW = this.WIDTH - 20;
-            const words = (this.message || '').split(' ');
-            let line = '', textY = 365;
-            for (const w of words) {
-                const test = line + w + ' ';
-                if (ctx.measureText(test).width > maxW && line) {
-                    ctx.fillText(line.trim(), 10, textY);
-                    line = w + ' ';
-                    textY += 14;
-                    if (textY > 395) break;
-                } else {
-                    line = test;
-                }
-            }
-            if (line.trim() && textY <= 395) ctx.fillText(line.trim(), 10, textY);
-            // Inventory strip
-            if (this.inventory.length > 0) {
-                ctx.fillStyle = 'rgba(0, 0, 60, 0.85)';
-                ctx.fillRect(0, 332, this.WIDTH, 18);
-                ctx.strokeStyle = '#333388';
-                ctx.strokeRect(0, 332, this.WIDTH, 18);
-                ctx.fillStyle = '#AAAAAA';
-                ctx.font = '10px "Courier New"';
-                const invStr = 'INV: ' + this.inventory.map(id => {
-                    const nm = this.items[id]?.name || id;
-                    return this.selectedItem === id ? '[' + nm + ']' : nm;
-                }).join(' | ');
-                ctx.fillText(invStr, 10, 345);
+            this.drawVrHud(ctx);
+        }
+    }
+
+    /** VR HUD: message + inventory drawn on canvas so they appear on the panorama. */
+    drawVrHud(ctx) {
+        // Message area background
+        ctx.fillStyle = 'rgba(0, 0, 100, 0.85)';
+        ctx.fillRect(0, 350, this.WIDTH, 50);
+        ctx.strokeStyle = '#5555FF';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, 350, this.WIDTH, 50);
+        // Message text (word-wrapped)
+        ctx.fillStyle = PAL.TEXT_PRIMARY;
+        ctx.font = '12px "Courier New"';
+        ctx.textAlign = 'left';
+        const maxW = this.WIDTH - 20;
+        const words = (this.message || '').split(' ');
+        let line = '', textY = 365;
+        for (const w of words) {
+            const test = line + w + ' ';
+            if (ctx.measureText(test).width > maxW && line) {
+                ctx.fillText(line.trim(), 10, textY);
+                line = w + ' ';
+                textY += 14;
+                if (textY > 395) break;
+            } else {
+                line = test;
             }
         }
-
-        // Room transition fade-in
-        if (this.roomTransition > 0) {
-            ctx.fillStyle = `rgba(0,0,0,${this.roomTransition})`;
-            ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
+        if (line.trim() && textY <= 395) ctx.fillText(line.trim(), 10, textY);
+        // Inventory strip
+        if (this.inventory.length > 0) {
+            ctx.fillStyle = 'rgba(0, 0, 60, 0.85)';
+            ctx.fillRect(0, 332, this.WIDTH, 18);
+            ctx.strokeStyle = '#333388';
+            ctx.strokeRect(0, 332, this.WIDTH, 18);
+            ctx.fillStyle = PAL.TEXT_MUTED;
+            ctx.font = '10px "Courier New"';
+            const invStr = 'INV: ' + this.inventory.map(id => {
+                const nm = this.items[id]?.name || id;
+                return this.selectedItem === id ? '[' + nm + ']' : nm;
+            }).join(' | ');
+            ctx.fillText(invStr, 10, 345);
         }
+    }
 
-        // Restore screen shake transform before overlays
-        if (this.screenShake > 0) ctx.restore();
+    /** Sparkle burst when an item is picked up (steady, unaffected by shake). */
+    drawPickupSparkle(ctx) {
+        if (this.animTimer >= this.pickupSparkleUntil) return;
+        const remaining = this.pickupSparkleUntil - this.animTimer;
+        const p = 1 - remaining / 480;
+        const sx = this.pickupSparkleX;
+        const sy = this.pickupSparkleY - p * 12;
+        const alpha = 1 - p;
+        ctx.fillStyle = `rgba(255,255,180,${alpha})`;
+        // four-pixel cross sparkles
+        const r = 1 + p * 4;
+        ctx.fillRect(sx - r, sy, 2, 2);
+        ctx.fillRect(sx + r, sy, 2, 2);
+        ctx.fillRect(sx, sy - r, 2, 2);
+        ctx.fillRect(sx, sy + r, 2, 2);
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.fillRect(sx, sy, 2, 2);
+    }
 
-        // Pickup sparkle (drawn after shake restore so it sits steady on screen)
-        if (this.animTimer < this.pickupSparkleUntil) {
-            const remaining = this.pickupSparkleUntil - this.animTimer;
-            const p = 1 - remaining / 480;
-            const sx = this.pickupSparkleX;
-            const sy = this.pickupSparkleY - p * 12;
-            const alpha = 1 - p;
-            ctx.fillStyle = `rgba(255,255,180,${alpha})`;
-            // four-pixel cross sparkles
-            const r = 1 + p * 4;
-            ctx.fillRect(sx - r, sy, 2, 2);
-            ctx.fillRect(sx + r, sy, 2, 2);
-            ctx.fillRect(sx, sy - r, 2, 2);
-            ctx.fillRect(sx, sy + r, 2, 2);
-            ctx.fillStyle = `rgba(255,255,255,${alpha})`;
-            ctx.fillRect(sx, sy, 2, 2);
-        }
+    /** Phosphor bloom, scanlines, aperture grille and vignette. */
+    drawCrtEffects(ctx) {
+        if (!this.crtEffects) return;
+        // Phosphor bloom: re-composite the frame additively and slightly enlarged so
+        // bright pixels glow softly, then lay down scanlines, aperture grille and vignette.
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.12;
+        ctx.drawImage(ctx.canvas, -1, -1, this.WIDTH + 2, this.HEIGHT + 2);
+        ctx.restore();
+        ctx.drawImage(this.scanlineCanvas, 0, 0);
+        ctx.drawImage(this.vignetteCanvas, 0, 0);
+    }
 
-        if (this.crtEffects) {
-            ctx.drawImage(this.scanlineCanvas, 0, 0);
-            ctx.drawImage(this.vignetteCanvas, 0, 0);
+    /** Queue a closed-caption for a sound the player cannot hear. */
+    showSoundCaption(label) {
+        if (!label) return;
+        this.soundCaption = { text: `\u266a ${label}`, until: this.animTimer + 1800 };
+    }
+
+    /** Draw the sound caption strip (accessibility fallback for audio-only cues). */
+    drawSoundCaption(ctx) {
+        const cap = this.soundCaption;
+        if (!cap || this.animTimer >= cap.until) return;
+        const remaining = cap.until - this.animTimer;
+        const alpha = Math.min(1, remaining / 400);
+        ctx.font = 'bold 11px "Courier New"';
+        const textW = ctx.measureText(cap.text).width;
+        const boxW = textW + 18;
+        const boxX = Math.round((this.WIDTH - boxW) / 2);
+        const boxY = this.classicMode ? this.HEIGHT - 62 : this.HEIGHT - 30;
+        ctx.fillStyle = `rgba(0,0,0,${0.72 * alpha})`;
+        ctx.fillRect(boxX, boxY, boxW, 18);
+        ctx.strokeStyle = `rgba(170,170,170,${0.55 * alpha})`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxW - 1, 17);
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+        ctx.textAlign = 'center';
+        ctx.fillText(cap.text, this.WIDTH / 2, boxY + 13);
+        ctx.textAlign = 'left';
+    }
+
+    /** Draw the incoming room transition. Sierra used more than a plain fade:
+     *  'iris' opens a circular aperture, 'wipe' slides the darkness away,
+     *  'fade' is the classic dissolve to black. `roomTransition` runs 1 -> 0. */
+    drawRoomTransition(ctx) {
+        const t = this.roomTransition;
+        const W = this.WIDTH, H = this.HEIGHT;
+        ctx.fillStyle = PAL.OUTLINE;
+
+        switch (this.roomTransitionStyle) {
+            case 'iris': {
+                // Black everywhere except a growing circle centred on the player.
+                const maxR = Math.hypot(W, H) / 2;
+                const r = (1 - t) * maxR;
+                const cx = Math.min(Math.max(this.playerX, 0), W);
+                const cy = Math.min(Math.max(this.playerY - 20, 0), H);
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(0, 0, W, H);
+                ctx.arc(cx, cy, r, 0, Math.PI * 2, true); // reverse winding = hole
+                ctx.fill('evenodd');
+                ctx.restore();
+                break;
+            }
+            case 'wipe': {
+                // Darkness retreats to the right, revealing the scene behind it.
+                const x = (1 - t) * W;
+                ctx.fillRect(x, 0, W - x, H);
+                // Soft leading edge so the wipe doesn't look like a hard tear.
+                const grad = ctx.createLinearGradient(x - 24, 0, x, 0);
+                grad.addColorStop(0, 'rgba(0,0,0,0)');
+                grad.addColorStop(1, 'rgba(0,0,0,1)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(x - 24, 0, 24, H);
+                break;
+            }
+            default:
+                ctx.fillStyle = `rgba(0,0,0,${t})`;
+                ctx.fillRect(0, 0, W, H);
         }
     }
 
     drawClassicStatusBar(ctx) {
-        ctx.fillStyle = '#000000';
+        ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, this.WIDTH, 16);
-        ctx.fillStyle = '#555555';
+        ctx.fillStyle = '#000000';
         ctx.fillRect(0, 16, this.WIDTH, 1);
         ctx.font = 'bold 11px "Courier New"';
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = '#000000';
         const room = this.rooms[this.currentRoomId];
-        ctx.fillText(room ? room.name.toUpperCase() : this.game.shortTitle.toUpperCase(), 8, 12);
+        const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta > 0 ? ` +${this.lastScoreDelta}` : '';
+        ctx.fillText(`Score:${this.score} of ${this.maxScore}${delta}`, 8, 12);
+        ctx.textAlign = 'center';
+        ctx.fillText(room ? room.name.toUpperCase() : this.game.shortTitle.toUpperCase(), this.WIDTH / 2, 12);
         ctx.textAlign = 'right';
-        const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta > 0 ? `  +${this.lastScoreDelta}` : '';
-        ctx.fillText(`Score: ${this.score} of ${this.maxScore}${delta}`, this.WIDTH - 8, 12);
+        const soundStatus = this.sound && this.sound.getStatus ? this.sound.getStatus() : (this.sound && this.sound.muted ? 'off' : 'on');
+        ctx.fillText(`Sound:${soundStatus}`, this.WIDTH - 8, 12);
         ctx.textAlign = 'left';
     }
 
@@ -1990,7 +2612,7 @@ class GameEngine {
         ctx.fillRect(0, 0, W, H);
 
         // ---- Large planet (SQ1-style desert world) ----
-        const planetX = 500, planetY = 320, planetR = 85;
+        const planetX = 545, planetY = 175, planetR = 55;
         // Planet shadow (dark side, crescent effect)
         const pg = ctx.createRadialGradient(planetX - 25, planetY - 20, planetR * 0.1, planetX, planetY, planetR);
         pg.addColorStop(0, '#AA8855');
@@ -2029,7 +2651,7 @@ class GameEngine {
         ctx.restore();
 
         // ---- Small moon ----
-        const moonX = 420, moonY = 240, moonR = 12;
+        const moonX = 465, moonY = 120, moonR = 10;
         const mg = ctx.createRadialGradient(moonX - 3, moonY - 3, 1, moonX, moonY, moonR);
         mg.addColorStop(0, '#BBBBAA');
         mg.addColorStop(0.7, '#888877');
@@ -2122,15 +2744,15 @@ class GameEngine {
         // ---- SQ1-style scrolling credits area (bottom third) ----
         ctx.font = '12px "Courier New"';
         ctx.fillStyle = '#AAAAAA';
-        ctx.fillText(this.game.creditsLine, W / 2, H - 90);
+        ctx.fillText(this.game.creditsLine, W / 2, H - 130);
 
         ctx.font = '11px "Courier New"';
         ctx.fillStyle = '#5555FF';
-        if (this.game.inspirationLine) ctx.fillText(this.game.inspirationLine, W / 2, H - 72);
+        if (this.game.inspirationLine) ctx.fillText(this.game.inspirationLine, W / 2, H - 112);
 
         ctx.font = '10px "Courier New"';
         ctx.fillStyle = '#777777';
-        ctx.fillText('Choose your interface. F10 still toggles later.', W / 2, H - 54);
+        ctx.fillText('Choose your interface. F10 still toggles later.', W / 2, H - 86);
 
         const classicRect = this.getTitleButtonRect('classic');
         const enhancedRect = this.getTitleButtonRect('enhanced');
@@ -2140,18 +2762,18 @@ class GameEngine {
         const blink = Math.floor(t / 600) % 2;
         ctx.font = '10px "Courier New"';
         ctx.fillStyle = blink ? '#FFFF55' : '#777744';
-        ctx.fillText('ENTER starts with the highlighted mode', W / 2, H - 16);
+        ctx.fillText('ENTER starts with the highlighted mode', W / 2, H - 22);
 
         // Copyright
         ctx.font = '9px "Courier New"';
         ctx.fillStyle = '#555555';
-        if (this.game.copyright) ctx.fillText(this.game.copyright, W / 2, H - 6);
+        if (this.game.copyright) ctx.fillText(this.game.copyright, W / 2, H - 8);
 
         ctx.textAlign = 'left';
     }
 
     getTitleButtonRect(mode) {
-        const y = this.HEIGHT - 44;
+        const y = this.HEIGHT - 60;
         return mode === 'classic'
             ? { x: 132, y, w: 176, h: 24 }
             : { x: 332, y, w: 176, h: 24 };
@@ -2216,6 +2838,29 @@ class GameEngine {
     }
 
     // ---- Player Sprite ----
+    /**
+     * Draw a soft elliptical contact shadow on the floor plane beneath a character.
+     * Grounds sprites in the pseudo-3D scenes so they do not appear to float.
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {number} cx - centre x (character's feet)
+     * @param {number} groundY - y of the floor contact point
+     * @param {number} scale - character depth scale (radius follows it)
+     * @param {Object} [opts] - { rx, ry, alpha } multipliers/overrides
+     */
+    drawContactShadow(ctx, cx, groundY, scale, opts) {
+        const o = opts || {};
+        const rx = (o.rx != null ? o.rx : 6) * scale;
+        const ry = (o.ry != null ? o.ry : 1.6) * scale;
+        const alpha = o.alpha != null ? o.alpha : 0.28;
+        if (rx <= 0 || ry <= 0) return;
+        ctx.save();
+        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+        ctx.beginPath();
+        ctx.ellipse(cx, groundY, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
     drawPlayer(ctx) {
         const x = Math.round(this.playerX);
         const y = Math.round(this.playerY);
@@ -2229,6 +2874,10 @@ class GameEngine {
         if (this.depthScaling) {
             s *= this.getDepthScale(y);
         }
+        s = Math.round(s * 20) / 20; // Snap scale to 0.05 step intervals to avoid subpixel shimmering
+
+        // Contact shadow — grounds the sprite on the floor plane so it does not appear to float.
+        this.drawContactShadow(ctx, x, y + 12 * s, s);
 
         // Idle animation effects (blink, feettap, eyeroll)
         const idleType = this.idleActive ? this.idleType : null;
@@ -2252,17 +2901,23 @@ class GameEngine {
 
         // Blink: eyes close for the duration (drawn later as overlay)
 
-        // Leg animation — separate left/right so only right foot taps
+        const frameProgress = walking ? Math.min(this.playerFrameTimer / 110, 0.99) : 0;
+        const walkPhase = walking ? ((frame + frameProgress) / 6) * Math.PI * 2 : 0;
+        const stride = Math.sin(walkPhase);
+        const lift = Math.cos(walkPhase);
+        const walkBob = walking ? Math.round(Math.abs(stride) * 0.7 * s) : 0;
+
+        // Leg animation — subtle vertical offsets for front/back views.
         let leftLeg = 0, rightLeg = 0;
         if (walking) {
-            const walkCycle = Math.sin(frame * Math.PI / 2) * 3 * s;
+            const walkCycle = stride * 1.5 * s;
             leftLeg = walkCycle;
             rightLeg = -walkCycle;
         }
         // Boot offset — foot tap only moves the boot, not the leg
         let leftBoot = leftLeg, rightBoot = rightLeg;
         if (idleFootTap > 0) rightBoot = -idleFootTap;
-        const as = walking ? Math.cos(frame * Math.PI / 2) * 2 * s : 0;
+        const as = walking ? lift * 2 * s : 0;
 
         if (facing === 'toward') {
             // ---- FRONT VIEW (facing camera) ----
@@ -2410,102 +3065,95 @@ class GameEngine {
             ctx.fillRect(x - 2 * s, y - 10.5 * s, 4 * s, 1 * s);
 
         } else {
-            // ---- SIDE VIEW (left or right) ---- [existing sprite]
-            // Legs
-            ctx.fillStyle = '#BBBBBB';
-            ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + leftLeg);
-            ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s + rightLeg);
-            ctx.fillStyle = '#DDDDDD';
-            ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + leftLeg);
-            ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s + rightLeg);
+            // ---- SIDE VIEW (left or right) ----
+            // Built from the same rectangles as the front/back views so the
+            // character reads as the same person in profile.
+            const py = y - walkBob;
+            const stridePix = walking ? stride * 2.5 * s : 0;       // hip-to-foot offset
+            const liftPix = walking ? Math.max(0, lift) * 2 * s : 0; // toe-off lift on near leg
+            const armPix = walking ? -stride * 2.5 * s : 0;         // arm swings opposite leg
+            // 'd' is the forward direction in pixels per logical x-unit (so we
+            // can write coordinates in a +x = forward layout regardless of facing).
+            const d = dir * s;
+
+            // Far leg (back) — slight stride offset, sits behind torso
             ctx.fillStyle = '#AAAAAA';
-            ctx.fillRect(x - 4 * s, y + 5 * s + Math.max(leftLeg, 0), 3 * s, 1 * s);
-            ctx.fillRect(x + 1 * s, y + 5 * s + Math.max(rightLeg, 0), 3 * s, 1 * s);
-            // Boots
-            ctx.fillStyle = '#222222';
-            ctx.fillRect(x - 5 * s, y + 9 * s + leftLeg, 4 * s, 3 * s);
-            ctx.fillRect(x, y + 9 * s + rightLeg, 4 * s, 3 * s);
-            ctx.fillStyle = '#111111';
-            ctx.fillRect(x - 5 * s, y + 11 * s + leftLeg, 5 * s, 1 * s);
-            ctx.fillRect(x, y + 11 * s + rightLeg, 5 * s, 1 * s);
-            ctx.fillStyle = '#333333';
-            ctx.fillRect(x - 4 * s, y + 9 * s + leftLeg, 2 * s, 1 * s);
-            ctx.fillRect(x + 1 * s, y + 9 * s + rightLeg, 2 * s, 1 * s);
-            // Body
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
+            ctx.fillRect(x - 0.5 * d, py + 1 * s, 2 * d, 8 * s);
+            ctx.fillStyle = '#1A1A1A';
+            ctx.fillRect(x - 1.5 * d - stridePix * 0.4, py + 9 * s, 4 * d, 3 * s);
+            ctx.fillStyle = '#0A0A0A';
+            ctx.fillRect(x - 1.5 * d - stridePix * 0.4, py + 11 * s, 4 * d, 1 * s);
+
+            // Far arm (back) — peeks behind torso, swings opposite the near leg
             ctx.fillStyle = '#EEEEEE';
-            ctx.fillRect(x - 5 * s, y - 10 * s, 1 * s, 11 * s);
-            ctx.fillRect(x + 4 * s, y - 10 * s, 1 * s, 11 * s);
+            ctx.fillRect(x - 0.5 * d, py - 8 * s, 2 * d, 6 * s);
+            ctx.fillStyle = '#EEBB77';
+            ctx.fillRect(x - 0.5 * d - armPix * 0.6, py - 2 * s, 2 * d, 2 * s);
+
+            // Body (white suit) — same proportions as the front view but
+            // narrower because we see the torso edge-on.
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(x - 3 * d, py - 10 * s, 7 * d, 11 * s);
+            // Shading on the back side of the suit
+            ctx.fillStyle = '#EEEEEE';
+            ctx.fillRect(x - 3 * d, py - 10 * s, 1 * d, 11 * s);
+            // Front-edge highlight
             ctx.fillStyle = '#DDDDDD';
-            ctx.fillRect(x - 1 * s, y - 8 * s, 2 * s, 6 * s);
+            ctx.fillRect(x + 3 * d, py - 9 * s, 1 * d, 9 * s);
             // Collar
-            ctx.fillStyle = '#444444';
-            ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 2 * s);
             ctx.fillStyle = '#555555';
-            ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
+            ctx.fillRect(x - 3 * d, py - 10 * s, 7 * d, 1 * s);
             // Belt
             ctx.fillStyle = '#333333';
-            ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
+            ctx.fillRect(x - 3 * d, py, 7 * d, 2 * s);
+            // Belt buckle (front of belt only)
             ctx.fillStyle = '#AAAAAA';
-            ctx.fillRect(x - 1.5 * s, y - 0.5 * s, 3 * s, 2.5 * s);
-            ctx.fillStyle = '#999999';
-            ctx.fillRect(x - 1 * s, y, 2 * s, 1.5 * s);
+            ctx.fillRect(x + 1.5 * d, py - 0.5 * s, 2 * d, 2.5 * s);
+
+            // Near leg (front) — strides forward/back with the cycle
+            ctx.fillStyle = '#BBBBBB';
+            ctx.fillRect(x + 1.5 * d, py + 1 * s, 2 * d, 8 * s);
+            // Near boot
             ctx.fillStyle = '#222222';
-            ctx.fillRect(x - 5 * s, y, 2 * s, 3 * s);
-            ctx.fillRect(x + 3 * s, y, 2 * s, 3 * s);
-            // Arms
+            ctx.fillRect(x + 0.5 * d + stridePix, py + 9 * s - liftPix, 4 * d, 3 * s);
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(x + 0.5 * d + stridePix, py + 11 * s - liftPix, 4 * d, 1 * s);
+
+            // Near arm — swings opposite the near leg
             ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x - 7 * s, y - 8 * s + as, 2 * s, 7 * s);
-            ctx.fillRect(x + 5 * s, y - 8 * s - as, 2 * s, 7 * s);
+            ctx.fillRect(x + 2.5 * d + armPix * 0.4, py - 8 * s, 2 * d, 6 * s);
+            // Cuff
             ctx.fillStyle = '#555555';
-            ctx.fillRect(x - 7 * s, y - 2 * s + as, 2 * s, 1 * s);
-            ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
-            ctx.fillStyle = '#EEEEEE';
-            ctx.fillRect(x - 7 * s, y - 5 * s + as, 1 * s, 4 * s);
-            ctx.fillRect(x + 6 * s, y - 5 * s - as, 1 * s, 4 * s);
-            // Hands
+            ctx.fillRect(x + 2.5 * d + armPix * 0.4, py - 2 * s, 2 * d, 1 * s);
+            // Hand
             ctx.fillStyle = '#FFCC88';
-            ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
-            ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
+            ctx.fillRect(x + 2.5 * d + armPix, py - 1 * s, 2 * d, 2.5 * s);
+
+            // Neck
             ctx.fillStyle = '#EEBB77';
-            ctx.fillRect(x - 7 * s, y + 0.5 * s + as, 2 * s, 0.5 * s);
-            ctx.fillRect(x + 5 * s, y + 0.5 * s - as, 2 * s, 0.5 * s);
-            // Head
+            ctx.fillRect(x - 1 * d, py - 11 * s, 3 * d, 1 * s);
+            // Head — same 8s tall as front view, slightly thinner profile
             ctx.fillStyle = '#FFCC88';
-            ctx.fillRect(x - 4 * s, y - 18 * s, 8 * s, 8 * s);
-            ctx.fillStyle = '#EEBB77';
-            ctx.fillRect(x - 4 * s, y - 11 * s, 8 * s, 1 * s);
-            // Hair
+            ctx.fillRect(x - 3 * d, py - 18 * s, 7 * d, 7 * s);
+            // Subtle nose bump on the forward side
+            ctx.fillStyle = '#FFCC88';
+            ctx.fillRect(x + 4 * d, py - 15 * s, 1 * d, 2 * s);
+            // Hair cap (matches front view's hair shape, just in profile)
             ctx.fillStyle = '#BB7733';
-            ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 4 * s);
+            ctx.fillRect(x - 3 * d, py - 19 * s, 7 * d, 4 * s);
+            // Hair behind ear (longer at the back)
+            ctx.fillRect(x - 4 * d, py - 17 * s, 1 * d, 4 * s);
+            // Hair highlight
             ctx.fillStyle = '#CC8844';
-            ctx.fillRect(x - 2 * s, y - 19 * s, 3 * s, 1 * s);
-            if (dir > 0) {
-                ctx.fillStyle = '#BB7733';
-                ctx.fillRect(x - 5 * s, y - 19 * s, 2 * s, 6 * s);
-                ctx.fillStyle = '#AA6622';
-                ctx.fillRect(x - 5 * s, y - 14 * s, 1 * s, 2 * s);
-            } else {
-                ctx.fillStyle = '#BB7733';
-                ctx.fillRect(x + 3 * s, y - 19 * s, 2 * s, 6 * s);
-                ctx.fillStyle = '#AA6622';
-                ctx.fillRect(x + 4 * s, y - 14 * s, 1 * s, 2 * s);
-            }
-            ctx.fillStyle = '#AA6622';
-            ctx.fillRect(x - 3 * s, y - 18 * s, 6 * s, 1 * s);
-            // Eye
-            if (dir > 0) {
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(x, y - 15 * s, 3 * s, 2 * s);
-                ctx.fillStyle = '#4477CC';
-                ctx.fillRect(x + 1 * s, y - 15 * s, 2 * s, 2 * s);
-            } else {
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(x - 3 * s, y - 15 * s, 3 * s, 2 * s);
-                ctx.fillStyle = '#4477CC';
-                ctx.fillRect(x - 3 * s, y - 15 * s, 2 * s, 2 * s);
-            }
+            ctx.fillRect(x - 1 * d, py - 19 * s, 3 * d, 1 * s);
+            // Ear
+            ctx.fillStyle = '#EEBB77';
+            ctx.fillRect(x - 1 * d, py - 14 * s, 1 * d, 2 * s);
+            // Forward-facing eye
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(x + 1.5 * d, py - 15 * s, 2 * d, 2 * s);
+            ctx.fillStyle = '#4477CC';
+            ctx.fillRect(x + 2 * d, py - 15 * s, 1.5 * d, 2 * s);
         }
 
         // Idle eye blink overlay — covers eyes with skin color
@@ -2515,11 +3163,8 @@ class GameEngine {
                 ctx.fillRect(x - 3 * s, y - 15 * s, 2.5 * s, 2 * s);
                 ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
             } else if (facing !== 'away') {
-                if (dir > 0) {
-                    ctx.fillRect(x, y - 15 * s, 3 * s, 2 * s);
-                } else {
-                    ctx.fillRect(x - 3 * s, y - 15 * s, 3 * s, 2 * s);
-                }
+                const d = dir * s;
+                ctx.fillRect(x + 1.5 * d, y - walkBob - 15 * s, 2 * d, 2 * s);
             }
         }
     }
@@ -2686,7 +3331,8 @@ class GameEngine {
         if (this.dead) { this.showMessage('You can\'t save when you\'re dead!'); return; }
         try {
             const data = this.getSaveData();
-            localStorage.setItem(this.getSaveKey(slot), JSON.stringify(data));
+            const ok = this.safeStorageSet(this.getSaveKey(slot), JSON.stringify(data));
+            if (!ok) throw new Error('Local storage not writable');
             this.sound.save();
             this.showMessage(`Game saved to Slot ${slot + 1}.`);
         } catch (err) {
@@ -2696,7 +3342,7 @@ class GameEngine {
 
     loadGame(slot) {
         try {
-            const raw = localStorage.getItem(this.getSaveKey(slot));
+            const raw = this.safeStorageGet(this.getSaveKey(slot));
             if (!raw) { this.showMessage('That slot is empty.'); return; }
             const data = JSON.parse(raw);
             // Validate save data structure
@@ -2763,12 +3409,12 @@ class GameEngine {
     }
 
     deleteSave(slot) {
-        try { localStorage.removeItem(this.getSaveKey(slot)); } catch { /* storage unavailable */ }
+        this.safeStorageRemove(this.getSaveKey(slot));
     }
 
     getSlotInfo(slot) {
         try {
-            const raw = localStorage.getItem(this.getSaveKey(slot));
+            const raw = this.safeStorageGet(this.getSaveKey(slot));
             if (!raw) return null;
             const data = JSON.parse(raw);
             const room = this.rooms[data.currentRoomId];
@@ -2840,10 +3486,17 @@ class GameEngine {
             list.appendChild(row);
         }
         modal.classList.add('open');
+        this._modalPrevActiveElement = document.activeElement;
+        const firstBtn = modal.querySelector('button');
+        if (firstBtn) firstBtn.focus();
     }
 
     closeSaveModal() {
         this.dom.saveModal.classList.remove('open');
+        if (this._modalPrevActiveElement && this._modalPrevActiveElement.focus) {
+            this._modalPrevActiveElement.focus();
+            this._modalPrevActiveElement = null;
+        }
     }
 
     // ---- VR Setup ----
@@ -2947,8 +3600,10 @@ class AnimatedNPC {
 
         // Callback for when NPC is clicked
         this.onClick = def.onClick || null;
-    }
 
+        // Optional floor contact shadow: { scale, rx, ry, alpha, offsetY }
+        this.shadow = def.shadow || null;
+    }
     // AGI direction deltas (0=none, 1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW)
     static xs = [0, 0, 1, 1, 1, 0, -1, -1, -1];
     static ys = [0, -1, -1, 0, 1, 1, 1, 0, -1];

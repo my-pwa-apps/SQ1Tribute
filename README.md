@@ -2,7 +2,7 @@
 
 A modern Sierra-style adventure game — a loving tribute to *Space Quest 1*, not an attempt to masquerade as a lost Sierra release. You play a lowly janitor aboard the starship *Constellation* who must escape a Draknoid raid and recover the stolen Quantum Drive.
 
-Built with **pure JavaScript and HTML5 Canvas**. No frameworks, no build step, no external assets — all art is procedurally drawn, all sound is synthesized via the Web Audio API. The game keeps the parser, score, deaths, inventory puzzles, and dry narrator, while using modern conveniences such as optional point-and-click controls, generous save slots, touch support, and offline caching.
+Built with **pure JavaScript and HTML5 Canvas**. There is no framework, production dependency, or build step — all art is procedurally drawn and all sound is synthesized via the Web Audio API. Playwright is used only for development tests. The game keeps the parser, score, deaths, inventory puzzles, and dry narrator, while using modern conveniences such as optional point-and-click controls, generous save slots, touch support, and offline caching.
 
 ## Play
 
@@ -10,8 +10,6 @@ Serve the folder over any static HTTP server and open `index.html` in a modern b
 
 ```powershell
 npm run serve
-# or
-python -m http.server 8080
 ```
 
 Then browse to http://localhost:8080.
@@ -39,11 +37,11 @@ Then browse to http://localhost:8080.
 | `R` | Restart (after death) |
 | `F10` | Toggle Classic parser / Enhanced point-and-click UI |
 
-Classic mode is the default: try commands like `LOOK`, `GET MOP`, `DRINK PUDDLE`, `USE KEYCARD ON DOOR`, `TALK TO PILOT`, `INVENTORY`, `SAVE`, and `RESTORE`. In Enhanced mode, click an inventory item to select it, then click a hotspot to use them together.
+Classic mode is the desktop default: try commands like `LOOK`, `GET MOP`, `DRINK PUDDLE`, `USE KEYCARD ON DOOR`, `TALK TO PILOT`, `INVENTORY`, `SAVE`, and `RESTORE`. Touch-first devices default to Enhanced mode. If Classic is selected on touch hardware, the on-screen parser, D-pad, and save controls remain available. In Enhanced mode, click an inventory item to select it, then click a hotspot to use them together.
 
 ## Story
 
-From your broom closet you'll sneak through a burning ship, launch the last escape pod, crash on a desert planet, hustle your way through a frontier outpost and cantina, and finally board the Draknoid warship to steal back the Quantum Drive. Ten rooms, one janitor, galactic stakes.
+From your broom closet you'll sneak through a burning ship, launch the last escape pod, crash on a desert planet, hustle your way through a frontier outpost and cantina, and finally board the Draknoid warship to steal back the Quantum Drive. More than thirteen locations, one janitor, galactic stakes.
 
 ## Browser Requirements
 
@@ -72,6 +70,7 @@ manifest.json       PWA manifest
 serviceworker.js    Offline cache — bump VERSION on every code change
 js/
     engine.js       GameEngine class: loop, input, rendering, save/load
+    content.js      Structured game metadata and item definitions
     game.js         All game content: rooms, items, puzzles, cutscenes
     sound.js        Web Audio synthesis
     vr.js           Optional WebXR integration
@@ -80,14 +79,39 @@ tools/              Dev-only helper scripts (not shipped)
 
 ## Development
 
-No dependencies. Syntax-check the JS before shipping:
+Install the development dependencies and run the complete release gate:
 
 ```powershell
+npm install
 npm run check
 ```
 
-After any code change, bump `CACHE_VERSION` in [serviceworker.js](serviceworker.js) so returning players pick up the update.
+`npm run check` performs JavaScript syntax checks, structured room/item/asset validation, and Playwright tests in desktop Chrome and Pixel 5 emulation. The browser suite covers mode selection, the touch parser, save/load, accessibility mirrors, both final-console puzzle routes, offline reload, update UI, and the absence of full-canvas pixel readbacks. It also compares reviewed visual baselines for the title, representative rooms, CRT output, and mobile framing. Update those baselines deliberately with `npx playwright test tests/visual.spec.js --update-snapshots` only after reviewing the rendered changes.
+
+Content metadata and items live in [js/content.js](js/content.js) so the validator can consume exact IDs without booting the UI. Room groups remain in [js/game.js](js/game.js); keep production content files below 400 KB and extract the next stable room group before crossing that threshold.
+
+## Production Deployment
+
+The repository root is the deploy directory. Publish it unchanged to a static HTTPS host. Relative asset and service-worker paths support both root domains and project subpaths such as GitHub Pages.
+
+- Cloudflare Pages and Netlify consume the included [_headers](_headers) file for CSP, framing, MIME, referrer, and permissions policies.
+- GitHub Pages ignores `_headers`; apply equivalent headers through a proxy/CDN if those protections are required.
+- Saves and interface preferences use `localStorage`. They are bound to the exact production origin and do not transfer between preview URLs, domains, or browsers.
+- WebXR requires HTTPS, a compatible browser/device, and physical Quest-class hardware. Desktop emulation does not replace a device smoke test.
+
+### Release Checklist
+
+1. Run `npm ci` and `npm run check`.
+2. Increment `VERSION` in [serviceworker.js](serviceworker.js) after every code change.
+3. Deploy the repository root over HTTPS and verify response headers where the host supports them.
+4. Start a game, save and restore a slot, and complete a parser command in both interface modes.
+5. On a touch device, verify Enhanced is the first-run default and Classic exposes its parser and D-pad.
+6. Reload once online, switch the browser offline, and confirm the installed app still starts.
+7. Deploy a second version and confirm the keyboard-accessible update prompt reloads the new worker.
+8. On WebXR hardware, enter and exit VR and verify controller interaction, frame stability, and room textures.
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+The bundled pixel typeface **VT323** (by Peter Hull) is licensed under the SIL Open Font License 1.1 — see [fonts/VT323-OFL.txt](fonts/VT323-OFL.txt).

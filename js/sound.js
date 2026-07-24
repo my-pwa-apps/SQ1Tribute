@@ -9,19 +9,60 @@ class SoundEngine {
         this.master = null;
         this.muted = false;
         this.volume = 0.3;
+        this.blocked = false;
+        this.onStateChange = null;
+        // Called with a short label when a significant sound cannot be heard
+        // (muted, suspended, or Web Audio unavailable) so the UI can caption it.
+        this.onInaudibleCue = null;
+    }
+
+    /** Report a sound the player cannot currently hear, for visual captioning. */
+    _cue(label) {
+        if (!this.onInaudibleCue) return;
+        if (this.getStatus() === 'on') return;
+        this.onInaudibleCue(label);
     }
 
     /** Create AudioContext on first user gesture (required by browsers). Safe to call multiple times. */
     init() {
-        if (this.ctx) return;
+        if (this.ctx) {
+            if (this.ctx.state === 'suspended') {
+                return this.ctx.resume().then(() => {
+                    this.blocked = false;
+                    if (this.onStateChange) this.onStateChange();
+                    return true;
+                }).catch(() => {
+                    this.blocked = true;
+                    if (this.onStateChange) this.onStateChange();
+                    return false;
+                });
+            }
+            return Promise.resolve(this.ctx.state === 'running');
+        }
         try {
-            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) throw new Error('Web Audio API unavailable');
+            this.ctx = new AudioContextClass();
             this.master = this.ctx.createGain();
             this.master.gain.value = this.muted ? 0 : this.volume;
             this.master.connect(this.ctx.destination);
+            this.ctx.addEventListener('statechange', () => {
+                if (this.onStateChange) this.onStateChange();
+            });
+            return this.init();
         } catch (e) {
+            this.blocked = true;
             console.warn('Web Audio API not available');
+            if (this.onStateChange) this.onStateChange();
+            return Promise.resolve(false);
         }
+    }
+
+    getStatus() {
+        if (this.blocked) return 'blocked';
+        if (this.muted) return 'off';
+        if (this.ctx && this.ctx.state === 'suspended') return 'paused';
+        return 'on';
     }
 
     setMuted(m) {
@@ -104,6 +145,7 @@ class SoundEngine {
 
     /** Ascending chime — item acquired */
     pickup() {
+        this._cue('item acquired');
         if (!this.ctx) return;
         const t = this._t();
         this._osc('sine', 660, t, 0.1, 0.15);
@@ -114,6 +156,7 @@ class SoundEngine {
 
     /** Rising arpeggio — score points earned */
     scoreUp() {
+        this._cue('points scored');
         if (!this.ctx) return;
         const t = this._t();
         this._osc('sine', 523, t, 0.07, 0.09);
@@ -125,6 +168,7 @@ class SoundEngine {
 
     /** Hydraulic hiss + mechanical clunk */
     doorOpen() {
+        this._cue('door opens');
         if (!this.ctx) return;
         const t = this._t();
         this._noise(t, 0.35, 0.1, 600);
@@ -143,6 +187,7 @@ class SoundEngine {
 
     /** Descending buzzer — player died */
     death() {
+        this._cue('you have died');
         if (!this.ctx) return;
         const t = this._t();
         const o = this._osc('sawtooth', 440, t, 0.7, 0.18);
@@ -154,6 +199,7 @@ class SoundEngine {
 
     /** Triumphant fanfare — victory! */
     victory() {
+        this._cue('victory fanfare');
         if (!this.ctx) return;
         const t = this._t();
         const notes = [523, 659, 784, 1047, 1319, 1568];
@@ -169,6 +215,7 @@ class SoundEngine {
 
     /** Descending zap — energy weapon */
     laser() {
+        this._cue('weapon fires');
         if (!this.ctx) return;
         const t = this._t();
         const o = this._osc('sawtooth', 1500, t, 0.25, 0.22);
@@ -179,6 +226,7 @@ class SoundEngine {
 
     /** Low double-buzz — action failed */
     error() {
+        this._cue('that did not work');
         if (!this.ctx) return;
         const t = this._t();
         this._osc('square', 220, t, 0.1, 0.08);
@@ -187,6 +235,7 @@ class SoundEngine {
 
     /** Ascending triple-beep — game saved/loaded */
     save() {
+        this._cue('game saved');
         if (!this.ctx) return;
         const t = this._t();
         this._osc('sine', 550, t, 0.05, 0.07);

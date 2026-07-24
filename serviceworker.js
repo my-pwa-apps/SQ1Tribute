@@ -1,19 +1,22 @@
 // Star Sweeper: A Space Adventure - Service Worker
 // BUMP VERSION on every code change to invalidate the cache.
-const VERSION = 'v1.0.10';
+const VERSION = 'v1.0.39';
 const CACHE_NAME = `starsweeper-${VERSION}`;
 
 const ASSETS = [
     './',
     './index.html',
     './manifest.json',
+    './js/palette.js',
     './js/engine.js',
     './js/game.js',
     './js/sound.js',
     './js/vr.js',
+    './js/content.js',
     './js/register-sw.js',
     './icons/star-192.svg',
-    './icons/star-512.svg'
+    './icons/star-512.svg',
+    './fonts/vt323-latin-400-normal.woff2'
 ];
 
 self.addEventListener('install', (event) => {
@@ -50,10 +53,18 @@ function cacheResponse(req, res) {
 }
 
 function networkFirst(req) {
-    return fetch(req).then((res) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    return fetch(req, { signal: controller.signal }).then((res) => {
         cacheResponse(req, res);
         return res;
-    }).catch(() => caches.match(req));
+    }).catch(async () => {
+        const cached = await caches.match(req) || await caches.match('./index.html');
+        return cached || new Response('Star Sweeper is unavailable offline until it has been opened once.', {
+            status: 503,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        });
+    }).finally(() => clearTimeout(timeout));
 }
 
 function cacheFirst(req) {

@@ -4,9 +4,21 @@
     "description": "Star Sweeper: A Space Adventure — a Sierra-style point-and-click adventure game built with HTML5 Canvas and JavaScript.",
     "private": true,
     "scripts": {
-        "serve": "python -m http.server 8080",
-        "check": "node -c js/engine.js && node -c js/game.js && node -c js/sound.js && node -c js/vr.js && node -c js/register-sw.js && node -c serviceworker.js && node tools/validate_content.js"
+        "serve": "node tools/serve.js",
+        "check:static": "node -c js/engine.js && node -c js/content.js && node -c js/game.js && node -c js/sound.js && node -c js/vr.js && node -c js/register-sw.js && node -c serviceworker.js && node -c tools/serve.js && node tools/validate_content.js",
+        "test:e2e": "playwright test",
+        "check": "npm run check:static && npm run test:e2e"
     },
-    "keywords": ["game", "adventure", "sierra", "space-quest", "html5-canvas", "point-and-click"],
-    "license": "MIT"
+    "keywords": [
+        "game",
+        "adventure",
+        "sierra",
+        "space-quest",
+        "html5-canvas",
+        "point-and-click"
+    ],
+    "license": "MIT",
+    "devDependencies": {
+        "@playwright/test": "^1.61.1"
+    }
 }
