@@ -5,7 +5,7 @@
     "private": true,
     "scripts": {
         "serve": "node tools/serve.js",
-        "check:static": "node -c js/engine.js && node -c js/content.js && node -c js/game.js && node -c js/sound.js && node -c js/vr.js && node -c js/register-sw.js && node -c serviceworker.js && node -c tools/serve.js && node tools/validate_content.js",
+        "check:static": "node -c js/engine.js && node -c js/palette.js && node -c js/content.js && node -c js/game.js && node -c js/sound.js && node -c js/vr.js && node -c js/register-sw.js && node -c serviceworker.js && node -c tools/serve.js && node tools/validate_content.js",
         "test:e2e": "playwright test",
         "check": "npm run check:static && npm run test:e2e"
     },
