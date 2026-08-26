@@ -63,7 +63,7 @@ test.describe('visual regression', () => {
         await expectCanvas(page, 'title.png');
 
         await startEnhanced(page);
-        for (const room of ['corridor', 'desert', 'cave', 'cantina', 'docking_bay', 'draknoid_ship']) {
+        for (const room of ['broom_closet', 'corridor', 'desert', 'cave', 'cantina', 'docking_bay', 'draknoid_ship']) {
             await loadRoom(page, room);
             await expectCanvas(page, `${room}.png`);
         }
@@ -89,5 +89,24 @@ test.describe('visual regression', () => {
             clientWidth: document.documentElement.clientWidth
         }));
         expect(dimensions.scrollWidth).toBe(dimensions.clientWidth);
+    });
+
+    test('rescued prisoners reunite with Pipz in the epilogue', async ({ page }, testInfo) => {
+        test.skip(testInfo.project.name !== 'chromium');
+        await startEnhanced(page);
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.setFlag('guard_defeated');
+            e.setFlag('field_down');
+            e.setFlag('rescued_prisoners');
+            e.goToRoom('draknoid_ship', 320, 330);
+            e.roomTransition = 0;
+            e.currentAction = 'get';
+            const drive = e.rooms.draknoid_ship.hotspots.find((hotspot) => hotspot.name === 'Quantum Drive');
+            e.performAction(drive);
+            e.cutscene.elapsed = 8500;
+            e.animTimer = e.scoreFlashUntil + 1;
+        });
+        await expectCanvas(page, 'pipz-reunion.png');
     });
 });

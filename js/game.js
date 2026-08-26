@@ -260,7 +260,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         action: (eng) => {
                             if (!eng.getFlag('pipz_thanked')) {
                                 eng.setFlag('pipz_thanked');
-                                eng.addScore(15);
                             }
                         },
                         once: true,
@@ -509,16 +508,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         const eyeOpen = standProg > 0.2 ? (standProg - 0.2) / 0.2 : 0;
                         drawPlayerSleeping(ctx, 258, 322 + breathe, eyeOpen);
                     } else if (standProg < 0.7) {
-                        // Sit-up phase: use same s=1.85 scale as drawPlayerBody
-                        const s = 1.85;
+                        // Sit-up phase: matches the shared ego scale
+                        const s = engine.playerSpriteScale(310);
                         const sitP = (standProg - 0.4) / 0.3;
                         const cpx = 300;                          // horizontal centre
                         const tY = 310 + 6 * s - sitP * 18 * s;  // torso bottom (belt level), rising
                         const hY = tY - 18 * s;                   // head top
                         // Boots
-                        ctx.fillStyle = '#222222';
+                        ctx.fillStyle = PLAYER_PALETTE.boots;
                         ctx.fillRect(cpx - 5 * s, tY + 9 * s, 4 * s, 3 * s);
                         ctx.fillRect(cpx + 0 * s, tY + 9 * s, 4 * s, 3 * s);
+                        ctx.fillStyle = '#111111';
+                        ctx.fillRect(cpx - 5 * s, tY + 11 * s, 5 * s, 1 * s);
+                        ctx.fillRect(cpx + 0 * s, tY + 11 * s, 5 * s, 1 * s);
                         // Legs
                         ctx.fillStyle = PLAYER_PALETTE.legs;
                         ctx.fillRect(cpx - 4 * s, tY + 1 * s, 3 * s, 8 * s);
@@ -532,6 +534,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.fillStyle = PLAYER_PALETTE.suitShadow;
                         ctx.fillRect(cpx - 5 * s, tY - 10 * s, 1 * s, 11 * s);
                         ctx.fillRect(cpx + 4 * s, tY - 10 * s, 1 * s, 11 * s);
+                        ctx.fillStyle = PLAYER_PALETTE.legHighlight;
+                        ctx.fillRect(cpx - 1 * s, tY - 6 * s, 2 * s, 4 * s);
                         // Collar
                         ctx.fillStyle = PLAYER_PALETTE.collar;
                         ctx.fillRect(cpx - 4 * s, tY - 10 * s, 8 * s, 1 * s);
@@ -541,21 +545,30 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Belt buckle
                         ctx.fillStyle = PLAYER_PALETTE.buckle;
                         ctx.fillRect(cpx - 1.5 * s, tY - 0.5 * s, 3 * s, 2.5 * s);
-                        // Arms (pushing off the floor, angled outward)
-                        const armExtend = (1 - sitP) * 5 * s;
+                        // Arms braced at the shoulder; the elbow angles out while he pushes up.
+                        const brace = Math.round((1 - sitP) * 2 * s);
                         ctx.fillStyle = PLAYER_PALETTE.suit;
-                        ctx.fillRect(cpx - 7 * s, tY - 4 * s + armExtend, 2 * s, 7 * s);
-                        ctx.fillRect(cpx + 5 * s, tY - 4 * s + armExtend, 2 * s, 7 * s);
+                        ctx.fillRect(cpx - 7 * s, tY - 8 * s, 2 * s, 4 * s);
+                        ctx.fillRect(cpx + 5 * s, tY - 8 * s, 2 * s, 4 * s);
+                        ctx.fillRect(cpx - 7 * s - brace, tY - 4.5 * s, 2 * s, 3 * s);
+                        ctx.fillRect(cpx + 5 * s + brace, tY - 4.5 * s, 2 * s, 3 * s);
+                        ctx.fillStyle = PLAYER_PALETTE.collar;
+                        ctx.fillRect(cpx - 7 * s - brace, tY - 2 * s, 2 * s, 1 * s);
+                        ctx.fillRect(cpx + 5 * s + brace, tY - 2 * s, 2 * s, 1 * s);
                         // Hands
                         ctx.fillStyle = PLAYER_PALETTE.skin;
-                        ctx.fillRect(cpx - 7 * s, tY + 3 * s + armExtend, 2 * s, 2.5 * s);
-                        ctx.fillRect(cpx + 5 * s, tY + 3 * s + armExtend, 2 * s, 2.5 * s);
+                        ctx.fillRect(cpx - 7 * s - brace, tY - 1 * s, 2 * s, 2.5 * s);
+                        ctx.fillRect(cpx + 5 * s + brace, tY - 1 * s, 2 * s, 2.5 * s);
                         // Hair
                         ctx.fillStyle = PLAYER_PALETTE.hair;
                         ctx.fillRect(cpx - 4 * s, hY - 1 * s, 8 * s, 4 * s);
+                        ctx.fillStyle = '#CC8844';
+                        ctx.fillRect(cpx - 2 * s, hY - 1 * s, 4 * s, 1 * s);
                         // Head
                         ctx.fillStyle = PLAYER_PALETTE.skin;
                         ctx.fillRect(cpx - 4 * s, hY, 8 * s, 8 * s);
+                        ctx.fillStyle = PLAYER_PALETTE.skinShadow;
+                        ctx.fillRect(cpx - 4 * s, hY + 7 * s, 8 * s, 1 * s);
                         // Eyes
                         ctx.fillStyle = '#FFFFFF';
                         ctx.fillRect(cpx - 3 * s, hY + 3 * s, 2.5 * s, 2 * s);
@@ -564,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.fillRect(cpx - 2.5 * s, hY + 3 * s, 1.5 * s, 2 * s);
                         ctx.fillRect(cpx + 1 * s, hY + 3 * s, 1.5 * s, 2 * s);
                     } else {
-                        drawPlayerBody(ctx, px, baseY, 1.85, wakeProg > 0.85 ? 0 : 0.5);
+                        drawPlayerBody(ctx, px, baseY, engine.playerSpriteScale(baseY), wakeProg > 0.85 ? 0 : 0.5);
                     }
                     if (t > 600) showNarration('p2_yawn', [
                         '*yaaawn*... Huh? What time is it...'
@@ -580,7 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (introPhase === 3) {
                     if (!engine.getFlag('alarm_active')) engine.setFlag('alarm_active');
                     drawRoom(ctx, w, h, 0.8);
-                    drawPlayerBody(ctx, 300, 310, 1.85, 0);
+                    drawPlayerBody(ctx, 300, 310, engine.playerSpriteScale(310), 0);
                     const warn = Math.floor(elapsed / 250) % 2;
                     ctx.fillStyle = warn ? '#FF5555' : '#AA0000';
                     ctx.font = '14px "Courier New"';
@@ -614,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     alarmGlow(ctx, w, h, engine);
                     const stumble = Math.sin(elapsed / 120) * 10;
                     const stumbleY = Math.sin(elapsed / 90) * 3;
-                    drawPlayerBody(ctx, 300 + stumble, 310 + stumbleY, 1.85, Math.sin(elapsed / 200) * 0.5 + 0.5);
+                    drawPlayerBody(ctx, 300 + stumble, 310 + stumbleY, engine.playerSpriteScale(310 + stumbleY), Math.sin(elapsed / 200) * 0.5 + 0.5);
                     for (let i = 0; i < 8; i++) {
                         const sx = 80 + ((elapsed * (i + 1) * 7) % 480);
                         const sy = 20 + ((elapsed * (i + 2) * 3) % 220);
@@ -639,7 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (introPhase === 5) {
                     drawRoom(ctx, w, h, 0.8);
                     alarmGlow(ctx, w, h, engine);
-                    drawPlayerBody(ctx, 300, 310, 1.85, 0);
+                    drawPlayerBody(ctx, 300, 310, engine.playerSpriteScale(310), 0);
                     ctx.fillStyle = '#FF5555';
                     ctx.font = '13px "Courier New"';
                     ctx.textAlign = 'center';
@@ -1143,8 +1156,17 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(250, h * 0.7 - 55, 100, 55);
             ctx.fillRect(450, h * 0.7 - 35, 60, 35);
             // Landing pad
-            ctx.fillStyle = '#555';
-            ctx.fillRect(300, h * 0.7 - 3, 80, 6);
+            ctx.fillStyle = '#555566';
+            ctx.fillRect(294, h * 0.7 - 6, 92, 9);
+            ctx.fillStyle = '#FFAA22';
+            for (let x = 298; x < 382; x += 12) ctx.fillRect(x, h * 0.7 - 6, 6, 3);
+            ctx.fillStyle = '#FFDD55';
+            ctx.fillRect(292, h * 0.7 - 10, 3, 5);
+            ctx.fillRect(385, h * 0.7 - 10, 3, 5);
+            ctx.fillStyle = '#55FFFF';
+            ctx.fillRect(268, h * 0.7 - 48, 14, 3);
+            ctx.fillStyle = '#FFAA55';
+            ctx.fillRect(118, h * 0.7 - 32, 10, 3);
             // Orange planet sky
             gradientRect(ctx, 0, h * 0.5, w, h * 0.2, 'rgba(180,100,30,0)', 'rgba(180,100,30,0.3)');
             // Shuttle lifting off
@@ -1223,6 +1245,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function drawPipzReunion(ctx, w, h) {
+        gradientRect(ctx, 0, 0, w, h * 0.68, '#5a2848', '#c07048');
+        gradientRect(ctx, 0, h * 0.68, w, h * 0.32, '#493323', '#241b18');
+        ctx.fillStyle = '#5f5048';
+        ctx.fillRect(70, 125, 500, 150);
+        ctx.fillStyle = '#222a38';
+        ctx.fillRect(205, 145, 230, 130);
+        ctx.fillStyle = '#FFAA22';
+        for (let x = 205; x < 435; x += 24) ctx.fillRect(x, 268, 12, 7);
+        ctx.fillStyle = '#55FFFF';
+        ctx.font = 'bold 14px "Courier New"';
+        ctx.textAlign = 'center';
+        ctx.fillText('KERONA DOCKING BAY', w / 2, 112);
+
+        const people = [
+            { x: 280, h: 48, body: '#9b694f', skin: '#d8a07e' },
+            { x: 360, h: 44, body: '#805b43', skin: '#d8a07e' },
+            { x: 320, h: 28, body: '#5b7fa0', skin: '#e0aa88' }
+        ];
+        people.forEach((person) => {
+            const y = 310;
+            ctx.fillStyle = person.body;
+            ctx.fillRect(person.x - 7, y - person.h, 14, person.h - 12);
+            ctx.fillStyle = person.skin;
+            ctx.fillRect(person.x - 6, y - person.h - 12, 12, 12);
+            ctx.fillStyle = '#35251f';
+            ctx.fillRect(person.x - 6, y - person.h - 12, 12, 3);
+            ctx.fillStyle = '#2c2630';
+            ctx.fillRect(person.x - 6, y - 12, 5, 12);
+            ctx.fillRect(person.x + 1, y - 12, 5, 12);
+        });
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 16px "Courier New"';
+        ctx.fillText('SOME PROMISES MAKE IT HOME.', w / 2, h - 34);
+        ctx.textAlign = 'left';
+    }
+
     // CUTSCENE 4: Victory Escape
     function cutsceneVictoryEscape(ctx, w, h, progress, elapsed) {
         ctx.fillStyle = '#000';
@@ -1246,32 +1305,44 @@ document.addEventListener('DOMContentLoaded', () => {
             // Floor
             ctx.fillStyle = '#0f1a0f';
             ctx.fillRect(0, h * 0.65, w, h * 0.35);
-            // Running player
+            // Running player — same janitor palette as the in-room sprite
             const runFrame = Math.floor(elapsed / 150) % 2;
             const px = w * 0.5 + Math.sin(elapsed * 0.005) * 10;
+            const groundY = h * 0.65;
             // Body
-            ctx.fillStyle = '#6688aa';
-            ctx.fillRect(px - 6, h * 0.65 - 35, 12, 25);
+            ctx.fillStyle = PLAYER_PALETTE.suit;
+            ctx.fillRect(px - 6, groundY - 35, 12, 25);
+            ctx.fillStyle = PLAYER_PALETTE.suitShadow;
+            ctx.fillRect(px - 6, groundY - 35, 2, 25);
+            ctx.fillStyle = PLAYER_PALETTE.belt;
+            ctx.fillRect(px - 6, groundY - 13, 12, 3);
             // Head
-            ctx.fillStyle = '#ddb088';
-            ctx.beginPath(); ctx.arc(px, h * 0.65 - 42, 7, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = PLAYER_PALETTE.skin;
+            ctx.fillRect(px - 5, groundY - 49, 10, 9);
+            ctx.fillStyle = PLAYER_PALETTE.hair;
+            ctx.fillRect(px - 5, groundY - 51, 10, 4);
             // Legs (running animation)
-            ctx.fillStyle = '#445566';
+            ctx.fillStyle = PLAYER_PALETTE.legs;
             if (runFrame) {
-                ctx.fillRect(px - 5, h * 0.65 - 10, 4, 14);
-                ctx.fillRect(px + 3, h * 0.65 - 8, 4, 10);
+                ctx.fillRect(px - 5, groundY - 10, 4, 14);
+                ctx.fillRect(px + 3, groundY - 8, 4, 10);
             } else {
-                ctx.fillRect(px - 5, h * 0.65 - 8, 4, 10);
-                ctx.fillRect(px + 3, h * 0.65 - 10, 4, 14);
+                ctx.fillRect(px - 5, groundY - 8, 4, 10);
+                ctx.fillRect(px + 3, groundY - 10, 4, 14);
             }
-            // Arms swinging
-            ctx.fillStyle = '#ddb088';
-            ctx.fillRect(px + 6, h * 0.65 - 30 + runFrame * 4, 3, 10);
+            ctx.fillStyle = PLAYER_PALETTE.boots;
+            ctx.fillRect(px - 5, groundY + 2, 4, 3);
+            ctx.fillRect(px + 3, groundY + 2, 4, 3);
+            // Arm swinging from the shoulder, carrying the drive
+            ctx.fillStyle = PLAYER_PALETTE.suit;
+            ctx.fillRect(px + 6, groundY - 33, 3, 6);
+            ctx.fillStyle = PLAYER_PALETTE.skin;
+            ctx.fillRect(px + 6 + runFrame * 2, groundY - 27, 3, 5);
             // Holding Quantum Drive (AGI-style: solid color halo)
             ctx.fillStyle = '#55FFFF';
-            ctx.fillRect(px + 6, h * 0.65 - 30 + runFrame * 4 - 2, 10, 10);
+            ctx.fillRect(px + 6 + runFrame * 2, groundY - 30, 10, 10);
             ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(px + 8, h * 0.65 - 28 + runFrame * 4, 6, 6);
+            ctx.fillRect(px + 8 + runFrame * 2, groundY - 28, 6, 6);
             // Red alarm flashing
             if (Math.floor(elapsed / 250) % 2) {
                 ctx.fillStyle = 'rgba(255,0,0,0.1)';
@@ -1351,6 +1422,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // Phase 4: Hyperspace jump!
             const p = (progress - 0.75) / 0.25;
+            if (engine.getFlag('rescued_prisoners') && p >= 0.35) {
+                drawPipzReunion(ctx, w, h);
+                return;
+            }
             // Hyperspace effect: star tunnel
             const cx = w / 2, cy = h / 2;
             // Blue-white tunnel
@@ -1695,18 +1770,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const PLAYER_PALETTE = PAL.PLAYER;
 
     function drawPlayerBody(ctx, px, py, s, armAngle) {
-        // Simplified front-facing player for mini-anims
+        // Front-facing player for mini-anims. Shading mirrors the in-room sprite
+        // in engine.drawPlayer so the character does not change between them.
         // Legs
         ctx.fillStyle = PLAYER_PALETTE.legs;
         ctx.fillRect(px - 4 * s, py + 1 * s, 3 * s, 8 * s);
         ctx.fillRect(px + 1 * s, py + 1 * s, 3 * s, 8 * s);
+        ctx.fillStyle = PLAYER_PALETTE.legHighlight;
+        ctx.fillRect(px - 3 * s, py + 2 * s, 1 * s, 6 * s);
+        ctx.fillRect(px + 2 * s, py + 2 * s, 1 * s, 6 * s);
         // Boots
         ctx.fillStyle = PLAYER_PALETTE.boots;
         ctx.fillRect(px - 5 * s, py + 9 * s, 4 * s, 3 * s);
         ctx.fillRect(px + 0 * s, py + 9 * s, 4 * s, 3 * s);
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(px - 5 * s, py + 11 * s, 5 * s, 1 * s);
+        ctx.fillRect(px + 0 * s, py + 11 * s, 5 * s, 1 * s);
         // Body
         ctx.fillStyle = PLAYER_PALETTE.suit;
         ctx.fillRect(px - 5 * s, py - 10 * s, 10 * s, 11 * s);
+        ctx.fillStyle = PLAYER_PALETTE.suitShadow;
+        ctx.fillRect(px - 5 * s, py - 10 * s, 1 * s, 11 * s);
+        ctx.fillRect(px + 4 * s, py - 10 * s, 1 * s, 11 * s);
+        ctx.fillStyle = PLAYER_PALETTE.legHighlight;
+        ctx.fillRect(px - 1 * s, py - 6 * s, 2 * s, 4 * s);
         // Collar
         ctx.fillStyle = PLAYER_PALETTE.collar;
         ctx.fillRect(px - 4 * s, py - 10 * s, 8 * s, 1 * s);
@@ -1718,9 +1805,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Head
         ctx.fillStyle = PLAYER_PALETTE.skin;
         ctx.fillRect(px - 4 * s, py - 18 * s, 8 * s, 8 * s);
+        ctx.fillStyle = PLAYER_PALETTE.skinShadow;
+        ctx.fillRect(px - 4 * s, py - 11 * s, 8 * s, 1 * s);
         // Hair
         ctx.fillStyle = PLAYER_PALETTE.hair;
         ctx.fillRect(px - 4 * s, py - 19 * s, 8 * s, 4 * s);
+        ctx.fillStyle = '#CC8844';
+        ctx.fillRect(px - 2 * s, py - 19 * s, 4 * s, 1 * s);
         // Eyes
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(px - 3 * s, py - 15 * s, 2.5 * s, 2 * s);
@@ -1728,25 +1819,42 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillStyle = PLAYER_PALETTE.iris;
         ctx.fillRect(px - 2.5 * s, py - 15 * s, 1.5 * s, 2 * s);
         ctx.fillRect(px + 1 * s, py - 15 * s, 1.5 * s, 2 * s);
-        // Arms (with rotation based on armAngle: 0=down, 1=forward)
-        const armOffY = -armAngle * 8 * s;
-        ctx.fillStyle = PLAYER_PALETTE.suit;
-        ctx.fillRect(px - 7 * s, py - 8 * s + armOffY, 2 * s, 7 * s);
-        ctx.fillRect(px + 5 * s, py - 8 * s + armOffY, 2 * s, 7 * s);
-        // Hands
-        ctx.fillStyle = PLAYER_PALETTE.skin;
-        ctx.fillRect(px - 7 * s, py - 1 * s + armOffY, 2 * s, 2.5 * s);
-        ctx.fillRect(px + 5 * s, py - 1 * s + armOffY, 2 * s, 2.5 * s);
+        // Arms pivot at the shoulder in three discrete poses (Sierra used cels,
+        // not tweens) so the limb never slides up the torso past the shoulder.
+        const armPose = armAngle < 0.25 ? 0 : (armAngle < 0.7 ? 1 : 2);
+        const drawArm = (sx, out) => {
+            ctx.fillStyle = PLAYER_PALETTE.suit;
+            if (armPose === 0) {
+                ctx.fillRect(sx, py - 8 * s, 2 * s, 6 * s);
+                ctx.fillStyle = PLAYER_PALETTE.collar;
+                ctx.fillRect(sx, py - 2 * s, 2 * s, 1 * s);
+                ctx.fillStyle = PLAYER_PALETTE.skin;
+                ctx.fillRect(sx, py - 1 * s, 2 * s, 2.5 * s);
+            } else if (armPose === 1) {
+                // Slight outward bend at the elbow — not a full splay.
+                ctx.fillRect(sx, py - 8 * s, 2 * s, 4 * s);
+                ctx.fillRect(sx + out * 1 * s, py - 4.5 * s, 2 * s, 3 * s);
+                ctx.fillStyle = PLAYER_PALETTE.skin;
+                ctx.fillRect(sx + out * 2 * s, py - 2 * s, 2 * s, 2.5 * s);
+            } else {
+                ctx.fillRect(sx, py - 8 * s, 2 * s, 2 * s);
+                ctx.fillRect(out < 0 ? sx - 4 * s : sx + 2 * s, py - 8 * s, 4 * s, 2 * s);
+                ctx.fillStyle = PLAYER_PALETTE.skin;
+                ctx.fillRect(out < 0 ? sx - 6 * s : sx + 6 * s, py - 8 * s, 2 * s, 2.5 * s);
+            }
+        };
+        drawArm(px - 7 * s, -1);
+        drawArm(px + 5 * s, 1);
     }
 
     /**
      * Draw the player lying down (sleeping / waking).
      * bx = left edge of head, cy = vertical CENTRE of the lying body.
-     * All sizes derived from drawPlayerBody at s=1.85 (body rotated 90°).
+     * All sizes derived from drawPlayerBody at the shared ego scale (body rotated 90°).
      * eyeOpen: 0 = closed, 1 = fully open.
      */
     function drawPlayerSleeping(ctx, bx, cy, eyeOpen) {
-        const s = 1.85;
+        const s = engine.playerSpriteScale(310);
         // Horizontal reference points (head left → feet right)
         const bodyX = bx + 8 * s;          // torso starts just right of head
         const beltX = bodyX + 11 * s;      // belt column
@@ -1845,9 +1953,44 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         draw: (ctx, w, h, eng) => {
-            // Walls
-            metalWall(ctx, 0, 0, w, 275, '#38384e', '#3e3e58');
-            metalFloor(ctx, 275, w, 125);
+            // Perspective shell: the closet is cramped, but still belongs to the
+            // same pseudo-3D ship as the corridor beyond it.
+            ctx.fillStyle = '#262638';
+            ctx.beginPath();
+            ctx.moveTo(0, 0); ctx.lineTo(w, 0); ctx.lineTo(420, 52); ctx.lineTo(220, 52);
+            ctx.closePath(); ctx.fill();
+            metalWall(ctx, 220, 52, 200, 223, '#38384e', '#3e3e58');
+            ctx.fillStyle = '#303044';
+            ctx.beginPath();
+            ctx.moveTo(0, 0); ctx.lineTo(220, 52); ctx.lineTo(220, 275); ctx.lineTo(0, h);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#343448';
+            ctx.beginPath();
+            ctx.moveTo(w, 0); ctx.lineTo(420, 52); ctx.lineTo(420, 275); ctx.lineTo(w, h);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#35354b';
+            ctx.beginPath();
+            ctx.moveTo(220, 275); ctx.lineTo(420, 275); ctx.lineTo(w, h); ctx.lineTo(0, h);
+            ctx.closePath(); ctx.fill();
+
+            // Perspective-correct panel seams on the side walls.
+            ctx.strokeStyle = '#4a4a60';
+            ctx.lineWidth = 2;
+            [55, 110, 165].forEach((x) => {
+                ctx.beginPath(); ctx.moveTo(x, x * 52 / 220); ctx.lineTo(x, h - x * 125 / 220); ctx.stroke();
+            });
+            [475, 530, 585].forEach((x) => {
+                const d = w - x;
+                ctx.beginPath(); ctx.moveTo(x, d * 52 / 220); ctx.lineTo(x, h - d * 125 / 220); ctx.stroke();
+            });
+            ctx.fillStyle = '#3d3d54';
+            ctx.beginPath();
+            ctx.moveTo(0, h); ctx.lineTo(220, 275); ctx.lineTo(420, 275); ctx.lineTo(w, h);
+            ctx.lineTo(w, h); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#414158';
+            ctx.beginPath();
+            ctx.moveTo(105, 340); ctx.lineTo(535, 340); ctx.lineTo(640, 400); ctx.lineTo(0, 400);
+            ctx.closePath(); ctx.fill();
 
             // Ceiling pipes
             ctx.fillStyle = '#505065';
@@ -1857,57 +2000,85 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(380, 4, 6, 22);
             ctx.fillRect(530, 4, 6, 22);
 
-            // Left shelves
-            ctx.fillStyle = '#5a5a6e';
-            ctx.fillRect(25, 88, 190, 6);
-            ctx.fillRect(25, 155, 190, 6);
-            // Brackets
-            ctx.fillStyle = '#4a4a5e';
-            ctx.fillRect(35, 88, 4, 25); ctx.fillRect(205, 88, 4, 25);
-            ctx.fillRect(35, 155, 4, 25); ctx.fillRect(205, 155, 4, 25);
+            // Wall bands: props mounted on the side walls must follow the same
+            // convergence as the walls (vanishing point sits at ~497,117).
+            const lTop = (x) => x * 52 / 220;
+            const lBot = (x) => h - x * 125 / 220;
+            const lBand = (x, f) => lTop(x) + (lBot(x) - lTop(x)) * f;
+            const lSc = (x) => (lBot(x) - lTop(x)) / h;
+            const rTop = (x) => (w - x) * 52 / 220;
+            const rBot = (x) => h - (w - x) * 125 / 220;
+            const rBand = (x, f) => rTop(x) + (rBot(x) - rTop(x)) * f;
+            const rSc = (x) => (rBot(x) - rTop(x)) / h;
+            const wallQuad = (x1, x2, f1, f2, band) => {
+                ctx.beginPath();
+                ctx.moveTo(x1, band(x1, f1)); ctx.lineTo(x2, band(x2, f1));
+                ctx.lineTo(x2, band(x2, f2)); ctx.lineTo(x1, band(x1, f2));
+                ctx.closePath();
+            };
+            /** Draw a prop standing on a wall shelf; local origin is its base. */
+            const shelfProp = (x, f, drawLocal) => {
+                const sc = lSc(x), base = lBand(x, f);
+                const put = (dx, dy, iw, ih, colour) => {
+                    ctx.fillStyle = colour;
+                    const x0 = Math.round(x + dx * sc), y0 = Math.round(base + dy * sc);
+                    ctx.fillRect(x0, y0, Math.round(x + (dx + iw) * sc) - x0, Math.round(base + (dy + ih) * sc) - y0);
+                };
+                const label = (text, dx, dy, size, colour) => {
+                    ctx.fillStyle = colour;
+                    ctx.font = `${Math.max(3, Math.round(size * sc))}px "Courier New"`;
+                    ctx.fillText(text, Math.round(x + dx * sc), Math.round(base + dy * sc));
+                };
+                drawLocal(put, label);
+            };
+            const SHELF_HI = 0.216, SHELF_LO = 0.3925;
 
-            // Stuff on top shelf
+            // Left shelves — planks and brackets follow the wall's convergence
+            [SHELF_HI, SHELF_LO].forEach((f) => {
+                ctx.fillStyle = '#5a5a6e';
+                ctx.beginPath();
+                ctx.moveTo(25, lBand(25, f)); ctx.lineTo(215, lBand(215, f));
+                ctx.lineTo(215, lBand(215, f) + 6 * lSc(215)); ctx.lineTo(25, lBand(25, f) + 6 * lSc(25));
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#4a4a5e';
+                [35, 205].forEach((bx) => {
+                    ctx.fillRect(bx, lBand(bx, f) + 6 * lSc(bx), Math.max(2, 4 * lSc(bx)), 25 * lSc(bx));
+                });
+            });
+
             // Astro-Shine spray bottle
-            ctx.fillStyle = '#5080a0';
-            ctx.fillRect(48, 72, 14, 16); // body
-            ctx.fillStyle = '#6090b0';
-            ctx.fillRect(50, 74, 10, 12);
-            ctx.fillStyle = '#4070a0';
-            ctx.fillRect(52, 66, 8, 8); // nozzle top
-            ctx.fillRect(58, 69, 6, 3); // trigger
-            ctx.fillStyle = '#fff';
-            ctx.font = '4px "Courier New"';
-            ctx.fillText('A-S', 50, 82);
+            shelfProp(48, SHELF_HI, (put, label) => {
+                put(0, -16, 14, 16, '#5080a0');
+                put(2, -14, 10, 12, '#6090b0');
+                put(4, -22, 8, 8, '#4070a0');
+                put(10, -19, 6, 3, '#4070a0');
+                label('A-S', 2, -6, 4, '#fff');
+            });
 
             // Zero-G dust cloth box
-            ctx.fillStyle = '#6a8858';
-            ctx.fillRect(78, 73, 32, 15);
-            ctx.fillStyle = '#7a9868';
-            ctx.fillRect(80, 75, 28, 11);
-            ctx.fillStyle = '#fff';
-            ctx.font = '5px "Courier New"';
-            ctx.fillText('DUST', 82, 82);
-            ctx.fillText('CLOTH', 81, 87);
+            shelfProp(78, SHELF_HI, (put, label) => {
+                put(0, -15, 32, 15, '#6a8858');
+                put(2, -13, 28, 11, '#7a9868');
+                label('DUST', 4, -7, 5, '#fff');
+                label('CLOTH', 3, -2, 5, '#fff');
+            });
 
             // Tall purple bottle (leaking!)
-            ctx.fillStyle = '#7040a0';
-            ctx.fillRect(128, 64, 12, 24);
-            ctx.fillStyle = '#8050b0';
-            ctx.fillRect(130, 66, 8, 20);
-            ctx.fillStyle = '#604090';
-            ctx.fillRect(131, 62, 6, 4); // cap
-            ctx.fillStyle = '#ff0';
-            ctx.font = '4px "Courier New"';
-            ctx.fillText('???', 129, 78);
+            shelfProp(128, SHELF_HI, (put, label) => {
+                put(0, -24, 12, 24, '#7040a0');
+                put(2, -22, 8, 20, '#8050b0');
+                put(3, -28, 6, 4, '#604090');
+                label('???', 1, -11, 4, '#ff0');
+            });
             // Purple drip from bottom of bottle down shelf edge
             ctx.fillStyle = '#8050c0';
-            ctx.fillRect(133, 88, 3, 6);
-            ctx.fillRect(132, 93, 4, 3);
+            ctx.fillRect(133, 96, 3, 6);
+            ctx.fillRect(132, 101, 4, 3);
             // Purple drips down wall (slow intermittent drops, not a line)
             ctx.fillStyle = 'rgba(120,60,180,0.7)';
             // Stationary drip blobs clinging to wall at intervals
-            ctx.beginPath(); ctx.ellipse(134, 105, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.ellipse(133, 122, 1.5, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(134, 112, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(133, 126, 1.5, 2.5, 0, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = 'rgba(120,60,180,0.5)';
             ctx.beginPath(); ctx.ellipse(134, 138, 2, 2, 0, 0, Math.PI * 2); ctx.fill();
             // Animated drip falling between shelf and lower shelf
@@ -1915,25 +2086,25 @@ document.addEventListener('DOMContentLoaded', () => {
             if (wallDrip < 0.6) {
                 const wd = wallDrip / 0.6;
                 ctx.fillStyle = `rgba(120,60,180,${0.5 + wd * 0.2})`;
-                ctx.beginPath(); ctx.ellipse(134, 96 + wd * 55, 1.5 + wd * 0.5, 2 + wd, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(134, 102 + wd * 42, 1.5 + wd * 0.5, 2 + wd, 0, 0, Math.PI * 2); ctx.fill();
             }
             // Purple puddle on lower shelf
             ctx.fillStyle = 'rgba(110,50,170,0.5)';
-            ctx.beginPath(); ctx.ellipse(134, 155, 10, 3, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(134, 146, 10, 3, 0, 0, Math.PI * 2); ctx.fill();
             // Purple drips from lower shelf to floor (intermittent blobs)
             ctx.fillStyle = 'rgba(120,60,180,0.45)';
-            ctx.beginPath(); ctx.ellipse(134, 175, 1.5, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(134, 178, 1.5, 2.5, 0, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = 'rgba(120,60,180,0.35)';
-            ctx.beginPath(); ctx.ellipse(133, 200, 2, 2, 0, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.ellipse(134, 228, 1.5, 3, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(133, 216, 2, 2, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(134, 254, 1.5, 3, 0, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = 'rgba(120,60,180,0.25)';
-            ctx.beginPath(); ctx.ellipse(133, 252, 2, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(133, 292, 2, 2.5, 0, 0, Math.PI * 2); ctx.fill();
             // Animated drip falling from lower shelf to floor
             const floorDrip = (eng.animTimer % 2800) / 2800;
             if (floorDrip < 0.7) {
                 const fd = floorDrip / 0.7;
                 ctx.fillStyle = `rgba(120,60,180,${0.4 + fd * 0.2})`;
-                ctx.beginPath(); ctx.ellipse(134, 160 + fd * 110, 1.5 + fd * 0.5, 2 + fd, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(134, 150 + fd * 166, 1.5 + fd * 0.5, 2 + fd, 0, 0, Math.PI * 2); ctx.fill();
             }
             // Animated falling droplet
             const dripCycle = (eng.animTimer % 2400) / 2400; // 2.4s cycle
@@ -1948,7 +2119,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 // Droplet falling
                 const fallP = (dripCycle - 0.7) / 0.3;
-                const dropY = 275 + fallP * 10;
+                const dropY = 316 + fallP * 8;
                 const dropSize = 2.5 * (1 - fallP * 0.4);
                 ctx.fillStyle = `rgba(130,60,200,${0.7 - fallP * 0.3})`;
                 ctx.beginPath(); ctx.ellipse(134, dropY, dropSize * 0.7, dropSize, 0, 0, Math.PI * 2); ctx.fill();
@@ -1957,66 +2128,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     const splashP = (fallP - 0.8) / 0.2;
                     ctx.strokeStyle = `rgba(140,70,210,${0.5 - splashP * 0.5})`;
                     ctx.lineWidth = 1;
-                    ctx.beginPath(); ctx.ellipse(134, 281, 3 + splashP * 6, 1.5 + splashP * 2, 0, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath(); ctx.ellipse(134, 325, 3 + splashP * 6, 1.5 + splashP * 2, 0, 0, Math.PI * 2); ctx.stroke();
                 }
             }
             // Purple puddle on floor
             ctx.fillStyle = 'rgba(110,50,170,0.35)';
-            ctx.beginPath(); ctx.ellipse(135, 280, 16, 5, 0.2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(137, 326, 16, 5, 0.2, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = 'rgba(130,70,200,0.2)';
-            ctx.beginPath(); ctx.ellipse(138, 282, 20, 7, 0.1, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(141, 329, 20, 7, 0.1, 0, Math.PI * 2); ctx.fill();
 
             // Air freshener can
-            ctx.fillStyle = '#4080a8';
-            ctx.fillRect(170, 70, 14, 18);
-            ctx.fillStyle = '#50a0c0';
-            ctx.fillRect(172, 72, 10, 14);
-            ctx.fillStyle = '#3070a0';
-            ctx.beginPath(); ctx.arc(177, 69, 3, Math.PI, 0); ctx.fill(); // dome top
-            ctx.fillStyle = '#fff';
-            ctx.font = '4px "Courier New"';
-            ctx.fillText('AIR', 173, 80);
-            ctx.fillText('FRSH', 171, 85);
+            shelfProp(170, SHELF_HI, (put, label) => {
+                put(0, -18, 14, 18, '#4080a8');
+                put(2, -16, 10, 14, '#50a0c0');
+                put(2, -21, 10, 3, '#3070a0');
+                label('AIR', 3, -9, 4, '#fff');
+                label('FRSH', 1, -4, 4, '#fff');
+            });
 
             // Bottom shelf items
-            // Detergent jug
-            ctx.fillStyle = '#aa8844';
-            ctx.fillRect(42, 136, 18, 19);
-            ctx.fillStyle = '#bb9955';
-            ctx.fillRect(44, 138, 14, 15);
-            ctx.fillStyle = '#aa8844';
-            ctx.fillRect(47, 132, 8, 6); // handle
-            ctx.fillRect(49, 132, 4, 4);
-            ctx.fillStyle = '#fff';
-            ctx.font = '4px "Courier New"';
-            ctx.fillText('SOAP', 44, 147);
+            shelfProp(42, SHELF_LO, (put, label) => {
+                put(0, -19, 18, 19, '#aa8844');
+                put(2, -17, 14, 15, '#bb9955');
+                put(5, -25, 8, 6, '#aa8844');
+                label('SOAP', 2, -8, 4, '#fff');
+            });
 
-            // Stack of rags/cloths
-            ctx.fillStyle = '#8a8878';
-            ctx.fillRect(78, 143, 30, 12);
-            ctx.fillStyle = '#9a9888';
-            ctx.fillRect(80, 140, 26, 5);
-            ctx.fillStyle = '#7a7868';
-            ctx.fillRect(82, 137, 22, 5);
-            // Fraying edges
-            ctx.fillStyle = '#aaaa98';
-            for (let i = 0; i < 4; i++) ctx.fillRect(79 + i * 8, 155, 3, 2);
+            shelfProp(78, SHELF_LO, (put) => {
+                put(0, -12, 30, 12, '#8a8878');
+                put(2, -15, 26, 5, '#9a9888');
+                put(4, -18, 22, 5, '#7a7868');
+                for (let i = 0; i < 4; i++) put(1 + i * 8, 0, 3, 2, '#aaaa98');
+            });
 
-            // Coupon sticking out from rags
-            ctx.fillStyle = '#ddcc88';
-            ctx.fillRect(100, 148, 12, 7);
-            ctx.fillStyle = '#cc2222';
-            ctx.font = '3px "Courier New"';
-            ctx.fillText('M.B.', 101, 153);
+            shelfProp(100, SHELF_LO, (put, label) => {
+                put(0, -7, 12, 7, '#ddcc88');
+                label('M.B.', 1, -2, 3, '#cc2222');
+            });
 
-            // Old polish tin
-            ctx.fillStyle = '#707070';
-            ctx.beginPath(); ctx.ellipse(175, 148, 10, 8, 0, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#808080';
-            ctx.beginPath(); ctx.ellipse(175, 146, 9, 7, 0, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#999';
-            ctx.font = '4px "Courier New"';
-            ctx.fillText('POLSH', 166, 149);
+            shelfProp(165, SHELF_LO, (put, label) => {
+                put(0, -14, 20, 12, '#707070');
+                put(1, -16, 18, 4, '#808080');
+                label('POLSH', 1, -6, 4, '#999');
+            });
 
             // Mop & bucket (right side)
             ctx.fillStyle = '#606575';
@@ -2121,9 +2275,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillRect(350, 159, 4, 4);
             }
 
-            // Floor details - grating pattern
-            ctx.fillStyle = '#3e3e55';
-            for (let x = 0; x < w; x += 80) ctx.fillRect(x, 275, 1, 125);
+            // Quiet floor plates preserve depth without competing with props.
+            ctx.fillStyle = '#4a4a60';
+            ctx.fillRect(105, 339, 430, 2);
             // Floor drain
             ctx.fillStyle = '#2a2a40';
             ctx.fillRect(350, 310, 30, 20);
@@ -2132,36 +2286,42 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let dy = 0; dy < 20; dy += 4) {
                 ctx.beginPath(); ctx.moveTo(352, 312 + dy); ctx.lineTo(378, 312 + dy); ctx.stroke();
             }
-            // Vent grille on wall
+            // Vent grille on the right wall
             ctx.fillStyle = '#454560';
-            ctx.fillRect(430, 90, 45, 30);
+            wallQuad(430, 475, 0.175, 0.303, rBand); ctx.fill();
             ctx.fillStyle = '#3a3a55';
-            for (let vy = 0; vy < 26; vy += 5) {
-                ctx.fillRect(432, 93 + vy, 41, 2);
+            for (let vf = 0.19; vf < 0.30; vf += 0.022) {
+                wallQuad(432, 473, vf, vf + 0.008, rBand); ctx.fill();
             }
             // Dust particles under vent
-            ctx.fillStyle = 'rgba(120,120,140,0.15)';
-            ctx.fillRect(440, 120, 25, 15);
+            ctx.fillStyle = 'rgba(120,120,140,0.10)';
+            wallQuad(442, 466, 0.315, 0.345, rBand); ctx.fill();
 
-            // Safety poster on right wall
+            // Safety poster on the right wall
             ctx.fillStyle = '#888855';
-            ctx.fillRect(540, 100, 50, 60);
+            wallQuad(540, 590, 0.239, 0.412, rBand); ctx.fill();
             ctx.fillStyle = '#AAAA77';
-            ctx.fillRect(542, 102, 46, 56);
-            ctx.fillStyle = '#CC2222';
-            ctx.font = '7px "Courier New"';
-            ctx.fillText('SAFETY', 546, 118);
-            ctx.fillText('FIRST!', 548, 128);
-            // Stick figure on poster
-            ctx.fillStyle = '#333333';
-            ctx.fillRect(560, 132, 2, 12);
-            ctx.fillRect(555, 137, 12, 2);
-            ctx.beginPath(); ctx.arc(561, 130, 3, 0, Math.PI * 2);
-            ctx.strokeStyle = '#333333'; ctx.stroke();
-            ctx.fillStyle = '#222222';
-            ctx.font = '5px "Courier New"';
-            ctx.fillText('0 DAYS', 548, 150);
-            ctx.fillText('WITHOUT', 547, 155);
+            wallQuad(543, 587, 0.247, 0.404, rBand); ctx.fill();
+            {
+                const pSc = rSc(565);
+                const pX = 546, pTop = rBand(546, 0.247);
+                const pH = rBand(546, 0.404) - pTop;
+                ctx.fillStyle = '#CC2222';
+                ctx.font = `${Math.round(7 * pSc)}px "Courier New"`;
+                ctx.fillText('SAFETY', pX, pTop + pH * 0.20);
+                ctx.fillText('FIRST!', pX + 2, pTop + pH * 0.38);
+                // Stick figure on poster
+                const fx = Math.round(pX + 16 * pSc), fy = pTop + pH * 0.52;
+                ctx.fillStyle = '#333333';
+                ctx.fillRect(fx, Math.round(fy), Math.max(1, Math.round(2 * pSc)), Math.round(12 * pSc));
+                ctx.fillRect(fx - Math.round(5 * pSc), Math.round(fy + 5 * pSc), Math.round(12 * pSc), Math.max(1, Math.round(2 * pSc)));
+                ctx.strokeStyle = '#333333';
+                ctx.beginPath(); ctx.arc(fx + 1, Math.round(fy - 3 * pSc), Math.max(2, 3 * pSc), 0, Math.PI * 2); ctx.stroke();
+                ctx.fillStyle = '#222222';
+                ctx.font = `${Math.max(4, Math.round(5 * pSc))}px "Courier New"`;
+                ctx.fillText('0 DAYS', pX + 2, pTop + pH * 0.83);
+                ctx.fillText('WITHOUT', pX + 1, pTop + pH * 0.92);
+            }
 
             // Cable conduit along ceiling
             ctx.fillStyle = '#4a4a60';
@@ -2222,7 +2382,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             {
-                name: 'Shelves', x: 25, y: 55, w: 195, h: 115,
+                name: 'Shelves', x: 25, y: 70, w: 195, h: 117,
                 description: 'Metal shelves stacked with cleaning supplies.',
                 look: (e) => e.showMessage('Rusty shelves holding assorted cleaning supplies — Astro-Shine polish, Zero-G dust cloths, a leaking bottle of something purple, and industrial-strength air freshener. Nothing useful for survival.'),
                 get: (e) => e.showMessage('You rummage through the cleaning supplies. Some detergent, old rags, and a coupon for "Monolith Burger" that expired two years ago. Nothing helpful.'),
@@ -2230,13 +2390,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 talk: (e) => e.showMessage('"Hello, cleaning supplies. It\'s me, your old friend." They do not respond. Probably for the best.')
             },
             {
-                name: 'Astro-Shine Bottle', x: 45, y: 62, w: 20, h: 28,
+                name: 'Astro-Shine Bottle', x: 46, y: 68, w: 17, h: 24,
                 description: 'A spray bottle of Astro-Shine polish.',
                 look: (e) => e.showMessage('"Astro-Shine All-Surface Polish — Makes Any Metal Gleam Like New!" You\'ve gone through about fifty of these. This one\'s nearly empty.'),
                 get: (e) => e.showMessage('You grab the Astro-Shine bottle and give it a shake. Almost empty. Not worth the inventory space.'),
                 use: (e) => {
                     const px = engine.playerX, py = engine.playerY;
-                    const sc = 1.85 + (py - 280) / 90 * 0.3;
+                    const sc = engine.playerSpriteScale(py);
                     e.playCutscene({
                         duration: 1800,
                         skippable: true,
@@ -2277,27 +2437,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             {
-                name: 'Zero-G Dust Cloths', x: 76, y: 70, w: 36, h: 20,
+                name: 'Zero-G Dust Cloths', x: 76, y: 77, w: 31, h: 17,
                 description: 'A box of Zero-G dust cloths.',
                 look: (e) => e.showMessage('"Zero-G Dust Cloths — For When Dust Doesn\'t Settle!" Specially designed for cleaning in artificial gravity environments. The box is half empty.'),
                 get: (e) => e.showMessage('You pull out a dust cloth. It\'s just a cloth. You put it back.'),
                 use: (e) => e.showMessage('You wipe down the nearest surface with a cloth. Habit. The ship lurches violently. Okay, enough cleaning.')
             },
             {
-                name: 'Purple Bottle', x: 126, y: 58, w: 16, h: 32,
+                name: 'Purple Bottle', x: 126, y: 72, w: 13, h: 25,
                 description: 'A tall bottle of mysterious purple liquid.',
                 look: (e) => e.showMessage('A tall bottle labeled only "???" in yellow marker. It glows faintly and has ignored three maintenance reports.'),
                 get: (e) => e.showMessage('Your fingers tingle before you even touch it. Some mysteries are best left shelved.'),
                 use: (e) => e.showMessage('You tighten the cap. Purple liquid immediately begins seeping through the threads. This bottle does not respect the laws of fluid dynamics.')
             },
             {
-                name: 'Air Freshener', x: 168, y: 66, w: 18, h: 24,
+                name: 'Air Freshener', x: 168, y: 81, w: 13, h: 18,
                 description: 'A can of industrial air freshener.',
                 look: (e) => e.showMessage('"FreshAir Industrial Odor Neutralizer — Starship Strength." The can is nearly empty, like your will to live.'),
                 get: (e) => e.showMessage('You pick it up and shake it. Barely a rattle. Even at full capacity it couldn\'t mask what\'s happening to this ship right now.'),
                 use: (e) => {
                     const px = engine.playerX, py = engine.playerY;
-                    const sc = 1.85 + (py - 280) / 90 * 0.3;
+                    const sc = engine.playerSpriteScale(py);
                     e.playCutscene({
                         duration: 2000,
                         skippable: true,
@@ -2342,21 +2502,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             {
-                name: 'Detergent Jug', x: 40, y: 130, w: 22, h: 26,
+                name: 'Detergent Jug', x: 40, y: 129, w: 20, h: 27,
                 description: 'A jug of industrial detergent.',
                 look: (e) => e.showMessage('"SoapMaster 3000 — Cuts Through Grease and Alien Residue!" About a quarter full. The label claims it\'s lemon-scented but it smells more like a chemical plant on fire.'),
                 get: (e) => e.showMessage('It\'s heavy and sloshy. You\'d rather not lug a jug of detergent around while fleeing for your life.'),
                 use: (e) => e.showMessage('You consider pouring some on the purple puddle. Then again, mixing unknown chemicals with mysterious alien goo seems like a bad idea. Even for you.')
             },
             {
-                name: 'Stack of Rags', x: 76, y: 135, w: 34, h: 22,
+                name: 'Stack of Rags', x: 76, y: 134, w: 29, h: 19,
                 description: 'A pile of worn cleaning rags.',
                 look: (e) => e.showMessage('A stack of well-used cleaning rags in various states of decay. Some are stiff with dried polish, others are suspiciously stained. A coupon for Monolith Burger is sticking out — expired two years ago.'),
                 get: (e) => e.showMessage('You grab a rag, then put it back. What are you going to do, wipe your way to safety?'),
                 use: (e) => e.showMessage('You absentmindedly fold the top rag. Neat edges. There. At least SOMETHING on this ship is in order.')
             },
             {
-                name: 'Polish Tin', x: 163, y: 138, w: 22, h: 18,
+                name: 'Polish Tin', x: 163, y: 131, w: 17, h: 15,
                 description: 'A tin of metal polish.',
                 look: (e) => e.showMessage('An old tin of "Star-Brite Metal Polish." The lid is rusted shut, which is ironic for a product that\'s supposed to prevent rust. It\'s been here since before you started this job.'),
                 get: (e) => e.showMessage('The tin is stuck to the shelf. Literally. Something has glued it in place. Probably that purple stuff.'),
@@ -2387,7 +2547,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.showMessage('You\'ve already taken what you need from it. The bucket looks lonely.');
                     } else {
                         const px = engine.playerX, py = engine.playerY;
-                        const sc = 1.85 + (py - 280) / 90 * 0.3;
+                        const sc = engine.playerSpriteScale(py);
                         // Hide the wall mop while it's being used in the animation
                         engine.setFlag('has_mop_handle');
                         e.playCutscene({
@@ -2455,7 +2615,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 talk: (e) => e.showMessage('"Goodbye, old friend. If I don\'t make it back... tell the squeegee I always respected her." The mop says nothing, but you sense its pride.')
             },
             {
-                name: 'Purple Puddle', x: 110, y: 270, w: 55, h: 25,
+                name: 'Purple Puddle', x: 114, y: 316, w: 58, h: 24,
                 description: 'A puddle of mysterious purple fluid.',
                 look: (e) => { if (!engine.getFlag('looked_puddle')) { engine.setFlag('looked_puddle'); e.addScore(2); } e.showMessage('A slowly expanding puddle of purple liquid, dripping from a bottle on the shelf above. You\'ve been meaning to clean that up for six months. It\'s developed a faint glow. That\'s... probably fine.'); },
                 get: (e) => e.showMessage('You cup your hands and try to scoop up the purple goo. It slips through your fingers and leaves them tingling. And slightly purple. That\'ll wash out. Probably.'),
@@ -2463,14 +2623,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 talk: (e) => e.showMessage('"What ARE you?" you ask the puddle. It bubbles. You decide not to ask again.')
             },
             {
-                name: 'Drink Puddle', x: 110, y: 285, w: 55, h: 10,
+                name: 'Drink Puddle', x: 114, y: 331, w: 58, h: 10,
                 description: 'The glowing purple fluid. Surely drinking it is a fine idea.',
                 look: (e) => e.showMessage('Up close, the puddle smells faintly of ozone and regret.'),
                 use: (e) => e.die('Against every warning label you\'ve ever cleaned off a bottle, you drink the glowing purple fluid. You have approximately four seconds to appreciate your life choices before you dissolve into a slightly-more-purple puddle. Congratulations: you are now the mess you were meant to clean.'),
                 get: (e) => e.die('You cup a handful of glowing purple liquid and, in the sort of decision that separates janitors from astronauts, drink it. Your atoms briefly vibrate in a new and exciting key. Then they stop vibrating altogether.')
             },
             {
-                name: 'Safety Poster', x: 540, y: 100, w: 50, h: 60,
+                name: 'Safety Poster', x: 540, y: 98, w: 50, h: 62,
                 description: 'A safety awareness poster.',
                 look: (e) => { if (!engine.getFlag('looked_poster')) { engine.setFlag('looked_poster'); e.addScore(3); } e.showMessage('"SAFETY FIRST!" declares the poster, featuring a cheerful stick figure. Below it reads "0 DAYS WITHOUT AN INCIDENT." Someone has written "THANKS, WILKINS" underneath in marker.'); },
                 get: (e) => e.showMessage('You consider taking the poster as a souvenir. Then you notice it\'s bolted to the wall. Someone clearly anticipated this.'),
@@ -2478,7 +2638,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 talk: (e) => e.showMessage('"I\'m sorry, little stick figure," you whisper. "I tried my best." The stick figure stares back with its empty circle head, judging you.')
             },
             {
-                name: 'Vent Grille', x: 430, y: 90, w: 45, h: 30,
+                name: 'Vent Grille', x: 430, y: 86, w: 45, h: 34,
                 description: 'A wall-mounted air vent.',
                 look: (e) => e.showMessage('A ventilation grille. Dusty air wafts out — the ship\'s life support is still running, at least. You can hear distant clanking from deep inside the ductwork. Probably just the air recycler. Probably.'),
                 get: (e) => e.showMessage('You tug at the grille. It\'s firmly bolted in place. Besides, crawling through air vents only works in movies. In real life you\'d get stuck at the first bend.'),
@@ -2952,94 +3112,155 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         draw: (ctx, w, h, eng) => {
-            // Walls and floor
-            metalWall(ctx, 0, 0, w, 270, '#2e2e48', '#343458');
-            metalFloor(ctx, 270, w, 130, '#404058', '#353550');
-
-            // Ceiling with light strips
-            ctx.fillStyle = '#222240';
-            ctx.fillRect(0, 0, w, 12);
-            // Flickering light
             const lightOn = Math.floor(eng.animTimer / 300) % 3 !== 0;
+            // Sierra pseudo-3D shell: ceiling wedge, back wall, converging side
+            // walls and a receding floor. Side props are perspective trapezoids.
+            const BW_L = 170, BW_R = 500, BW_T = 50, BW_B = 262, EDGE = 290;
+            const lTop = (x) => x * (BW_T / BW_L);
+            const lBot = (x) => EDGE - x * ((EDGE - BW_B) / BW_L);
+            const rTop = (x) => (w - x) * (BW_T / (w - BW_R));
+            const rBot = (x) => EDGE - (w - x) * ((EDGE - BW_B) / (w - BW_R));
+
+            ctx.fillStyle = '#20203c';
+            ctx.beginPath();
+            ctx.moveTo(0, 0); ctx.lineTo(BW_L, BW_T); ctx.lineTo(BW_R, BW_T); ctx.lineTo(w, 0);
+            ctx.closePath(); ctx.fill();
+
+            metalWall(ctx, BW_L, BW_T, BW_R - BW_L, BW_B - BW_T, '#2e2e48', '#343458');
+
+            ctx.fillStyle = '#282842';
+            ctx.beginPath();
+            ctx.moveTo(0, 0); ctx.lineTo(BW_L, BW_T); ctx.lineTo(BW_L, BW_B); ctx.lineTo(0, EDGE);
+            ctx.closePath(); ctx.fill();
+
+            ctx.fillStyle = '#242440';
+            ctx.beginPath();
+            ctx.moveTo(w, 0); ctx.lineTo(BW_R, BW_T); ctx.lineTo(BW_R, BW_B); ctx.lineTo(w, EDGE);
+            ctx.closePath(); ctx.fill();
+
+            ctx.fillStyle = '#3a3a54';
+            ctx.beginPath();
+            ctx.moveTo(0, EDGE); ctx.lineTo(BW_L, BW_B); ctx.lineTo(BW_R, BW_B); ctx.lineTo(w, EDGE);
+            ctx.lineTo(w, h); ctx.lineTo(0, h);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#41415c';
+            ctx.beginPath();
+            ctx.moveTo(BW_L + 40, BW_B); ctx.lineTo(BW_R - 40, BW_B); ctx.lineTo(w - 50, h); ctx.lineTo(50, h);
+            ctx.closePath(); ctx.fill();
+
+            ctx.strokeStyle = '#3a3a5e';
+            ctx.lineWidth = 1;
+            [42, 92, 142].forEach((x) => {
+                ctx.beginPath(); ctx.moveTo(x, lTop(x) + 6); ctx.lineTo(x, lBot(x) - 6); ctx.stroke();
+            });
+            [540, 580, 616].forEach((x) => {
+                ctx.beginPath(); ctx.moveTo(x, rTop(x) + 6); ctx.lineTo(x, rBot(x) - 6); ctx.stroke();
+            });
+
+            // Ceiling light strip, narrowing toward the back wall
             ctx.fillStyle = lightOn ? '#aabbcc' : '#334455';
-            ctx.fillRect(200, 4, 240, 5);
+            ctx.beginPath();
+            ctx.moveTo(258, 10); ctx.lineTo(402, 10); ctx.lineTo(384, 44); ctx.lineTo(276, 44);
+            ctx.closePath(); ctx.fill();
 
-            // Large computer terminal (left)
+            // Main terminal, mounted on the left wall
+            const tTop = (x) => lTop(x) + (lBot(x) - lTop(x)) * 0.18;
+            const tBot = (x) => lTop(x) + (lBot(x) - lTop(x)) * 0.64;
             ctx.fillStyle = '#2a3040';
-            ctx.fillRect(30, 60, 160, 180);
-            ctx.fillStyle = '#1a2030';
-            ctx.fillRect(40, 70, 140, 100);
-            // Screen glow
+            ctx.beginPath();
+            ctx.moveTo(25, tTop(25)); ctx.lineTo(160, tTop(160));
+            ctx.lineTo(160, tBot(160)); ctx.lineTo(25, tBot(25));
+            ctx.closePath(); ctx.fill();
+            const sTop = (x) => lTop(x) + (lBot(x) - lTop(x)) * 0.22;
+            const sBot = (x) => lTop(x) + (lBot(x) - lTop(x)) * 0.50;
+            ctx.fillStyle = lightOn ? '#112244' : '#0d1524';
+            ctx.beginPath();
+            ctx.moveTo(36, sTop(36)); ctx.lineTo(150, sTop(150));
+            ctx.lineTo(150, sBot(150)); ctx.lineTo(36, sBot(36));
+            ctx.closePath(); ctx.fill();
             if (lightOn) {
-                ctx.fillStyle = '#112244';
-                ctx.fillRect(44, 74, 132, 92);
-                // Text on screen
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(36, sTop(36)); ctx.lineTo(150, sTop(150));
+                ctx.lineTo(150, sBot(150)); ctx.lineTo(36, sBot(36));
+                ctx.closePath(); ctx.clip();
                 ctx.fillStyle = '#33AA55';
-                ctx.font = '9px "Courier New"';
-                ctx.fillText('SYSTEM CRITICAL', 52, 90);
-                ctx.fillText('HULL BREACH: DECK 3', 52, 104);
-                ctx.fillText('LIFE SUPPORT: 47%', 52, 118);
-                ctx.fillText('CREW STATUS: 1 ALIVE', 52, 132);
+                ctx.font = '8px "Courier New"';
+                ctx.fillText('SYSTEM CRITICAL', 44, 88);
+                ctx.fillText('HULL BREACH: DECK 3', 44, 100);
+                ctx.fillText('LIFE SUPPORT: 47%', 44, 112);
+                ctx.fillText('CREW STATUS: 1 ALIVE', 44, 124);
                 ctx.fillStyle = '#FFAA22';
-                ctx.fillText('> DATA PORT ACTIVE_', 52, 150);
+                ctx.fillText('> DATA PORT ACTIVE_', 44, 138);
+                ctx.restore();
             }
-            // Keyboard
+            // Console shelf under the screen
             ctx.fillStyle = '#383848';
-            ctx.fillRect(50, 175, 120, 15);
-            ctx.fillStyle = '#444458';
-            for (let kx = 55; kx < 165; kx += 8) {
-                ctx.fillRect(kx, 178, 5, 3);
-                ctx.fillRect(kx + 2, 184, 5, 3);
-            }
+            ctx.beginPath();
+            ctx.moveTo(40, sBot(40) + 6); ctx.lineTo(148, sBot(148) + 6);
+            ctx.lineTo(148, tBot(148) - 6); ctx.lineTo(40, tBot(40) - 6);
+            ctx.closePath(); ctx.fill();
 
-            // Data cartridge slot
+            // Data cartridge in the port
             if (!eng.getFlag('got_cartridge')) {
                 ctx.fillStyle = '#CCAA33';
-                ctx.fillRect(155, 172, 12, 6);
+                ctx.fillRect(120, 160, 14, 7);
                 ctx.fillStyle = '#DDBB44';
-                ctx.fillRect(157, 173, 8, 4);
+                ctx.fillRect(122, 161, 10, 5);
             }
 
-            // Lab tables (center)
-            ctx.fillStyle = '#3a3a52';
+            // Specimen cases, mounted on the right wall
+            const cTop = (x) => rTop(x) + (rBot(x) - rTop(x)) * 0.12;
+            const cBot = (x) => rTop(x) + (rBot(x) - rTop(x)) * 0.82;
+            ctx.fillStyle = '#2a3040';
+            ctx.beginPath();
+            ctx.moveTo(510, cTop(510)); ctx.lineTo(620, cTop(620));
+            ctx.lineTo(620, cBot(620)); ctx.lineTo(510, cBot(510));
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#444460';
+            [0.28, 0.5, 0.72].forEach((f) => {
+                const yy = (x) => rTop(x) + (rBot(x) - rTop(x)) * f;
+                ctx.beginPath(); ctx.moveTo(516, yy(516)); ctx.lineTo(614, yy(614)); ctx.stroke();
+            });
+            ctx.fillStyle = 'rgba(100,140,180,0.16)';
+            ctx.beginPath();
+            ctx.moveTo(532, 104); ctx.lineTo(550, 116); ctx.lineTo(529, 128);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#CC9922';
+            ctx.font = '7px "Courier New"';
+            ctx.fillText('\u26a0 BIOHAZARD', 522, 214);
+
+            // Lab tables (centre, on the floor)
+            ctx.fillStyle = 'rgba(0,0,0,0.25)';
+            ctx.beginPath(); ctx.ellipse(330, 270, 105, 9, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#6b6b88';
             ctx.fillRect(240, 180, 180, 8);
-            // Table legs
-            ctx.fillRect(250, 188, 6, 80);
-            ctx.fillRect(410, 188, 6, 80);
-            // Broken equipment on table
+            ctx.fillStyle = '#4a4a66';
+            ctx.fillRect(240, 188, 180, 4);
+            ctx.fillStyle = '#585874';
+            ctx.fillRect(250, 192, 7, 76);
+            ctx.fillRect(409, 192, 7, 76);
             ctx.fillStyle = '#555568';
             ctx.fillRect(260, 160, 40, 20);
             ctx.fillStyle = '#445055';
             ctx.fillRect(320, 165, 50, 15);
             ctx.fillStyle = '#665555';
             ctx.fillRect(390, 155, 25, 25);
-            // Broken glass
             ctx.fillStyle = 'rgba(150,180,200,0.3)';
-            ctx.fillRect(280, 290, 15, 3);
-            ctx.fillRect(310, 300, 10, 2);
-            ctx.fillRect(350, 285, 12, 3);
+            ctx.fillRect(280, 296, 15, 3);
+            ctx.fillRect(310, 306, 10, 2);
+            ctx.fillRect(350, 292, 12, 3);
 
-            // Right side - specimen cases (smashed)
-            ctx.fillStyle = '#2a3040';
-            ctx.fillRect(480, 50, 130, 200);
-            ctx.strokeStyle = '#444460';
-            ctx.strokeRect(488, 58, 114, 60);
-            ctx.strokeRect(488, 126, 114, 60);
-            ctx.strokeRect(488, 194, 114, 48);
-            // Broken glass
-            ctx.fillStyle = 'rgba(100,140,180,0.2)';
-            ctx.beginPath();
-            ctx.moveTo(500, 58); ctx.lineTo(530, 80); ctx.lineTo(490, 100);
-            ctx.closePath(); ctx.fill();
-
-            // Door (exit)
+            // Exit door on the back wall
             ctx.fillStyle = '#4a5e70';
-            ctx.fillRect(560, 70, 65, 200);
+            ctx.fillRect(424, 96, 68, 166);
             ctx.fillStyle = '#5a7088';
-            ctx.fillRect(565, 75, 55, 190);
+            ctx.fillRect(429, 101, 58, 156);
+            ctx.fillStyle = '#3e5060';
+            ctx.fillRect(456, 101, 3, 156);
             ctx.fillStyle = '#8899AA';
             ctx.font = '9px "Courier New"';
-            ctx.fillText('EXIT', 578, 165);
+            ctx.fillText('EXIT', 445, 186);
 
             // Overturned chair
             ctx.fillStyle = '#444458';
@@ -3054,7 +3275,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = 'rgba(50,200,120,0.15)';
             ctx.beginPath(); ctx.ellipse(362, 326, 12, 5, 0.2, 0, Math.PI * 2); ctx.fill();
 
-            // Microscope still standing (right table area)
+            // Microscope still standing
             ctx.fillStyle = '#555568';
             ctx.fillRect(392, 148, 6, 30);
             ctx.fillRect(388, 145, 14, 5);
@@ -3063,36 +3284,31 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#334455';
             ctx.beginPath(); ctx.arc(395, 138, 4, 0, Math.PI * 2); ctx.fill();
 
-            // Holographic periodic table on wall (partially flickering)
+            // Holographic periodic table on the back wall
             if (lightOn) {
                 ctx.fillStyle = 'rgba(80,150,200,0.12)';
-                ctx.fillRect(250, 40, 120, 45);
+                ctx.fillRect(196, 66, 120, 45);
                 ctx.strokeStyle = 'rgba(80,150,200,0.25)';
-                ctx.strokeRect(250, 40, 120, 45);
+                ctx.strokeRect(196, 66, 120, 45);
                 ctx.fillStyle = 'rgba(100,180,220,0.3)';
                 ctx.font = '6px "Courier New"';
-                ctx.fillText('Xe  Qn  Zr  Pl  Dk', 255, 52);
-                ctx.fillText('Fe  Au  Ag  Cu  Sn', 255, 62);
-                ctx.fillText('H   He  Li  Be  B', 255, 72);
+                ctx.fillText('Xe  Qn  Zr  Pl  Dk', 201, 78);
+                ctx.fillText('Fe  Au  Ag  Cu  Sn', 201, 88);
+                ctx.fillText('H   He  Li  Be  B', 201, 98);
             }
 
             // Smeared footprints (attacker tracks)
             ctx.fillStyle = 'rgba(30,30,30,0.12)';
-            ctx.fillRect(300, 290, 12, 16);
-            ctx.fillRect(330, 285, 12, 16);
-            ctx.fillRect(360, 290, 12, 16);
-
-            // Warning label on specimen case
-            ctx.fillStyle = '#CC9922';
-            ctx.font = '7px "Courier New"';
-            ctx.fillText('⚠ BIOHAZARD', 492, 218);
+            ctx.fillRect(300, 296, 12, 16);
+            ctx.fillRect(330, 291, 12, 16);
+            ctx.fillRect(360, 296, 12, 16);
 
             alarmLight(ctx, 310, 5, eng);
             alarmGlow(ctx, w, h, eng);
         },
         hotspots: [
             {
-                name: 'Computer Terminal', x: 30, y: 55, w: 165, h: 140,
+                name: 'Computer Terminal', x: 25, y: 55, w: 137, h: 132,
                 description: 'A large computer terminal, still partially operational.',
                 look: (e) => e.showMessage('The main science terminal is damaged but still running on backup power. The screen shows critical ship status. There\'s an active data port — you might be able to retrieve something.'),
                 get: (e) => e.showMessage('You can\'t take the whole terminal. But maybe there\'s something in the data port...'),
@@ -3108,7 +3324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             {
-                name: 'Data Cartridge', x: 150, y: 168, w: 22, h: 12,
+                name: 'Data Cartridge', x: 116, y: 156, w: 22, h: 15,
                 get hidden() { return engine.getFlag('got_cartridge'); },
                 description: 'A small data cartridge plugged into the terminal.',
                 look: (e) => e.showMessage('A data cartridge is plugged into the terminal\'s data port. The label reads "QUANTUM DRIVE v3.1". This must be what the attackers were after!'),
@@ -3126,7 +3342,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 get: (e) => e.showMessage('It\'s all smashed beyond usefulness. Broken glass and twisted components.')
             },
             {
-                name: 'Specimen Cases', x: 480, y: 45, w: 135, h: 210,
+                name: 'Specimen Cases', x: 508, y: 38, w: 114, h: 200,
                 description: 'Broken specimen display cases.',
                 look: (e) => { if (!engine.getFlag('looked_specimens')) { engine.setFlag('looked_specimens'); e.addScore(3); } e.showMessage('Glass specimen cases, all smashed open. Whatever xenobiological samples were stored here are now splattered across the floor. You try not to think about it.'); },
                 get: (e) => e.showMessage('You gingerly poke through the shattered glass. Nothing intact. Though you\'re not sure you\'d want to pick up an alien specimen anyway.'),
@@ -3148,7 +3364,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 use: (e) => e.showMessage('You briefly consider sitting down, but there\'s a crisis happening. No time for sitting. Although your feet ARE killing you.')
             },
             {
-                name: 'Exit', x: 555, y: 65, w: 75, h: 210, isExit: true, walkToX: 590,
+                name: 'Exit', x: 420, y: 92, w: 76, h: 172, isExit: true, walkToX: 458, walkToY: 330,
                 description: 'Door back to the corridor.',
                 onExit: (e) => e.goToRoom('corridor', 120, 310)
             }
@@ -3166,10 +3382,8 @@ document.addEventListener('DOMContentLoaded', () => {
         description: 'The Escape Pod Bay. Most pods have already launched. One remains — your ticket off this doomed ship.',
         onEnter: (e) => {
             e.sound.startAmbient('ship_hum');
-            // Sierra pseudo-3D: floor runs 270..400.
+            // Sierra pseudo-3D: floor runs 258..400.
             e.setDepthScaling(276, 378, 0.72, 1.0);
-            // AGI-inspired barriers: control panel
-            e.addBarrier(440, 290, 80, 30);    // Launch control panel (narrower, doesn't block pod path)
 
             // Edge transition: left back to corridor
             e.setEdgeTransition('left', (eng) => {
@@ -3177,43 +3391,91 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         draw: (ctx, w, h, eng) => {
-            // Bay walls - larger, industrial feel
-            // Pod bay walls (EGA dark blue dithered)
-            ditherRect(ctx, 0, 0, w, 270, '#000000', '#0000AA', 2);
-            metalFloor(ctx, 270, w, 130, '#3a3a55', '#303048');
+            // Sierra pseudo-3D shell: ceiling wedge, back wall, converging side
+            // walls and a receding floor. Bays and lockers are wall trapezoids.
+            const BW_L = 150, BW_R = 490, BW_T = 46, BW_B = 258, EDGE = 288;
+            const lTop = (x) => x * (BW_T / BW_L);
+            const lBot = (x) => EDGE - x * ((EDGE - BW_B) / BW_L);
+            const rTop = (x) => (w - x) * (BW_T / (w - BW_R));
+            const rBot = (x) => EDGE - (w - x) * ((EDGE - BW_B) / (w - BW_R));
+            const lBand = (x, f) => lTop(x) + (lBot(x) - lTop(x)) * f;
+            const rBand = (x, f) => rTop(x) + (rBot(x) - rTop(x)) * f;
+            const trap = (x1, x2, f1, f2, band) => {
+                ctx.beginPath();
+                ctx.moveTo(x1, band(x1, f1)); ctx.lineTo(x2, band(x2, f1));
+                ctx.lineTo(x2, band(x2, f2)); ctx.lineTo(x1, band(x1, f2));
+                ctx.closePath();
+            };
 
-            // Ceiling
-            ctx.fillStyle = '#1e1e3a';
-            ctx.fillRect(0, 0, w, 16);
+            ctx.fillStyle = '#141430';
+            ctx.beginPath();
+            ctx.moveTo(0, 0); ctx.lineTo(BW_L, BW_T); ctx.lineTo(BW_R, BW_T); ctx.lineTo(w, 0);
+            ctx.closePath(); ctx.fill();
+
+            ditherRect(ctx, BW_L, BW_T, BW_R - BW_L, BW_B - BW_T, '#0a0a24', '#1a1a44', 3);
+
+            ctx.fillStyle = '#141433';
+            ctx.beginPath();
+            ctx.moveTo(0, 0); ctx.lineTo(BW_L, BW_T); ctx.lineTo(BW_L, BW_B); ctx.lineTo(0, EDGE);
+            ctx.closePath(); ctx.fill();
+
+            ctx.fillStyle = '#10102c';
+            ctx.beginPath();
+            ctx.moveTo(w, 0); ctx.lineTo(BW_R, BW_T); ctx.lineTo(BW_R, BW_B); ctx.lineTo(w, EDGE);
+            ctx.closePath(); ctx.fill();
+
+            ctx.fillStyle = '#33334e';
+            ctx.beginPath();
+            ctx.moveTo(0, EDGE); ctx.lineTo(BW_L, BW_B); ctx.lineTo(BW_R, BW_B); ctx.lineTo(w, EDGE);
+            ctx.lineTo(w, h); ctx.lineTo(0, h);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#3b3b58';
+            ctx.beginPath();
+            ctx.moveTo(BW_L + 40, BW_B); ctx.lineTo(BW_R - 40, BW_B); ctx.lineTo(w - 60, h); ctx.lineTo(60, h);
+            ctx.closePath(); ctx.fill();
+
+            ctx.strokeStyle = '#2a2a55'; ctx.lineWidth = 1;
+            [40, 85, 128].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, lTop(x) + 5); ctx.lineTo(x, lBot(x) - 5); ctx.stroke(); });
+            [512, 556, 600].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, rTop(x) + 5); ctx.lineTo(x, rBot(x) - 5); ctx.stroke(); });
+
+            // Ceiling light rail, narrowing toward the back wall
             ctx.fillStyle = '#888';
-            ctx.fillRect(150, 8, 340, 4);
+            ctx.beginPath();
+            ctx.moveTo(210, 12); ctx.lineTo(440, 12); ctx.lineTo(410, 42); ctx.lineTo(240, 42);
+            ctx.closePath(); ctx.fill();
 
-            // Empty pod bays (left and center)
-            for (let i = 0; i < 3; i++) {
-                const bx = 30 + i * 155;
-                ctx.fillStyle = '#1a1a35';
-                ctx.fillRect(bx, 40, 120, 200);
+            // Spent pod bay on the left wall
+            ctx.fillStyle = '#0d0d22';
+            trap(18, 130, 0.10, 0.44, lBand); ctx.fill();
+            ctx.strokeStyle = '#444466';
+            trap(18, 130, 0.10, 0.44, lBand); ctx.stroke();
+            ctx.fillStyle = '#886622';
+            ctx.font = '9px "Courier New"';
+            ctx.fillText('LAUNCHED', 34, 96);
+
+            // Spent pod bays on the back wall
+            [170, 285].forEach((bx) => {
+                ctx.fillStyle = '#0d0d22';
+                ctx.fillRect(bx, 140, 80, 110);
                 ctx.strokeStyle = '#444466';
-                ctx.strokeRect(bx, 40, 120, 200);
-                // "LAUNCHED" label
+                ctx.strokeRect(bx, 140, 80, 110);
                 ctx.fillStyle = '#886622';
-                ctx.font = '10px "Courier New"';
-                ctx.fillText('LAUNCHED', bx + 20, 145);
-                // Empty clamp marks
+                ctx.font = '9px "Courier New"';
+                ctx.fillText('LAUNCHED', bx + 8, 200);
                 ctx.fillStyle = '#333355';
-                ctx.fillRect(bx + 10, 60, 15, 8);
-                ctx.fillRect(bx + 95, 60, 15, 8);
-                ctx.fillRect(bx + 10, 210, 15, 8);
-                ctx.fillRect(bx + 95, 210, 15, 8);
-            }
+                ctx.fillRect(bx + 6, 150, 12, 6);
+                ctx.fillRect(bx + 62, 150, 12, 6);
+                ctx.fillRect(bx + 6, 236, 12, 6);
+                ctx.fillRect(bx + 62, 236, 12, 6);
+            });
 
-            // Active pod bay (right) - Pod still here!
+            // Active pod bay recess on the right wall
             const px = 500;
-            ctx.fillStyle = '#1a1a35';
-            ctx.fillRect(px, 40, 120, 200);
+            ctx.fillStyle = '#0d0d22';
+            trap(500, 628, 0.06, 0.90, rBand); ctx.fill();
             ctx.strokeStyle = '#22AA44';
             ctx.lineWidth = 2;
-            ctx.strokeRect(px, 40, 120, 200);
+            trap(500, 628, 0.06, 0.90, rBand); ctx.stroke();
             ctx.lineWidth = 1;
 
             if (!eng.getFlag('pod_launched')) {
@@ -3290,53 +3552,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillText('LAUNCHED', px + 20, 145);
             }
 
-            // Emergency locker (lower left)
+            // Emergency locker on the left wall
             ctx.fillStyle = '#445566';
-            ctx.fillRect(15, 180, 50, 80);
+            trap(18, 72, 0.50, 0.86, lBand); ctx.fill();
             ctx.strokeStyle = '#556677';
-            ctx.strokeRect(15, 180, 50, 80);
-            // Cross symbol
+            trap(18, 72, 0.50, 0.86, lBand); ctx.stroke();
             ctx.fillStyle = eng.getFlag('got_kit') ? '#554433' : '#CC3333';
-            ctx.fillRect(32, 195, 16, 4);
-            ctx.fillRect(38, 189, 4, 16);
-            // Label
+            ctx.fillRect(36, 170, 18, 5);
+            ctx.fillRect(43, 163, 5, 19);
             ctx.font = '7px "Courier New"';
             ctx.fillStyle = '#8899AA';
-            ctx.fillText('EMRG', 22, 252);
+            ctx.fillText('EMRG', 30, 226);
 
-            // Control panel
+            // Launch control panel on the back wall
             ctx.fillStyle = '#333350';
-            ctx.fillRect(440, 280, 100, 40);
+            ctx.fillRect(396, 176, 78, 76);
             ctx.fillStyle = '#444465';
-            ctx.fillRect(445, 285, 90, 30);
-            // Buttons
+            ctx.fillRect(401, 181, 68, 66);
             ctx.fillStyle = '#22AA44';
-            ctx.fillRect(460, 292, 12, 12);
+            ctx.fillRect(410, 190, 14, 14);
             ctx.fillStyle = '#AA2222';
-            ctx.fillRect(480, 292, 12, 12);
+            ctx.fillRect(430, 190, 14, 14);
             ctx.fillStyle = '#AAAA22';
-            ctx.fillRect(500, 292, 12, 12);
+            ctx.fillRect(450, 190, 14, 14);
+            ctx.fillStyle = '#8899AA';
+            ctx.font = '7px "Courier New"';
+            ctx.fillText('LAUNCH CTRL', 404, 228);
 
-            // Space window (top center)
+            // Space window on the back wall
             ctx.fillStyle = '#060620';
-            ctx.fillRect(220, 15, 200, 70);
+            ctx.fillRect(252, 58, 150, 64);
             ctx.strokeStyle = '#555577';
-            ctx.strokeRect(220, 15, 200, 70);
+            ctx.strokeRect(252, 58, 150, 64);
             ctx.save();
             ctx.beginPath();
-            ctx.rect(221, 16, 198, 68);
+            ctx.rect(253, 59, 148, 62);
             ctx.clip();
-            ctx.translate(220, 15);
-            stars(ctx, 200, 70, 777, 30, 0.65);
+            ctx.translate(252, 58);
+            stars(ctx, 150, 64, 777, 26, 0.65);
             ctx.restore();
-            // A planet visible
             ctx.fillStyle = '#AA8855';
             ctx.beginPath();
-            ctx.arc(350, 55, 18, 0, Math.PI * 2);
+            ctx.arc(360, 92, 16, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = '#BBAA66';
             ctx.beginPath();
-            ctx.arc(350, 55, 18, -0.5, 0.8);
+            ctx.arc(360, 92, 16, -0.5, 0.8);
             ctx.fill();
 
             alarmLight(ctx, 310, 2, eng);
@@ -3383,7 +3644,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 get: (e) => e.showMessage('You need to walk into the pod, not carry it!')
             },
             {
-                name: 'Emergency Locker', x: 10, y: 175, w: 60, h: 90,
+                name: 'Emergency Locker', x: 14, y: 142, w: 62, h: 106,
                 description: 'An emergency supply locker.',
                 look: (e) => {
                     if (e.getFlag('got_kit')) {
@@ -3414,12 +3675,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             {
-                name: 'Space Window', x: 220, y: 15, w: 200, h: 70,
+                name: 'Space Window', x: 248, y: 54, w: 158, h: 72,
                 description: 'A viewport showing space outside.',
                 look: (e) => { if (!engine.getFlag('looked_window')) { engine.setFlag('looked_window'); e.addScore(3); } e.showMessage('Through the viewport you can see a desert planet looming close. The Constellation is in a decaying orbit — it won\'t last much longer. You also spot a large alien warship departing. The attackers got what they came for... or did they?'); }
             },
             {
-                name: 'Launch Controls', x: 435, y: 275, w: 110, h: 50,
+                name: 'Launch Controls', x: 392, y: 172, w: 86, h: 84,
                 description: 'Pod bay launch controls.',
                 look: (e) => e.showMessage('Launch control panel for escape pod bay 4. Green means ready, red means abort, yellow means... you\'re not sure. You slept through that briefing.'),
                 use: (e) => {
@@ -3431,12 +3692,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             {
-                name: 'Empty Pod Bays', x: 30, y: 40, w: 400, h: 200,
+                name: 'Empty Pod Bays', x: 165, y: 136, w: 205, h: 118,
                 description: 'Empty pod bays.',
                 look: (e) => e.showMessage('Three empty pod bays. The rest of the crew launched already... if there was anyone left alive to launch them. Only Pod Bay 4 still has a pod.')
             },
             {
-                name: 'Corridor', x: 0, y: 270, w: 80, h: 130, isExit: true, walkToX: 40,
+                name: 'Corridor', x: 0, y: 282, w: 90, h: 118, isExit: true, walkToX: 45, walkToY: 340,
                 description: 'Back to the corridor.',
                 onExit: (e) => e.goToRoom('corridor', 540, 310)
             }
@@ -3680,6 +3941,9 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Crashed Pod', x: 75, y: 250, w: 145, h: 60,
                 description: 'The wreckage of your escape pod.',
+                // Deliberate consolation award: the wreck medkit (+3) only exists for players
+                // who never healed Korvak (+20), so the two are mutually exclusive by design
+                // and a single run can never collect both. maxScore reflects the better route.
                 look: (e) => {
                     if (!engine.getFlag('looked_crashed_pod')) { engine.setFlag('looked_crashed_pod'); e.addScore(3); }
                     if (!e.hasItem('medkit') && !e.getFlag('got_medkit_wreck') && !e.getFlag('korvak_freed')) {
@@ -3795,8 +4059,20 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#17100c';
             ctx.fillRect(0, 0, w, h);
             ctx.fillStyle = '#4a2b18';
-            ctx.fillRect(55, 72, 530, 208);
-            ditherRect(ctx, 75, 88, 490, 28, '#3b2113', '#6a3d20', 5);
+            ctx.beginPath();
+            ctx.moveTo(46, 98); ctx.lineTo(98, 74); ctx.lineTo(170, 86); ctx.lineTo(240, 70);
+            ctx.lineTo(324, 82); ctx.lineTo(408, 68); ctx.lineTo(486, 84); ctx.lineTo(558, 72);
+            ctx.lineTo(590, 106); ctx.lineTo(578, 190); ctx.lineTo(592, 266);
+            ctx.lineTo(514, 286); ctx.lineTo(412, 272); ctx.lineTo(316, 288);
+            ctx.lineTo(210, 274); ctx.lineTo(120, 288); ctx.lineTo(54, 270); ctx.lineTo(42, 186);
+            ctx.closePath(); ctx.fill();
+            ditherRect(ctx, 98, 106, 444, 24, '#3b2113', '#6a3d20', 5);
+            // Tonal blotches break up the rock face without hard edges.
+            ctx.fillStyle = 'rgba(28,16,10,0.35)';
+            ctx.beginPath(); ctx.ellipse(196, 214, 74, 34, 0.12, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(452, 190, 62, 28, -0.15, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(122,74,38,0.22)';
+            ctx.beginPath(); ctx.ellipse(330, 176, 88, 30, 0.05, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#100b08';
             ctx.beginPath();
             ctx.moveTo(0, 55); ctx.lineTo(90, 95); ctx.lineTo(125, 285); ctx.lineTo(0, 330);
@@ -3913,24 +4189,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(90, 326, 2, 8);
             ctx.beginPath(); ctx.arc(91, 324, 3, Math.PI, 0); ctx.fill();
 
-            // Cave paintings on left wall (alien pictographs)
-            ctx.fillStyle = 'rgba(180,120,80,0.35)';
-            // Stick figure hunting scene
-            ctx.fillRect(30, 180, 2, 10); // body
-            ctx.fillRect(25, 184, 12, 2); // arms
-            ctx.fillRect(28, 190, 3, 6); // leg
-            ctx.fillRect(33, 190, 3, 6); // leg
-            ctx.beginPath(); ctx.arc(31, 178, 3, 0, Math.PI * 2); ctx.fill(); // head
-            // Alien animal
-            ctx.fillRect(50, 186, 14, 6);
-            ctx.fillRect(50, 192, 2, 5);
-            ctx.fillRect(62, 192, 2, 5);
-            ctx.fillRect(55, 183, 3, 3); // head bump
-            // Stars/suns above
-            ctx.fillRect(35, 168, 3, 3);
-            ctx.fillRect(55, 165, 2, 2);
-            ctx.fillRect(45, 172, 2, 2);
-
             // Dripping water (stalactite drip)
             const dripY = (eng.animTimer / 15) % 80;
             ctx.fillStyle = 'rgba(100,180,200,0.5)';
@@ -3964,11 +4222,46 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.ellipse(580, 280, 35, 48, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Cave entrance (back to desert - top left)
+            // Cave entrance (back to desert - top left): an irregular daylight
+            // opening, so the brightest shape in the cave still reads as rock.
+            ctx.fillStyle = '#7a4a22';
+            ctx.beginPath();
+            ctx.moveTo(0, 66); ctx.lineTo(26, 76); ctx.lineTo(48, 102); ctx.lineTo(60, 140);
+            ctx.lineTo(50, 176); ctx.lineTo(30, 196); ctx.lineTo(0, 206);
+            ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#CC9944';
-            ctx.fillRect(0, 80, 50, 110);
+            ctx.beginPath();
+            ctx.moveTo(0, 78); ctx.lineTo(22, 88); ctx.lineTo(41, 110); ctx.lineTo(51, 142);
+            ctx.lineTo(42, 172); ctx.lineTo(24, 188); ctx.lineTo(0, 196);
+            ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#DDAA55';
-            ctx.fillRect(0, 90, 40, 90);
+            ctx.beginPath();
+            ctx.moveTo(0, 92); ctx.lineTo(16, 100); ctx.lineTo(32, 120); ctx.lineTo(38, 144);
+            ctx.lineTo(29, 166); ctx.lineTo(13, 178); ctx.lineTo(0, 184);
+            ctx.closePath(); ctx.fill();
+            // Rock lip overlapping the opening so it sits inside the wall.
+            ctx.fillStyle = '#241710';
+            ctx.beginPath();
+            ctx.moveTo(30, 62); ctx.lineTo(58, 84); ctx.lineTo(70, 132); ctx.lineTo(62, 184);
+            ctx.lineTo(40, 210); ctx.lineTo(58, 214); ctx.lineTo(80, 176); ctx.lineTo(86, 118);
+            ctx.lineTo(64, 66);
+            ctx.closePath(); ctx.fill();
+
+            // Alien pictographs on clear rock, drawn after the entrance so the
+            // daylight opening can never bury them.
+            ctx.fillStyle = 'rgba(196,136,88,0.55)';
+            ctx.fillRect(155, 228, 2, 10);
+            ctx.fillRect(150, 232, 12, 2);
+            ctx.fillRect(153, 238, 3, 6);
+            ctx.fillRect(158, 238, 3, 6);
+            ctx.beginPath(); ctx.arc(156, 226, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.fillRect(175, 234, 14, 6);
+            ctx.fillRect(175, 240, 2, 5);
+            ctx.fillRect(187, 240, 2, 5);
+            ctx.fillRect(180, 231, 3, 3);
+            ctx.fillRect(160, 216, 3, 3);
+            ctx.fillRect(180, 213, 2, 2);
+            ctx.fillRect(170, 220, 2, 2);
             // Light beam from entrance
             ctx.fillStyle = 'rgba(220,180,100,0.06)';
             ctx.beginPath();
@@ -4005,7 +4298,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 look: (e) => e.showMessage('A pool of perfectly still water. In its dark surface you see the faint reflections of crystals. The water looks clean enough to drink.'),
                 use: (e) => {
                     const px = engine.playerX, py = engine.playerY;
-                    const sc = 1.85 + (py - 280) / 90 * 0.3;
+                    const sc = engine.playerSpriteScale(py);
                     e.playCutscene({
                         duration: 2000,
                         skippable: true,
@@ -4081,7 +4374,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 talk: (e) => e.showMessage('"Glow, little buddies, glow." They pulse a bit brighter. Coincidence? Probably. But you smile anyway.')
             },
             {
-                name: 'Cave Paintings', x: 20, y: 160, w: 50, h: 45,
+                name: 'Cave Paintings', x: 145, y: 208, w: 56, h: 44,
                 description: 'Primitive paintings on the cave wall.',
                 look: (e) => { if (!engine.getFlag('looked_paintings')) { engine.setFlag('looked_paintings'); e.addScore(3); } e.showMessage('Crude but striking pictographs painted on the cave wall in rusty pigment. They depict stick figures hunting a large creature under twin suns. There\'s also what might be a spaceship. Someone — or someTHING — was here before you.'); },
                 get: (e) => e.showMessage('These paintings are thousands of years old. You\'re a janitor who respects the sanctity of historical surfaces. Well, except for that graffiti on Deck 3.'),
@@ -4134,37 +4427,47 @@ document.addEventListener('DOMContentLoaded', () => {
                     shadow: { scale: 1.2, rx: 5, ry: 1.4, alpha: 0.22 },
                     draw: (ctx, eng, npc) => {
                         // Small alien creature wandering the street
-                        let s = 1.2 + (npc.y - 280) / 120 * 0.3;
+                        let s = 1.4 * eng.getDepthScale(npc.y);
                         s = Math.round(s * 20) / 20; // Snap scale to 0.05 step intervals to avoid subpixel shimmering
-                        const bob = Math.sin(eng.animTimer / 300) * 1.5;
-                        // Body (green blob)
-                        ctx.fillStyle = '#44AA44';
-                        ctx.beginPath();
-                        ctx.ellipse(npc.x, npc.y - 8 * s + bob, 6 * s, 10 * s, 0, 0, Math.PI * 2);
-                        ctx.fill();
-                        // Darker belly
-                        ctx.fillStyle = '#338833';
-                        ctx.beginPath();
-                        ctx.ellipse(npc.x, npc.y - 5 * s + bob, 4 * s, 5 * s, 0, 0, Math.PI * 2);
-                        ctx.fill();
-                        // Big eye
-                        ctx.fillStyle = '#FFFF88';
-                        ctx.beginPath();
-                        ctx.arc(npc.x, npc.y - 12 * s + bob, 3 * s, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.fillStyle = '#111';
-                        ctx.beginPath();
-                        ctx.arc(npc.x + (npc.facing === 'left' ? -1 : 1) * s, npc.y - 12 * s + bob, 1.2 * s, 0, Math.PI * 2);
-                        ctx.fill();
+                        const bx = Math.round(npc.x);
+                        const by = Math.round(npc.y) + Math.round(Math.sin(eng.animTimer / 300) * 1.5);
+                        // Pixel blocks rather than ellipses: curves would anti-alias
+                        // against the pixel grid the rest of the art sits on.
+                        const blk = (dx, dy, w, h, colour) => {
+                            ctx.fillStyle = colour;
+                            const x0 = bx + Math.round(dx * s), y0 = by + Math.round(dy * s);
+                            ctx.fillRect(x0, y0, Math.round((dx + w) * s) - Math.round(dx * s),
+                                Math.round((dy + h) * s) - Math.round(dy * s));
+                        };
+                        const BODY = '#44AA44', SHADE = '#338833', EDGE = '#3d9a3d';
+                        // Body silhouette, built as a stack of bars
+                        blk(-3, -19, 6, 2, BODY);
+                        blk(-4.5, -17, 9, 2, BODY);
+                        blk(-5.5, -15, 11, 3, BODY);
+                        blk(-6, -12, 12, 7, BODY);
+                        blk(-5.5, -5, 11, 3, BODY);
+                        blk(-4.5, -2, 9, 2, BODY);
+                        blk(-3, 0, 6, 2, BODY);
+                        // Edge shading down both flanks
+                        blk(-6, -12, 1, 7, EDGE);
+                        blk(5, -12, 1, 7, EDGE);
+                        // Belly
+                        blk(-3, -11, 6, 2, SHADE);
+                        blk(-4, -9, 8, 6, SHADE);
+                        blk(-3, -3, 6, 2, SHADE);
+                        // Single big eye
+                        blk(-2, -16, 4, 1, '#FFFF88');
+                        blk(-3, -15, 6, 4, '#FFFF88');
+                        blk(-2, -11, 4, 1, '#FFFF88');
+                        const look = npc.facing === 'left' ? -1 : 1;
+                        blk(-1 + look, -14, 2, 2, '#111111');
                         // Legs (animated)
-                        ctx.fillStyle = '#44AA44';
-                        const legOff = npc.cel === 0 ? 2 : -2;
-                        ctx.fillRect(npc.x - 3 * s, npc.y + 1 * s, 2 * s, 4 * s + legOff);
-                        ctx.fillRect(npc.x + 1 * s, npc.y + 1 * s, 2 * s, 4 * s - legOff);
+                        const legOff = npc.cel === 0 ? 1 : -1;
+                        blk(-3, 2, 2, 4 + legOff, BODY);
+                        blk(1, 2, 2, 4 - legOff, BODY);
                         // Feet
-                        ctx.fillStyle = '#338833';
-                        ctx.fillRect(npc.x - 4 * s, npc.y + 4 * s + legOff, 3 * s, 1.5 * s);
-                        ctx.fillRect(npc.x + 0.5 * s, npc.y + 4 * s - legOff, 3 * s, 1.5 * s);
+                        blk(-3.5, 6 + legOff, 3, 1.5, SHADE);
+                        blk(0.5, 6 - legOff, 3, 1.5, SHADE);
                     }
                 });
             }
@@ -4441,19 +4744,34 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(0, 320, w, 3);
             ctx.fillRect(0, 328, w, 2);
 
-            // Docking Bay B — right edge sign and rough track
+            // Docking Bay B — signposted like the other destinations so the
+            // rescue route is not the weakest affordance on the busiest screen.
             ctx.fillStyle = '#4a3a28';
             ctx.fillRect(608, 255, 32, 145);
-            ctx.fillStyle = '#664433';
-            ctx.fillRect(610, 268, 20, 8);
-            ctx.fillStyle = '#AABBAA';
-            ctx.font = '7px "Courier New"';
-            ctx.save(); ctx.translate(622, 395); ctx.rotate(-Math.PI / 2);
-            ctx.fillText('DOCK BAY B', 0, 0); ctx.restore();
-            // Arrow indicator
+            // Rough track leading off toward the bay
+            ctx.fillStyle = '#6b5638';
+            ctx.beginPath();
+            ctx.moveTo(508, 400); ctx.lineTo(598, 306); ctx.lineTo(640, 306); ctx.lineTo(640, 400);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = 'rgba(60,50,30,0.22)';
+            ctx.fillRect(566, 356, 74, 3);
+            // Signboard on a post
+            ctx.fillStyle = '#556';
+            ctx.fillRect(590, 330, 5, 26);
+            ctx.fillStyle = '#33404a';
+            ctx.fillRect(546, 298, 94, 34);
+            ctx.fillStyle = '#7c8b9a';
+            ctx.fillRect(548, 300, 90, 30);
+            ctx.fillStyle = '#11202a';
+            ctx.font = sceneFont(8, 'bold');
+            ctx.fillText('DOCKING BAY B', 552, 313);
+            ctx.font = sceneFont(7);
+            ctx.fillText('WRECK ZONE', 552, 325);
+            // Arrow pointing down the track
             ctx.fillStyle = '#88AACC';
-            ctx.font = '12px "Courier New"';
-            ctx.fillText('\u2192', 614, 310);
+            ctx.beginPath();
+            ctx.moveTo(624, 340); ctx.lineTo(636, 346); ctx.lineTo(624, 352);
+            ctx.closePath(); ctx.fill();
         },
         hotspots: [
             {
@@ -4579,7 +4897,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             {
                 name: 'Docking Bay',
-                x: 608, y: 250, w: 32, h: 150, isExit: true, walkToX: 590, walkToY: 340,
+                x: 546, y: 296, w: 94, h: 104, isExit: true, walkToX: 590, walkToY: 340,
                 description: 'A side road leading to the docking bay. A hand-painted sign reads "DOCKING BAY B — WRECK ZONE."',
                 look: (e) => e.showMessage('A narrow track leads around the back of the outpost buildings to the secondary docking bay. Someone spray-painted "WRECK ZONE" over the official sign.'),
                 onExit: (e) => e.goToRoom('docking_bay', 60, 340)
@@ -5103,7 +5421,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             draw: (ctx, w, h, progress) => {
                                 miniAnimRedrawRoom(ctx, w, h);
                                 // Draw player character at their position
-                                drawPlayerBody(ctx, savedPX, savedPY, 1.85, 0);
+                                drawPlayerBody(ctx, savedPX, savedPY, engine.playerSpriteScale(savedPY), 0);
                                 // Pilot drinking animation
                                 const pilotX = 430, pilotY = 208;
                                 // Arm lifting drink
@@ -5184,7 +5502,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 get: (e) => e.showMessage('You try to pick up the jukebox. It weighs roughly as much as a small shuttle. Your back protests.'),
                 use: (e) => {
                     const px = engine.playerX, py = engine.playerY;
-                    const sc = 1.85 + (py - 280) / 90 * 0.3;
+                    const sc = engine.playerSpriteScale(py);
                     e.playCutscene({
                         duration: 1800,
                         skippable: true,
@@ -5287,6 +5605,23 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.moveTo(0, 0); ctx.lineTo(w, 0); ctx.lineTo(558, 32); ctx.lineTo(82, 32);
             ctx.closePath(); ctx.fill();
             perspectiveFloor(ctx, 260, w, h, '#22201a', '#4a4126');
+            // Shop floor: warm spill from the display wall and a runner toward the
+            // counter, so the foreground reads as boards rather than empty space.
+            ctx.fillStyle = '#2b2721';
+            ctx.beginPath();
+            ctx.moveTo(96, 260); ctx.lineTo(544, 260); ctx.lineTo(w, 400); ctx.lineTo(0, 400);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#342e25';
+            ctx.beginPath();
+            ctx.moveTo(176, 262); ctx.lineTo(464, 262); ctx.lineTo(566, 400); ctx.lineTo(74, 400);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = 'rgba(150,116,48,0.10)';
+            ctx.beginPath();
+            ctx.moveTo(120, 262); ctx.lineTo(520, 262); ctx.lineTo(596, 328); ctx.lineTo(44, 328);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = 'rgba(0,0,0,0.20)';
+            ctx.fillRect(96, 300, 448, 2);
+            ctx.fillRect(56, 350, 528, 3);
 
             // Counter
             ctx.fillStyle = '#554422';
@@ -5715,22 +6050,103 @@ document.addEventListener('DOMContentLoaded', () => {
             e.addBarrier(280, 295, 160, 25);
             // Central reactor column
             e.addBarrier(290, 220, 60, 120);
+            // Korvak's body is solid ground clutter, not something to stand inside
+            e.addBarrier(218, 300, 46, 52);
+
+            // Korvak draws as a y-sorted actor so the player passes behind him
+            // correctly; the beam segment is re-drawn over his legs to pin him.
+            e.addForegroundLayer(352, (ctx, eng) => {
+                if (!eng.getFlag('korvak_freed')) {
+                    eng.drawContactShadow(ctx, 240, 358, 1, { rx: 28, ry: 4, alpha: 0.28 });
+                    // Legs run under the beam; head and torso stay clear of it.
+                    ctx.fillStyle = '#555570';
+                    ctx.fillRect(232, 292, 18, 20);
+                    ctx.fillStyle = '#AA7755';
+                    ctx.fillRect(233, 326, 16, 18);
+                    ctx.fillStyle = '#224488';
+                    ctx.fillRect(234, 328, 14, 12);
+                    ctx.fillStyle = '#AA7755';
+                    ctx.beginPath(); ctx.arc(241, 350, 7, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#7a4a2c';
+                    ctx.fillRect(234, 343, 14, 4);
+                    ctx.fillStyle = '#AA7755';
+                    ctx.fillRect(219, 334, 15, 6);
+                    ctx.fillStyle = 'rgba(160,20,20,0.5)';
+                    ctx.beginPath(); ctx.ellipse(238, 357, 15, 5, 0, 0, Math.PI * 2); ctx.fill();
+                    // Beam segment re-drawn over his legs to pin him
+                    ctx.save();
+                    ctx.beginPath(); ctx.rect(224, 290, 62, 34); ctx.clip();
+                    ctx.translate(320, 310); ctx.rotate(-0.1);
+                    ctx.fillStyle = '#3a3040';
+                    ctx.fillRect(-90, -8, 180, 16);
+                    ctx.fillStyle = '#2a2030';
+                    ctx.fillRect(-90, -8, 180, 5);
+                    ctx.restore();
+                } else if (!eng.getFlag('korvak_left')) {
+                    eng.drawContactShadow(ctx, 153, 342, 1, { rx: 14, ry: 3.5, alpha: 0.28 });
+                    ctx.fillStyle = '#555570'; ctx.fillRect(145, 310, 16, 30);
+                    ctx.fillStyle = '#AA7755'; ctx.fillRect(148, 306, 10, 16);
+                    ctx.beginPath(); ctx.arc(153, 304, 7, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = '#224488'; ctx.fillRect(148, 308, 10, 14);
+                }
+            });
         },
         draw: (ctx, w, h, eng) => {
-            // Background: dark industrial space
-            gradientRect(ctx, 0, 0, w, h, '#0a0808', '#180e0e');
-            // Floor
-            metalFloor(ctx, 340, w, h - 340);
-            // Rear wall
-            metalWall(ctx, 0, 0, w, 200);
-            // Alarm glow (emergency)
+            // Sierra pseudo-3D shell. Emergency lighting is warm here, matching
+            // the room description; the reactor stays the one cool accent.
+            const BW_L = 140, BW_R = 500, BW_T = 44, BW_B = 262, EDGE = 300;
+            const lTop = (x) => x * (BW_T / BW_L);
+            const lBot = (x) => EDGE - x * ((EDGE - BW_B) / BW_L);
+            const rTop = (x) => (w - x) * (BW_T / (w - BW_R));
+            const rBot = (x) => EDGE - (w - x) * ((EDGE - BW_B) / (w - BW_R));
+            const lBand = (x, f) => lTop(x) + (lBot(x) - lTop(x)) * f;
+            const rBand = (x, f) => rTop(x) + (rBot(x) - rTop(x)) * f;
+            const trap = (x1, x2, f1, f2, band) => {
+                ctx.beginPath();
+                ctx.moveTo(x1, band(x1, f1)); ctx.lineTo(x2, band(x2, f1));
+                ctx.lineTo(x2, band(x2, f2)); ctx.lineTo(x1, band(x1, f2));
+                ctx.closePath();
+            };
+
+            ctx.fillStyle = '#120a09';
+            ctx.fillRect(0, 0, w, h);
+            ctx.fillStyle = '#1c0f0d';
+            ctx.beginPath();
+            ctx.moveTo(0, 0); ctx.lineTo(BW_L, BW_T); ctx.lineTo(BW_R, BW_T); ctx.lineTo(w, 0);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#3a201c';
+            ctx.fillRect(BW_L, BW_T, BW_R - BW_L, BW_B - BW_T);
+            ditherRect(ctx, BW_L, BW_T, BW_R - BW_L, 26, '#2c1714', '#4a2a24', 4);
+            ctx.fillStyle = '#2e1917';
+            ctx.beginPath();
+            ctx.moveTo(0, 0); ctx.lineTo(BW_L, BW_T); ctx.lineTo(BW_L, BW_B); ctx.lineTo(0, EDGE);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#281512';
+            ctx.beginPath();
+            ctx.moveTo(w, 0); ctx.lineTo(BW_R, BW_T); ctx.lineTo(BW_R, BW_B); ctx.lineTo(w, EDGE);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#2a1f22';
+            ctx.beginPath();
+            ctx.moveTo(0, EDGE); ctx.lineTo(BW_L, BW_B); ctx.lineTo(BW_R, BW_B); ctx.lineTo(w, EDGE);
+            ctx.lineTo(w, h); ctx.lineTo(0, h);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#332528';
+            ctx.beginPath();
+            ctx.moveTo(BW_L + 40, BW_B); ctx.lineTo(BW_R - 40, BW_B); ctx.lineTo(w - 60, h); ctx.lineTo(60, h);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#4a2a26'; ctx.lineWidth = 1;
+            [36, 80, 122].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, lTop(x) + 5); ctx.lineTo(x, lBot(x) - 5); ctx.stroke(); });
+            [524, 566, 606].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, rTop(x) + 5); ctx.lineTo(x, rBot(x) - 5); ctx.stroke(); });
+            // Sickly red emergency wash
+            ctx.fillStyle = 'rgba(150,30,20,0.10)';
+            ctx.fillRect(0, 17, w, h - 17);
             alarmGlow(ctx, w, h, eng);
 
             // Large reactor column in centre
             ctx.fillStyle = '#2a2535';
-            ctx.fillRect(295, 80, 50, 180);
+            ctx.fillRect(295, 80, 50, 182);
             ctx.fillStyle = '#353045';
-            ctx.fillRect(305, 90, 30, 160);
+            ctx.fillRect(305, 90, 30, 162);
             // Reactor core glow (flickering)
             const rFlicker = 0.6 + Math.sin(eng.animTimer / 90) * 0.4;
             ctx.fillStyle = 'rgba(80,200,255,' + (rFlicker * 0.35) + ')';
@@ -5746,22 +6162,22 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillText('DANGER', 307, 270);
 
             // Left bank of consoles
-            drawComputerTerminal(ctx, 30, 100, 90, 70,
+            drawComputerTerminal(ctx, 156, 96, 90, 70,
                 [
                     { text: 'CORE TEMP: 8420K', color: '#FF4444' },
                     { text: 'FIELD: OFFLINE', color: '#FF8800' },
                     { text: 'COOLING: FAIL', color: '#FF4444' }
                 ], true);
-            alarmLight(ctx, 70, 98, eng);
+            alarmLight(ctx, 190, 82, eng);
 
             // Right console bank
-            drawComputerTerminal(ctx, 520, 100, 90, 70,
+            drawComputerTerminal(ctx, 394, 96, 90, 70,
                 [
                     { text: 'PWR OUTPUT: 12%', color: '#FFAA44' },
                     { text: 'LIFE SUPPORT: OK', color: '#33AA55' },
                     { text: 'HULL: BREACH D7', color: '#FF4444' }
                 ], true);
-            alarmLight(ctx, 560, 98, eng);
+            alarmLight(ctx, 428, 82, eng);
 
             // Collapsed beam across floor (wreckage)
             ctx.fillStyle = '#3a3040';
@@ -5776,78 +6192,54 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = 'rgba(20,10,10,0.6)';
             ctx.beginPath(); ctx.ellipse(320, 314, 80, 12, 0, 0, Math.PI * 2); ctx.fill();
 
-            // Korvak pinned under beam (if not yet freed)
-            if (!eng.getFlag('korvak_freed')) {
-                // Body trapped under left end of beam
-                ctx.fillStyle = '#AA7755'; // skin - torso
-                ctx.fillRect(190, 315, 14, 20);
-                ctx.beginPath(); ctx.arc(197, 313, 7, 0, Math.PI * 2); ctx.fill();
-                // Legs under beam
-                ctx.fillStyle = '#555570';
-                ctx.fillRect(185, 296, 18, 20);
-                // Arm reaching out
-                ctx.fillStyle = '#AA7755';
-                ctx.fillRect(178, 318, 14, 6);
-                // Blood pool (subtle)
-                ctx.fillStyle = 'rgba(160,20,20,0.5)';
-                ctx.beginPath(); ctx.ellipse(192, 336, 14, 6, 0, 0, Math.PI * 2); ctx.fill();
-                // Uniform patches
-                ctx.fillStyle = '#224488';
-                ctx.fillRect(190, 316, 10, 12);
-            } else {
-                // Korvak freed — leaning against wall (if not departed)
-                if (!eng.getFlag('korvak_left')) {
-                    ctx.fillStyle = '#555570'; ctx.fillRect(145, 310, 16, 30);
-                    ctx.fillStyle = '#AA7755'; ctx.fillRect(148, 306, 10, 16);
-                    ctx.beginPath(); ctx.arc(153, 304, 7, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = '#224488'; ctx.fillRect(148, 308, 10, 14);
-                }
-            }
-
-            // Fire damage — small fire near blown conduit upper right
-            if (!eng.getFlag('fire_suppressed')) {
-                drawFireEffect(ctx, 490, 250, 18, 0.85, eng.animTimer);
-                drawSmokeWisp(ctx, 490, 240, 80, eng.animTimer);
-                drawFireEffect(ctx, 468, 265, 10, 0.7, eng.animTimer + 200);
-            } else {
-                // Suppressed: char marks
-                ctx.fillStyle = '#1a0808';
-                ctx.beginPath(); ctx.ellipse(488, 260, 22, 14, 0, 0, Math.PI * 2); ctx.fill();
-            }
-
-            // Conduit pipe damage on right wall
+            // Conduit pipe damage on the right wall
             ctx.fillStyle = '#334455';
-            ctx.fillRect(470, 180, 12, 100);
-            ctx.fillStyle = '#2a3848';
-            ctx.fillRect(474, 210, 4, 30);
-            // Blown-out section
+            trap(506, 522, 0.28, 0.82, rBand); ctx.fill();
             ctx.fillStyle = '#1a1a28';
-            ctx.fillRect(468, 235, 18, 22);
+            trap(508, 520, 0.58, 0.70, rBand); ctx.fill();
 
-            // Fire suppression cabinet (left wall)
+            // Fire damage — blown conduit on the right wall
+            if (!eng.getFlag('fire_suppressed')) {
+                drawFireEffect(ctx, 516, 226, 18, 0.85, eng.animTimer);
+                drawSmokeWisp(ctx, 516, 214, 80, eng.animTimer);
+                drawFireEffect(ctx, 498, 240, 10, 0.7, eng.animTimer + 200);
+            } else {
+                ctx.fillStyle = '#1a0808';
+                ctx.beginPath(); ctx.ellipse(512, 234, 22, 14, 0, 0, Math.PI * 2); ctx.fill();
+            }
+
+            // Fire suppression cabinet on the left wall
             ctx.fillStyle = '#AA2222';
-            ctx.fillRect(30, 220, 50, 70);
+            trap(24, 84, 0.46, 0.84, lBand); ctx.fill();
             ctx.fillStyle = '#CC3333';
-            ctx.fillRect(34, 224, 42, 60);
+            trap(28, 80, 0.48, 0.82, lBand); ctx.fill();
             ctx.fillStyle = '#fff';
             ctx.font = '8px "Courier New"';
-            ctx.fillText('FIRE', 45, 248);
-            ctx.fillText('SUPP', 46, 258);
+            ctx.fillText('FIRE', 40, 176);
+            ctx.fillText('SUPP', 40, 186);
             // Cabinet lock
             ctx.fillStyle = eng.getFlag('cabinet_opened') ? '#225522' : '#AA5500';
-            ctx.fillRect(52, 240, 8, 12);
+            ctx.fillRect(50, 196, 8, 12);
 
             // Door back to corridor (right wall)
-            drawDoorway(ctx, 570, 200, 60, 120, 'CORRIDOR', false, '#335566');
+            ctx.fillStyle = '#1a2630';
+            trap(556, 628, 0.20, 0.86, rBand); ctx.fill();
+            ctx.fillStyle = '#335566';
+            trap(560, 624, 0.22, 0.84, rBand); ctx.fill();
+            ctx.fillStyle = '#0e161c';
+            trap(590, 594, 0.22, 0.84, rBand); ctx.fill();
+            ctx.fillStyle = '#AABBCC';
+            ctx.font = '8px "Courier New"';
+            ctx.fillText('CORRIDOR', 566, 160);
 
             // Medkit gleam in cabinet if available
             if (!eng.getFlag('got_medkit') && eng.getFlag('cabinet_opened')) {
                 ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(40, 260, 24, 16);
+                ctx.fillRect(36, 212, 24, 16);
                 ctx.fillStyle = '#FF4444';
-                ctx.fillRect(48, 263, 8, 10);
+                ctx.fillRect(44, 215, 8, 10);
                 ctx.fillStyle = '#FF4444';
-                ctx.fillRect(44, 266, 16, 4);
+                ctx.fillRect(40, 218, 16, 4);
             } else if (eng.getFlag('cabinet_opened') && !eng.getFlag('fire_suppressed')) {
                 ctx.fillStyle = '#CCCCDD';
                 ctx.fillRect(42, 262, 20, 14);
@@ -5886,7 +6278,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             {
                 name: 'Korvak',
-                x: 170, y: 293, w: 60, h: 55,
+                x: 215, y: 288, w: 62, h: 74,
                 get hidden() { return engine.getFlag('korvak_left'); },
                 description: 'A man is pinned under a collapsed support beam.',
                 look: (e) => {
@@ -5932,7 +6324,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             {
                 name: 'Fire Suppression Cabinet',
-                x: 28, y: 218, w: 56, h: 74,
+                x: 22, y: 136, w: 64, h: 114,
                 get hidden() { return engine.getFlag('got_medkit') && engine.getFlag('fire_suppressed'); },
                 description: 'A red fire suppression cabinet bolted to the left wall.',
                 look: (e) => {
@@ -6002,7 +6394,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             {
                 name: 'Corridor Exit',
-                x: 568, y: 198, w: 64, h: 124, isExit: true, walkToX: 555, walkToY: 340,
+                x: 554, y: 60, w: 78, h: 198, isExit: true, walkToX: 556, walkToY: 340,
                 description: 'The corridor back to the main ship.',
                 look: (e) => e.showMessage('The hatch back to the main corridor.'),
                 onExit: (e) => e.goToRoom('corridor', 120, 310)
@@ -6024,6 +6416,27 @@ document.addEventListener('DOMContentLoaded', () => {
             e.addBarrier(0, 230, 80, 60);     // Left bay wall
             e.addBarrier(560, 230, 80, 60);   // Right bay wall
             e.addBarrier(160, 230, 300, 20);  // Freighter hull base
+            e.addBarrier(254, 300, 24, 24);   // Pipz occupies her own patch of ground
+
+            // Pipz draws as a y-sorted actor so the player passes behind her
+            // correctly instead of always rendering in front.
+            e.addForegroundLayer(322, (ctx, eng) => {
+                if (eng.getFlag('pipz_left')) return;
+                const px = 265, py = 308;
+                eng.drawContactShadow(ctx, px, py + 13, 1, { rx: 12, ry: 3.5, alpha: 0.26 });
+                ctx.fillStyle = '#885533';
+                ctx.beginPath(); ctx.arc(px, py - 22, 7, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#BB7744';
+                ctx.fillRect(px - 6, py - 16, 12, 16);
+                ctx.fillStyle = '#665533';
+                ctx.fillRect(px - 8, py, 8, 12); ctx.fillRect(px + 2, py + 2, 8, 10);
+                ctx.fillStyle = '#331100';
+                ctx.fillRect(px - 7, py - 30, 14, 8);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(px - 4, py - 25, 4, 4); ctx.fillRect(px + 1, py - 25, 4, 4);
+                ctx.fillStyle = '#2255AA';
+                ctx.fillRect(px - 3, py - 24, 2, 2); ctx.fillRect(px + 2, py - 24, 2, 2);
+            });
         },
         draw: (ctx, w, h, eng) => {
             // Sky — Kerona harsh midday
@@ -6127,32 +6540,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.beginPath();
                 ctx.moveTo(218, 145); ctx.lineTo(248, 155); ctx.lineTo(242, 185); ctx.lineTo(215, 192); ctx.lineTo(202, 168);
                 ctx.closePath(); ctx.fill();
-            }
-
-            // Pipz — stowaway child, crouching near breach (if not yet departed)
-            if (!eng.getFlag('pipz_left')) {
-                const px = 265, py = 308;
-                // Crouch pose
-                ctx.fillStyle = '#885533'; // skin
-                ctx.beginPath(); ctx.arc(px, py - 22, 7, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#BB7744';
-                ctx.fillRect(px - 6, py - 16, 12, 16);
-                ctx.fillStyle = '#665533';
-                ctx.fillRect(px - 8, py, 8, 12); ctx.fillRect(px + 2, py + 2, 8, 10);
-                // Hair
-                ctx.fillStyle = '#331100';
-                ctx.fillRect(px - 7, py - 30, 14, 8);
-                // Wide eyes
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(px - 4, py - 25, 4, 4); ctx.fillRect(px + 1, py - 25, 4, 4);
-                ctx.fillStyle = '#2255AA';
-                ctx.fillRect(px - 3, py - 24, 2, 2); ctx.fillRect(px + 2, py - 24, 2, 2);
-                // Name tag
-                ctx.font = '9px "Courier New"';
-                ctx.fillStyle = '#FFDD77';
-                ctx.textAlign = 'center';
-                ctx.fillText('Pipz', px, py - 38);
-                ctx.textAlign = 'left';
             }
 
             // Cargo manifest — on the ground near the breach
@@ -6275,6 +6662,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // Dark corridor background
             gradientRect(ctx, 0, 0, w, h, '#060612', '#0e0e22');
             perspectiveFloor(ctx, 270, w, h, '#14142a', '#30305a');
+            // Floor runner narrows toward the hatch: depth without guide lines.
+            ctx.fillStyle = '#1b1b38';
+            ctx.beginPath();
+            ctx.moveTo(286, 272); ctx.lineTo(354, 272); ctx.lineTo(508, 400); ctx.lineTo(132, 400);
+            ctx.closePath(); ctx.fill();
             ditherRect(ctx, 0, 330, w, 16, '#0e0e22', '#1a1a2e', 3);
             // Ceiling
             ctx.fillStyle = '#0a0a18';
@@ -6355,12 +6747,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillStyle = 'rgba(0,160,80,0.06)'; ctx.fillRect(20, 160, 140, 190);
                 ctx.fillStyle = 'rgba(0,160,80,0.06)'; ctx.fillRect(480, 160, 140, 190);
             }
-
-            // Corridor perspective — vanishing point lines
-            ctx.strokeStyle = '#34345c'; ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(w * 0.5, 100); ctx.lineTo(0, 400); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(w * 0.5, 100); ctx.lineTo(w, 400); ctx.stroke();
-            ctx.lineWidth = 1;
 
             // Corridor lit panels (ceiling recessed)
             for (let clx = 180; clx < 480; clx += 80) {
@@ -6470,7 +6856,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function finalVictoryMessage(e) {
         if (e.getFlag('rescued_prisoners')) {
-            return 'You grab the Quantum Drive and run for the airlock! The freed prisoners are already aboard your shuttle, which is now both a getaway craft and a serious fire-code violation. You blast away as the flagship turns to pursue, then jump to hyperspace with the Quantum Drive and the survivors safely aboard. From humble janitor to galactic hero... and, annoyingly, still the person everyone expects to clean up afterward. THE END.';
+            return 'You grab the Quantum Drive and run for the airlock! The freed prisoners are already aboard your shuttle, which is now both a getaway craft and a serious fire-code violation. After the jump, Jorv and Mella reunite with Pipz at Kerona Docking Bay. From humble janitor to galactic hero... and, annoyingly, still the person everyone expects to clean up afterward. THE END.';
         }
         return 'You grab the Quantum Drive and run for the airlock! Behind you, alarms blare as the Draknoids realize what\'s happened. You sprint through the corridors, leap into your shuttle, and blast away just as the flagship turns to pursue. But it\'s too late — you jump to hyperspace with the Quantum Drive safely aboard. From humble janitor to galactic hero... the galaxy owes its future to one unlikely sanitation engineer. THE END.';
     }
@@ -7345,10 +7731,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (!e.getFlag('grabbed_quantum_drive')) {
                         // VICTORY!
                         e.setFlag('grabbed_quantum_drive');
+                        if (e.getFlag('rescued_prisoners')) e.setFlag('pipz_thanked');
                         e.addScore(20);
                         const victoryMsg = finalVictoryMessage(e);
                         e.playCutscene({
-                            duration: 8000,
+                            duration: 10000,
                             draw: cutsceneVictoryEscape,
                             onEnd: () => e.victory(victoryMsg),
                             skippable: true
@@ -7362,10 +7749,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.showMessage('ZAP! The force field blocks you!');
                     } else if (!e.getFlag('grabbed_quantum_drive')) {
                         e.setFlag('grabbed_quantum_drive');
+                        if (e.getFlag('rescued_prisoners')) e.setFlag('pipz_thanked');
                         e.addScore(20);
                         const victoryMsg = finalVictoryMessage(e);
                         e.playCutscene({
-                            duration: 8000,
+                            duration: 10000,
                             draw: cutsceneVictoryEscape,
                             onEnd: () => e.victory(victoryMsg),
                             skippable: true
@@ -7390,7 +7778,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 use: (e) => {
                     if (!e.getFlag('field_down')) {
                         const px = engine.playerX, py = engine.playerY;
-                        const sc = 1.85 + (py - 280) / 90 * 0.3;
+                        const sc = engine.playerSpriteScale(py);
                         e.playCutscene({
                             duration: 1500,
                             skippable: true,

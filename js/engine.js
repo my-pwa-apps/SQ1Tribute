@@ -13,6 +13,10 @@ const PAL = (typeof window !== 'undefined' && window.SS_PALETTE) || {
     TEXT_NEGATIVE: '#FF8855', TEXT_MUTED: '#AAAAAA'
 };
 
+// Ego scale. Room architecture is authored large (interior doors run ~200px),
+// so the sprite is scaled to sit in Sierra's ego-to-doorway range.
+const PLAYER_SPRITE_SCALE = 1.45;
+
 class GameEngine {
     constructor(gameDefinition = {}) {
         this.game = this.createGameDefinition(gameDefinition);
@@ -32,7 +36,9 @@ class GameEngine {
             btnSave: document.getElementById('btn-save'),
             btnLoad: document.getElementById('btn-load'),
             btnHint: document.getElementById('btn-hint'),
+            btnScan: document.getElementById('btn-scan'),
             btnMute: document.getElementById('btn-mute'),
+            btnTools: document.getElementById('btn-tools'),
             touchParser: document.getElementById('touch-parser'),
             touchParserInput: document.getElementById('touch-parser-input'),
             btnEnhanced: document.getElementById('btn-enhanced'),
@@ -73,6 +79,7 @@ class GameEngine {
 
         // Action system
         this.currentAction = 'walk';
+        this.hotspotReveal = false;
         this.selectedItem = null;
         this.pendingAction = null;
         this.classicMode = this.loadInterfacePreference() !== 'enhanced';
@@ -291,8 +298,13 @@ class GameEngine {
                 }
                 return;
             }
-            // AGI-inspired: dismiss text window on click
-            if (this.textWindow) { this.dismissTextWindow(); return; }
+            // Classic keeps the deliberate AGI dismissal cadence. Enhanced mode
+            // dismisses the response and processes the same actionable click,
+            // but only when the player has actually finished reading it.
+            if (this.textWindow) {
+                if (!this.canChainAfterDismiss()) { this.dismissTextWindow(); return; }
+                this.dismissTextWindow();
+            }
             const coords = this.getCanvasCoords(e);
             this.handleClick(coords.x, coords.y);
         });
@@ -341,6 +353,11 @@ class GameEngine {
             if (e.key === 'F9') {
                 e.preventDefault();
                 this.toggleCrtEffects();
+                return;
+            }
+            if (e.key === 'F2') {
+                e.preventDefault();
+                this.toggleHotspotReveal();
                 return;
             }
             if (this.titleScreen) {
@@ -430,9 +447,20 @@ class GameEngine {
             this.keysDown = {};
         });
 
+        window.addEventListener('resize', () => this.updateLayoutScale());
+        window.addEventListener('orientationchange', () => this.updateLayoutScale());
+
         if (this.dom.btnSave) this.dom.btnSave.addEventListener('click', () => this.openSaveModal('save'));
         if (this.dom.btnLoad) this.dom.btnLoad.addEventListener('click', () => this.openSaveModal('load'));
         if (this.dom.btnHint) this.dom.btnHint.addEventListener('click', () => this.showHint());
+        if (this.dom.btnScan) this.dom.btnScan.addEventListener('click', () => this.toggleHotspotReveal());
+        if (this.dom.btnTools) {
+            this.dom.btnTools.addEventListener('click', () => {
+                const bar = this.dom.btnTools.parentElement;
+                const expanded = bar.classList.toggle('tools-open');
+                this.dom.btnTools.setAttribute('aria-expanded', String(expanded));
+            });
+        }
         if (this.dom.btnMute) {
             this.dom.btnMute.addEventListener('click', () => {
                 this.sound.init().finally(() => this.updateSoundUI());
@@ -491,7 +519,10 @@ class GameEngine {
                 }
                 return;
             }
-            if (this.textWindow) { this.dismissTextWindow(); return; }
+            if (this.textWindow) {
+                if (!this.canChainAfterDismiss()) { this.dismissTextWindow(); return; }
+                this.dismissTextWindow();
+            }
             this.handleClick(coords.x, coords.y);
         }, { passive: false });
 
@@ -612,6 +643,7 @@ class GameEngine {
         document.body.classList.toggle('classic-mode', this.classicMode);
         document.body.classList.toggle('enhanced-mode', !this.classicMode);
         document.body.classList.toggle('title-screen', this.titleScreen);
+        this.updateLayoutScale();
     }
 
     toggleCrtEffects() {
@@ -772,22 +804,29 @@ class GameEngine {
     setFlag(f, v) { this.flags[f] = (v === undefined) ? true : v; }
     getFlag(f) { return this.flags[f] ?? false; }
 
+    /** Touch devices have no hover, so object discovery needs an explicit toggle. */
+    toggleHotspotReveal() {
+        if (this.titleScreen || this.dead || this.won) return;
+        this.hotspotReveal = !this.hotspotReveal;
+        if (this.dom.btnScan) {
+            this.dom.btnScan.setAttribute('aria-pressed', String(this.hotspotReveal));
+            this.dom.btnScan.textContent = this.hotspotReveal ? 'Objects: ON' : 'Objects';
+        }
+        this.showMessage(this.hotspotReveal
+            ? 'Interactive objects are highlighted. Press F2 or Objects again to hide them.'
+            : 'Object highlighting off.');
+    }
+
     // ---- Hint System ----
     // Each room may declare a `hint` string (or function returning a string).
-    // First hint per room is free; subsequent hints in the same room cost 2 score.
+    // Hint use is tracked separately and never changes adventure score.
     showHint() {
         const room = this.rooms[this.currentRoomId];
         if (!room) return;
         const raw = (typeof room.hint === 'function') ? room.hint(this) : room.hint;
         const text = raw || 'No hint available here. Try looking around, talking to anyone present, and combining what you have.';
-        const usedFlag = `hint_used_${this.currentRoomId}`;
-        if (this.getFlag(usedFlag)) {
-            this.score = Math.max(0, this.score - 2);
-            this.lastScoreDelta = -2;
-            this.scoreFlashUntil = this.animTimer + 1600;
-        } else {
-            this.setFlag(usedFlag);
-        }
+        const countFlag = `hint_count_${this.currentRoomId}`;
+        this.setFlag(countFlag, this.getFlag(countFlag) + 1);
         this.showMessage('HINT: ' + text);
     }
 
@@ -817,14 +856,31 @@ class GameEngine {
         this.announce('Conversation choices available. Use the numbered options or navigate to the conversation choices region.');
     }
 
-    showMessage(text) {
+    /** Engine facade handed to hotspot handlers so the narration they emit opens
+     *  the Sierra text window, without a transient instance flag. */
+    get actionScope() {
+        if (!this._actionScope) {
+            this._actionScope = new Proxy(this, {
+                get: (target, prop) => {
+                    if (prop === 'showMessage') {
+                        return (text, opts) => target.showMessage(text, { window: true, ...opts });
+                    }
+                    const value = target[prop];
+                    return typeof value === 'function' ? value.bind(target) : value;
+                }
+            });
+        }
+        return this._actionScope;
+    }
+
+    showMessage(text, opts = {}) {
         const displayText = this.classicMode ? this.sierraTrim(text) : text;
         this.message = displayText;
         const el = this.dom.messageText;
         el.textContent = displayText;
         this.announce(displayText);
         el.parentElement.scrollTop = el.parentElement.scrollHeight;
-        if ((this.classicMode || this._showActionWindow) &&
+        if ((this.classicMode || opts.window === true) &&
             !this.titleScreen && !this.cutscene && !this.dead && !this.won) {
             this.showTextWindow(displayText, { color: '#FFFFFF', duration: 0, maxWidth: 440 });
         }
@@ -972,61 +1028,57 @@ class GameEngine {
 
     performAction(hotspot) {
         const action = this.currentAction;
-        this._showActionWindow = true;
-        try {
-            if (action === 'use' && this.selectedItem) {
-                if (hotspot.useItem) {
-                    hotspot.useItem(this, this.selectedItem);
-                } else {
-                    const itemObj = this.items[this.selectedItem];
-                    const itemName = itemObj ? itemObj.name : 'that';
-                    const hsName = hotspot.name || 'that';
-                    const useItemSnarks = [
-                        `You attempt to combine ${itemName} with ${hsName}. Physics offers a stern, polite refusal.`,
-                        `Applying ${itemName} to ${hsName} produces no measurable scientific or janitorial progress.`,
-                        `You wave ${itemName} near ${hsName}. It looks unimpressed.`,
-                        `That doesn't seem to do anything except waste valuable escaping time.`
-                    ];
-                    const hash = (this.selectedItem + hsName).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
-                    this.sound.error();
-                    this.showMessage(useItemSnarks[hash % useItemSnarks.length]);
-                }
-                return;
-            }
-            const handler = hotspot[action];
-            if (handler) {
-                handler(this);
+        const scope = this.actionScope;
+        if (action === 'use' && this.selectedItem) {
+            if (hotspot.useItem) {
+                hotspot.useItem(scope, this.selectedItem);
             } else {
+                const itemObj = this.items[this.selectedItem];
+                const itemName = itemObj ? itemObj.name : 'that';
                 const hsName = hotspot.name || 'that';
-                const hash = (hsName + action).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
-                const snarks = {
-                    look: [
-                        hotspot.description || "You inspect it carefully. It's magnificent in its sheer lack of significance.",
-                        hotspot.description || "You stare intently at it. It gazes back with inanimate indifference.",
-                        hotspot.description || "Yep, that's definitely what it appears to be. Further analysis yields nothing."
-                    ],
-                    get: [
-                        `Your janitor hands reach out for ${hsName}, but universe physics (and common sense) intervene.`,
-                        `You attempt to stuff ${hsName} into your pockets. Reality politely declines.`,
-                        `Taking ${hsName} seems like a fine idea until you realize it's securely attached to the universe.`
-                    ],
-                    use: [
-                        `You fiddle with ${hsName} briefly. Science remains entirely unbothered.`,
-                        `You apply your finest janitorial technique to ${hsName}. Nothing happens, but you look remarkably focused.`,
-                        `You push, pull, and poke at ${hsName}. It resolutely resists your enthusiasm.`
-                    ],
-                    talk: [
-                        `You offer a warm greeting to ${hsName}. It maintains a dignified, stony silence.`,
-                        `You strike up a friendly conversation with ${hsName}. It's a decidedly one-sided affair.`,
-                        `You whisper sweet nothings to ${hsName}. Nothing happens, but you feel slightly foolish.`
-                    ]
-                };
-                const list = snarks[action] || ["Nothing happens."];
+                const useItemSnarks = [
+                    `You attempt to combine ${itemName} with ${hsName}. Physics offers a stern, polite refusal.`,
+                    `Applying ${itemName} to ${hsName} produces no measurable scientific or janitorial progress.`,
+                    `You wave ${itemName} near ${hsName}. It looks unimpressed.`,
+                    `That doesn't seem to do anything except waste valuable escaping time.`
+                ];
+                const hash = (this.selectedItem + hsName).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
                 this.sound.error();
-                this.showMessage(list[hash % list.length]);
+                this.showMessage(useItemSnarks[hash % useItemSnarks.length], { window: true });
             }
-        } finally {
-            this._showActionWindow = false;
+            return;
+        }
+        const handler = hotspot[action];
+        if (handler) {
+            handler(scope);
+        } else {
+            const hsName = hotspot.name || 'that';
+            const hash = (hsName + action).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+            const snarks = {
+                look: [
+                    hotspot.description || "You inspect it carefully. It's magnificent in its sheer lack of significance.",
+                    hotspot.description || "You stare intently at it. It gazes back with inanimate indifference.",
+                    hotspot.description || "Yep, that's definitely what it appears to be. Further analysis yields nothing."
+                ],
+                get: [
+                    `Your janitor hands reach out for ${hsName}, but universe physics (and common sense) intervene.`,
+                    `You attempt to stuff ${hsName} into your pockets. Reality politely declines.`,
+                    `Taking ${hsName} seems like a fine idea until you realize it's securely attached to the universe.`
+                ],
+                use: [
+                    `You fiddle with ${hsName} briefly. Science remains entirely unbothered.`,
+                    `You apply your finest janitorial technique to ${hsName}. Nothing happens, but you look remarkably focused.`,
+                    `You push, pull, and poke at ${hsName}. It resolutely resists your enthusiasm.`
+                ],
+                talk: [
+                    `You offer a warm greeting to ${hsName}. It maintains a dignified, stony silence.`,
+                    `You strike up a friendly conversation with ${hsName}. It's a decidedly one-sided affair.`,
+                    `You whisper sweet nothings to ${hsName}. Nothing happens, but you feel slightly foolish.`
+                ]
+            };
+            const list = snarks[action] || ["Nothing happens."];
+            this.sound.error();
+            this.showMessage(list[hash % list.length], { window: true });
         }
     }
 
@@ -1665,6 +1717,12 @@ class GameEngine {
         ctx.restore();
     }
 
+    /** Enhanced mode may act on the dismissing input, but never while the
+     *  typewriter is still revealing text or a conversation is in progress. */
+    canChainAfterDismiss() {
+        return !this.classicMode && !this.activeDialog && this.isTextFullyRevealed();
+    }
+
     dismissTextWindow() {
         // First click/keypress snaps the typewriter to the end rather than
         // dismissing, so fast readers never lose text they haven't seen.
@@ -2054,7 +2112,7 @@ class GameEngine {
             } else if (movingY && !this.collidesBarrier(startX, newY)) {
                 this.playerY = newY;
             }
-            this.playerFrameTimer += dt;
+            this.playerFrameTimer += dt * depthSpd;
             if (this.playerFrameTimer > 110) {
                 this.playerFrame = (this.playerFrame + 1) % 6;
                 this.playerFrameTimer = 0;
@@ -2131,7 +2189,7 @@ class GameEngine {
                     this.playerTargetX = null;
                     this.playerTargetY = null;
                 }
-                this.playerFrameTimer += dt;
+                this.playerFrameTimer += dt * depthSpd;
                 if (this.playerFrameTimer > 110) {
                     this.playerFrame = (this.playerFrame + 1) % 6;
                     this.playerFrameTimer = 0;
@@ -2328,6 +2386,7 @@ class GameEngine {
     /** Draw status bars, text windows, dialog options and end-game overlays. */
     drawHud(ctx, room) {
         if (!this.classicMode) this.drawHotspotLabel(ctx, room);
+        if (this.hotspotReveal) this.drawHotspotReveal(ctx, room);
 
         // Current action indicator / Sierra status line
         if (!this.dead && !this.won) {
@@ -2861,7 +2920,50 @@ class GameEngine {
         ctx.restore();
     }
 
-    drawPlayer(ctx) {
+    /** Scale the fixed 640x400 stage up to the viewport, preserving aspect ratio.
+     *  Skipped during deterministic capture so screenshot baselines stay 1:1. */
+    updateLayoutScale() {
+        const container = document.getElementById('game-container');
+        if (!container || this._isDeterministicCapture()) return;
+        const chrome = Math.max(0, container.offsetHeight - this.canvas.offsetHeight);
+        const maxByHeight = (window.innerHeight - chrome) * (this.WIDTH / this.HEIGHT);
+        const width = Math.max(320, Math.min(window.innerWidth, maxByHeight));
+        container.style.width = Math.floor(width) + 'px';
+    }
+
+    /** Wrap a context so fillRect snaps to whole pixels; edges are rounded rather
+     *  than width, so adjacent sprite blocks stay flush instead of gapping. */
+    _pixelCtx(ctx) {
+        if (!this._pixelCtxProxy || this._pixelCtxTarget !== ctx) {
+            const R = Math.round;
+            this._pixelCtxTarget = ctx;
+            this._pixelCtxProxy = new Proxy(ctx, {
+                get: (t, prop) => {
+                    if (prop === 'fillRect') {
+                        return (a, b, c, d) => {
+                            const x0 = R(a), y0 = R(b);
+                            t.fillRect(x0, y0, R(a + c) - x0, R(b + d) - y0);
+                        };
+                    }
+                    const value = t[prop];
+                    return typeof value === 'function' ? value.bind(t) : value;
+                },
+                set: (t, prop, value) => { t[prop] = value; return true; }
+            });
+        }
+        return this._pixelCtxProxy;
+    }
+
+    /** Snapped sprite scale for the ego at a given floor Y. Shared with the
+     *  cutscene mini-animations so gameplay and cutscenes stay the same size. */
+    playerSpriteScale(y) {
+        let s = (1.85 + (y - 280) / 90 * 0.3) * PLAYER_SPRITE_SCALE;
+        if (this.depthScaling) s *= this.getDepthScale(y);
+        return Math.round(s * 20) / 20;
+    }
+
+    drawPlayer(ctx0) {
+        const ctx = this._pixelCtx(ctx0);
         const x = Math.round(this.playerX);
         const y = Math.round(this.playerY);
         const dir = this.playerDir;
@@ -2869,12 +2971,7 @@ class GameEngine {
         const walking = this.playerWalking;
         const frame = this.playerFrame;
         // Perspective scale: smaller when further away (low Y)
-        let s = 1.85 + (y - 280) / 90 * 0.3;
-        // AGS-inspired: depth scaling multiplier from walkable area
-        if (this.depthScaling) {
-            s *= this.getDepthScale(y);
-        }
-        s = Math.round(s * 20) / 20; // Snap scale to 0.05 step intervals to avoid subpixel shimmering
+        const s = this.playerSpriteScale(y);
 
         // Contact shadow — grounds the sprite on the floor plane so it does not appear to float.
         this.drawContactShadow(ctx, x, y + 12 * s, s);
@@ -2917,7 +3014,9 @@ class GameEngine {
         // Boot offset — foot tap only moves the boot, not the leg
         let leftBoot = leftLeg, rightBoot = rightLeg;
         if (idleFootTap > 0) rightBoot = -idleFootTap;
-        const as = walking ? lift * 2 * s : 0;
+        // Hand swing: the shoulders stay put and only the hands travel, so the
+        // arms read as swinging rather than sliding up and down the torso.
+        const as = walking ? Math.round(stride * 1.2 * s) : 0;
 
         if (facing === 'toward') {
             // ---- FRONT VIEW (facing camera) ----
@@ -2972,15 +3071,15 @@ class GameEngine {
             ctx.fillRect(x - 1.5 * s, y - 0.5 * s, 3 * s, 2.5 * s);
             // Arms
             ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x - 7 * s, y - 8 * s + as, 2 * s, 7 * s);
-            ctx.fillRect(x + 5 * s, y - 8 * s - as, 2 * s, 7 * s);
+            ctx.fillRect(x - 7 * s, y - 8 * s, 2 * s, 7 * s);
+            ctx.fillRect(x + 5 * s, y - 8 * s, 2 * s, 7 * s);
             ctx.fillStyle = '#555555';
-            ctx.fillRect(x - 7 * s, y - 2 * s + as, 2 * s, 1 * s);
-            ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
+            ctx.fillRect(x - 7 * s, y - 2 * s, 2 * s, 1 * s);
+            ctx.fillRect(x + 5 * s, y - 2 * s, 2 * s, 1 * s);
             // Hands
             ctx.fillStyle = '#FFCC88';
-            ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
-            ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
+            ctx.fillRect(x - 7 * s + as, y - 1 * s, 2 * s, 2.5 * s);
+            ctx.fillRect(x + 5 * s - as, y - 1 * s, 2 * s, 2.5 * s);
             // Head
             ctx.fillStyle = '#FFCC88';
             ctx.fillRect(x - 4 * s, y - 18 * s, 8 * s, 8 * s);
@@ -3036,15 +3135,15 @@ class GameEngine {
             ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
             // Arms
             ctx.fillStyle = '#EEEEEE';
-            ctx.fillRect(x - 7 * s, y - 8 * s + as, 2 * s, 7 * s);
-            ctx.fillRect(x + 5 * s, y - 8 * s - as, 2 * s, 7 * s);
+            ctx.fillRect(x - 7 * s, y - 8 * s, 2 * s, 7 * s);
+            ctx.fillRect(x + 5 * s, y - 8 * s, 2 * s, 7 * s);
             ctx.fillStyle = '#555555';
-            ctx.fillRect(x - 7 * s, y - 2 * s + as, 2 * s, 1 * s);
-            ctx.fillRect(x + 5 * s, y - 2 * s - as, 2 * s, 1 * s);
+            ctx.fillRect(x - 7 * s, y - 2 * s, 2 * s, 1 * s);
+            ctx.fillRect(x + 5 * s, y - 2 * s, 2 * s, 1 * s);
             // Hands
             ctx.fillStyle = '#FFCC88';
-            ctx.fillRect(x - 7 * s, y - 1 * s + as, 2 * s, 2.5 * s);
-            ctx.fillRect(x + 5 * s, y - 1 * s - as, 2 * s, 2.5 * s);
+            ctx.fillRect(x - 7 * s + as, y - 1 * s, 2 * s, 2.5 * s);
+            ctx.fillRect(x + 5 * s - as, y - 1 * s, 2 * s, 2.5 * s);
             // Head (back of head, all hair)
             ctx.fillStyle = '#BB7733';
             ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 9 * s);
@@ -3170,6 +3269,35 @@ class GameEngine {
     }
 
     // ---- Hotspot Label ----
+    drawHotspotReveal(ctx, room) {
+        if (!room || !room.hotspots || this.dead || this.won) return;
+        ctx.save();
+        ctx.font = '9px "Courier New"';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 1;
+        for (const hs of room.hotspots) {
+            if (hs.hidden) continue;
+            const x = Math.max(1, hs.x);
+            const y = Math.max(18, hs.y);
+            const right = Math.min(this.WIDTH - 1, hs.x + hs.w);
+            const bottom = Math.min(this.HEIGHT - 1, hs.y + hs.h);
+            if (right <= x || bottom <= y) continue;
+            ctx.fillStyle = 'rgba(255,255,85,0.10)';
+            ctx.fillRect(x, y, right - x, bottom - y);
+            ctx.strokeStyle = '#FFFF55';
+            ctx.strokeRect(x + 0.5, y + 0.5, right - x - 1, bottom - y - 1);
+            const name = hs.name || '???';
+            const cx = (x + right) / 2;
+            const ty = y <= 28 ? bottom + 10 : y - 3;
+            const tw = ctx.measureText(name).width;
+            ctx.fillStyle = 'rgba(0,0,40,0.85)';
+            ctx.fillRect(cx - tw / 2 - 3, ty - 9, tw + 6, 11);
+            ctx.fillStyle = '#FFFF55';
+            ctx.fillText(name, cx, ty);
+        }
+        ctx.restore();
+    }
+
     drawHotspotLabel(ctx, room) {
         if (!room || !room.hotspots || this.dead || this.won) return;
         for (let i = room.hotspots.length - 1; i >= 0; i--) {
@@ -3510,6 +3638,7 @@ class GameEngine {
     start() {
         // Initialize VR support if available
         this.initVR();
+        this.updateLayoutScale();
 
         const loop = (timestamp) => {
             // When VR is active, the XR frame loop handles update+render
@@ -3755,8 +3884,14 @@ class AnimatedNPC {
 
             // Move in current direction
             if (this.direction > 0 && this.direction <= 8) {
-                const nx = this.x + AnimatedNPC.xs[this.direction] * this.stepSize;
-                const ny = this.y + AnimatedNPC.ys[this.direction] * this.stepSize;
+                const dx = AnimatedNPC.xs[this.direction];
+                const dy = AnimatedNPC.ys[this.direction];
+                // Match the player: normalize diagonals and scale the step by depth.
+                const diagFactor = (dx !== 0 && dy !== 0) ? Math.SQRT1_2 : 1;
+                const depthSpd = engine.depthScaling ? engine.getDepthScale(this.y) : 1;
+                const step = this.stepSize * diagFactor * depthSpd;
+                const nx = this.x + dx * step;
+                const ny = this.y + dy * step;
 
                 // Border check (AGI MOVEOBJS)
                 const clampedX = Math.max(30, Math.min(610, nx));

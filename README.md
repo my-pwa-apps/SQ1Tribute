@@ -22,6 +22,7 @@ Then browse to http://localhost:8080.
 | Mouse click / tap | Walk, or perform the current action in Enhanced mode |
 | Arrow keys / D-pad | Walk |
 | `F3` | Repeat the last typed command |
+| `F2` | Highlight every interactive object in the room |
 | `W` | Walk action |
 | `L` | Look action |
 | `G` | Get action |
@@ -57,6 +58,7 @@ From your broom closet you'll sneak through a burning ship, launch the last esca
 - Installable as a PWA (service worker + manifest for offline play)
 - Classic canvas-only parser interface, with optional enhanced point-and-click controls
 - Parser snark for wrong verbs, odd commands, and the traditional bad ideas players insist on trying
+- Object highlighting (`F2`, or the Objects button) so touch players can find hotspots without hover
 - Recoverable late-game workaround for players who ignored one important shipboard errand
 - Optional CRT display effects, for players who want either nostalgia or clean pixels
 - Touch-friendly D-pad on small screens in Enhanced mode

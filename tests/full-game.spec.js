@@ -298,10 +298,12 @@ test.describe('Full walkthrough', () => {
 
         const finalScore = await scoreOf(page);
         const won = await page.evaluate(() => window.engine.won);
+        const rescueResolved = await page.evaluate(() => window.engine.getFlag('pipz_thanked'));
         console.log(`Final: ${finalScore}, won=${won}`);
         dump();
 
         expect(won, 'the walkthrough should reach the victory state').toBe(true);
+        expect(rescueResolved, 'the rescued family should reunite with Pipz in the epilogue').toBe(true);
         expect(finalScore).toBe(await page.evaluate(() => window.engine.maxScore));
     });
 

@@ -93,7 +93,7 @@ test('game starts, announces narration, and saves a validated slot', async ({ pa
     expect(save.flags.alarm_active).toBe(true);
 });
 
-test('enhanced Look actions display a Sierra-style canvas response window', async ({ page }) => {
+test('enhanced Look actions display a response and chain on the next click', async ({ page }) => {
     await clearState(page);
     await finishIntro(page);
     await page.getByRole('button', { name: 'Look', exact: true }).click();
@@ -103,9 +103,39 @@ test('enhanced Look actions display a Sierra-style canvas response window', asyn
     await page.mouse.click(box.x + box.width * (320 / 640), box.y + box.height * (150 / 400));
     await expect(page.locator('#message-text')).toContainText('reinforced sliding door');
 
-    const response = await page.locator('#message-text').textContent();
-    await page.mouse.click(box.x + box.width * (500 / 640), box.y + box.height * (200 / 400));
-    await expect(page.locator('#message-text')).toHaveText(response);
+    // A click while the typewriter is still running must only finish the text.
+    await page.mouse.click(box.x + box.width * (565 / 640), box.y + box.height * (130 / 400));
+    await expect(page.locator('#message-text')).toContainText('reinforced sliding door');
+
+    // Once the text is fully revealed, the dismissing click performs the action.
+    await page.waitForFunction(() => window.engine.isTextFullyRevealed());
+    await page.mouse.click(box.x + box.width * (565 / 640), box.y + box.height * (130 / 400));
+    await expect(page.locator('#message-text')).toContainText(/safety|poster/i);
+});
+
+test('stage scales up to fill a large viewport without overflowing', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await clearState(page);
+    await page.waitForFunction(() => window.engine);
+    const box = await page.locator('#game-canvas').boundingBox();
+    expect(box.width).toBeGreaterThan(900);
+    expect(box.width / box.height).toBeCloseTo(1.6, 1);
+    const fits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+    expect(fits).toBe(true);
+});
+
+test('repeated hints never reduce adventure score', async ({ page }) => {
+    await clearState(page);
+    await finishIntro(page);
+    const scores = await page.evaluate(() => {
+        window.engine.score = 10;
+        window.engine.showHint();
+        const first = window.engine.score;
+        window.engine.dismissTextWindow();
+        window.engine.showHint();
+        return { first, second: window.engine.score };
+    });
+    expect(scores).toEqual({ first: 10, second: 10 });
 });
 
 test('death can be recovered with restart', async ({ page }) => {
@@ -203,6 +233,9 @@ test.describe('touch controls', () => {
         await expect(page.locator('#touch-parser')).toBeVisible();
         await expect(page.locator('#dpad')).toBeVisible();
         await expect(page.locator('#save-load-bar')).toBeVisible();
+        await expect(page.locator('#btn-save')).toBeHidden();
+        await page.locator('#btn-tools').click();
+        await expect(page.locator('#btn-save')).toBeVisible();
         await page.locator('#touch-parser-input').fill('LOOK');
         await page.locator('#touch-parser button[type="submit"]').click();
         await expect(page.locator('#message-text')).not.toHaveText('Choose Classic Parser or Enhanced Click to begin.');

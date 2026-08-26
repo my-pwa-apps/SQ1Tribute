@@ -10,8 +10,8 @@ Open items only (resolved items from prior reviews are retained below for histor
 |---|---:|
 | Critical | 0 |
 | High | 0 |
-| Medium | 2 |
-| Low | 5 |
+| Medium | 0 |
+| Low | 0 |
 
 ---
 
@@ -33,21 +33,21 @@ Open items only (resolved items from prior reviews are retained below for histor
   **Suggested fix:** Set `maxScore` to the verified best-run total and lock it with a test.
   **Acceptance criteria:** A completed walkthrough reaches exactly `maxScore`. *(RESOLVED: `maxScore` is now 378, asserted by [tests/full-game.spec.js](tests/full-game.spec.js).)*
 
-- [ ] [Priority: Medium]
+- [x] [Priority: Medium]
   **Area:** Content / Reachability
   **File(s):** [js/game.js](js/game.js)
   **Issue:** The `pipz_thanked` award (+15) requires talking to Pipz at the Kerona docking bay after `rescued_prisoners` is set, but that flag can only be set aboard the Draknoid flagship, and the flagship Airlock has no route back to Kerona.
   **Impact:** 15 points of authored content are permanently unreachable; the emotional payoff of the Pipz rescue arc never lands.
   **Suggested fix:** Either allow the shuttle to return to Kerona once the prisoners are freed, or move the thank-you beat into the victory cutscene / brig rescue sequence.
-  **Acceptance criteria:** A player who rescues Jorv and Mella can receive Pipz's thanks and the 15 points within a normal playthrough.
+  **Acceptance criteria:** A player who rescues Jorv and Mella can receive Pipz's thanks within a normal playthrough. *(RESOLVED in `v1.0.40`: the victory escape now ends with a scored-neutral Kerona reunion scene, sets `pipz_thanked`, and includes the family reunion in the final narration without changing the verified 378-point contract.)*
 
-- [ ] [Priority: Low]
+- [x] [Priority: Low]
   **Area:** Content / Scoring
   **File(s):** [js/game.js](js/game.js)
   **Issue:** The desert wreck medkit (+3) is gated on `!korvak_freed`, making it mutually exclusive with healing Korvak (+20).
   **Impact:** Two scoring opportunities silently cancel each other, so no single run can reach the sum of all awards. Not a bug in itself, but it is undocumented and makes the score total hard to reason about.
   **Suggested fix:** Document the exclusivity in the design notes, or decouple the two awards.
-  **Acceptance criteria:** The relationship between the two awards is intentional and recorded.
+  **Acceptance criteria:** The relationship between the two awards is intentional and recorded. *(RESOLVED in `v1.0.42`: the wreck medkit is documented in [js/game.js](js/game.js) as a deliberate consolation award for players who never healed Korvak, with `maxScore` reflecting the better route.)*
 
 ---
 
@@ -375,37 +375,37 @@ Review question: *Are the Sierra-style humorous narrator responses present, and 
   **Suggested fix:** Mirror action responses into the on-canvas Sierra text window in Enhanced mode (scoped to genuine action responses only), and make walk-mode object clicks invoke the look response rather than a verbless `performAction`.
   **Acceptance criteria:** Looking at or using objects in both Classic and Enhanced modes shows the authored response on-canvas; walk-mode clicks on non-floor objects show their look text. *(RESOLVED: `showMessage` now renders the canvas text window when `_showActionWindow` is set during `performAction` (try/finally scoped); walk-mode above-floor hotspot clicks temporarily set `currentAction='look'`. SW bumped to v1.0.33; full suite green.)*
 
-- [ ] [Priority: Medium]
+- [x] [Priority: Medium]
   **Area:** Testing
   **File(s):** [tests/game.spec.js](tests/game.spec.js), [js/engine.js](js/engine.js)
   **Issue:** The new randomized fallback snark pools (look/get/use/talk and use-item mismatch) and the Enhanced-mode action text window have no automated coverage. A regression that silences action feedback again — exactly the class of bug fixed this session — would not fail CI.
   **Impact:** The primary interaction-feedback surface can silently regress while `npm run check` stays green.
   **Suggested fix:** Add focused Playwright assertions: in Enhanced mode select Look and click a hotspot, assert the canvas-accessibility mirror and/or text window contains the authored text; assert an unhandled `get`/`talk` on a plain hotspot yields a non-empty fallback; assert a mismatched use-item yields the snark line.
-  **Acceptance criteria:** CI fails if action responses (custom or fallback) stop reaching the player in either interface mode.
+  **Acceptance criteria:** CI fails if action responses (custom or fallback) stop reaching the player in either interface mode. *(RESOLVED: focused Enhanced Look coverage now verifies authored canvas feedback, with the polish-release test additionally verifying chained clicks.)*
 
-- [ ] [Priority: Low]
+- [x] [Priority: Low]
   **Area:** Refactor
   **File(s):** [js/engine.js](js/engine.js)
   **Issue:** `showMessage` decides whether to draw the on-canvas text window by reading a transient instance flag `this._showActionWindow` that `performAction` sets/clears via try/finally. This is implicit temporal coupling between two methods rather than an explicit parameter.
   **Impact:** Easy to break accidentally — any future caller that shows an action response outside `performAction`, or an async message emitted after the flag resets, will silently lose the window. Harder to reason about than an explicit argument.
   **Suggested fix:** Replace the flag with an explicit option, e.g. `showMessage(text, { window: true })`, and have `performAction` pass it directly; keep Classic-mode default behavior unchanged.
-  **Acceptance criteria:** The text-window decision is driven by an explicit parameter with no transient instance flag; behavior in both modes is unchanged and covered by the test above.
+  **Acceptance criteria:** The text-window decision is driven by an explicit parameter with no transient instance flag; behavior in both modes is unchanged and covered by the test above. *(RESOLVED in `v1.0.42`: `showMessage(text, { window: true })` is now an explicit option, and `performAction` hands handlers an `actionScope` facade that applies it, so no transient flag remains.)*
 
-- [ ] [Priority: Low]
+- [x] [Priority: Low]
   **Area:** UX
   **File(s):** [js/engine.js](js/engine.js)
   **Issue:** In Enhanced (point-and-click) mode, once an action text window is showing, the next canvas click is consumed dismissing it rather than performing the next action, so a deliberate second action needs two clicks.
   **Impact:** Minor friction for point-and-click players who expect one click per action; consistent with Classic Sierra but slightly less fluid for the modern enhanced path.
   **Suggested fix:** Consider auto-dismissing the action window on the next actionable click (dismiss and process the click in one gesture) or auto-timing-out short responses in Enhanced mode, while leaving Classic behavior untouched.
-  **Acceptance criteria:** In Enhanced mode a player can chain object interactions without a dedicated dismiss click, without regressing Classic dialog/text-window pacing.
+  **Acceptance criteria:** In Enhanced mode a player can chain object interactions without a dedicated dismiss click, without regressing Classic dialog/text-window pacing. *(RESOLVED in `v1.0.40`: Enhanced dismisses and processes the same actionable click; Classic retains deliberate AGI dismissal.)*
 
-- [ ] [Priority: Low]
+- [x] [Priority: Low]
   **Area:** Deployment / PWA
   **File(s):** [manifest.json](manifest.json)
   **Issue:** Both PWA icons declare only `"purpose": "any"`. There is no `maskable` icon variant, so on Android adaptive-icon launchers the artwork may be letterboxed or cropped inconsistently rather than filling the safe zone.
   **Impact:** Installed-app icon presentation is suboptimal on platforms that use maskable/adaptive icons; purely cosmetic, no functional effect.
   **Suggested fix:** Provide a maskable-safe icon (adequate padding in the safe zone) and add a manifest entry with `"purpose": "maskable"` (or `"any maskable"`), keeping the existing `any` icons.
-  **Acceptance criteria:** The manifest advertises a maskable icon that renders correctly in an Android adaptive-icon preview without clipping key artwork.
+  **Acceptance criteria:** The manifest advertises a maskable icon that renders correctly in an Android adaptive-icon preview without clipping key artwork. *(RESOLVED in `v1.0.42`: added [icons/star-maskable-512.svg](icons/star-maskable-512.svg) — a path-drawn star inside the maskable safe circle — declared with `"purpose": "maskable"` and precached.)*
 
 ---
 
@@ -437,13 +437,116 @@ Review question: *Do the game aesthetics match a modern interpretation of a Sier
   **Suggested fix:** Lower the poster to eye level beside the door; rebuild the pad as a raised perspective platform with hazard chevrons, corner beacons, and a landing marker; render each building name as a mounted signboard (neon box, wooden sign with tagline, metal placard on a post).
   **Acceptance criteria:** The poster is at eye level, the pad reads as a real landing platform, and building names read as mounted signs. *(RESOLVED in `v1.0.35`.)*
 
-- [ ] [Priority: Low]
+- [x] [Priority: Low]
   **Area:** UX / Polish
   **File(s):** [js/game.js](js/game.js)
   **Issue:** The shuttle-liftoff cutscene (`cutsceneShuttleFlight`, phase 1) draws its own simplified outpost — plain rectangular buildings and a 6px grey landing-pad strip — which no longer matches the upgraded outpost room art (signboards, hazard-striped platform).
   **Impact:** Minor continuity gap during a ~1.5s distant establishing shot; low visibility because it is a fast wide pan, but a sharp-eyed player may notice the pad downgrade.
   **Suggested fix:** Add a couple of hazard-stripe pixels and a warm sign dot to the cutscene pad/buildings so the silhouette echoes the room, or crop the pad out of frame during liftoff.
-  **Acceptance criteria:** The liftoff establishing shot visually echoes the detailed outpost without adding meaningful cutscene cost.
+  **Acceptance criteria:** The liftoff establishing shot visually echoes the detailed outpost without adding meaningful cutscene cost. *(RESOLVED in `v1.0.40`: the distant pad now carries hazard stripes, corner beacons, and warm/cyan sign lights.)*
+
+---
+
+## Polish Resolution Record — August 26, 2026
+
+The `v1.0.40` polish release strengthens the opening, ending, help flow, and mobile presentation without changing the puzzle chain or 378-point maximum:
+
+- Rebuilt the broom closet as a layered pseudo-3D room with converging side walls, a defined back wall and ceiling, quieter floor plates, and preserved hotspot geometry.
+- Made hints score-neutral while tracking per-room hint usage separately.
+- Added the Pipz family reunion to the victory cutscene and final narration without awarding unreachable points.
+- Let Enhanced-mode players dismiss a response and perform the next action with one click while preserving Classic pacing.
+- Replaced the tall mobile D-pad with a compact horizontal arrow strip and collapsed secondary utilities behind a keyboard-accessible Tools button.
+- Brought the shuttle liftoff establishing shot into continuity with the upgraded outpost art.
+- Added a reviewed broom-closet visual baseline plus focused hint, click-chaining, rescue-resolution, and mobile-tools assertions.
+
+---
+
+## Dated Findings — August 26, 2026 (Retro Review, post-v1.0.40)
+
+Review scope: hands-on play of the shipped `v1.0.40` build with emphasis on rooms never previously screenshot-audited (Science Lab, Escape Pod Bay, Engine Room, Draknoid Brig, Trading Post, Frontier Outpost, Cave), plus interaction feel on pointer and touch.
+
+- [x] [Priority: High]
+  **Area:** Bug / UX Regression
+  **File(s):** [js/engine.js](js/engine.js)
+  **Issue:** The `v1.0.40` Enhanced one-click chaining fell through to `handleClick` even when the click had merely completed the typewriter reveal rather than dismissing a finished message. Clicking while narration was still typing snapped the text *and* immediately performed the next action, overwriting the live region (e.g. with "Nothing interesting there.") and firing an error sound while the player was still reading. Touch never chained at all, because the `touchstart` handler returned unconditionally after dismissal.
+  **Impact:** The defining Sierra narration could be cut off mid-read in the default modern interface, and pointer/touch behaviour diverged.
+  **Suggested fix:** Only act on the dismissing input when the text is fully revealed and no dialog is active, and share that rule between the mouse and touch paths.
+  **Acceptance criteria:** A click/tap during the reveal only finishes the text; the following input performs the action; Classic pacing is unchanged. *(RESOLVED in `v1.0.41`: added `canChainAfterDismiss()`, used by both the click and touch handlers, with regression coverage in [tests/game.spec.js](tests/game.spec.js).)*
+
+- [x] [Priority: Medium]
+  **Area:** Graphics Quality / Art Direction
+  **File(s):** [js/game.js](js/game.js)
+  **Issue:** The three shipboard interiors — Science Lab, Escape Pod Bay and Engine Room — are flat front-on elevations: a single vertical wall plane meeting a horizontal floor band, with no converging side walls, ceiling or vanishing point. This contradicts the project's own documented requirement that every room use Sierra pseudo-3D perspective, and the Engine Room is explicitly cited in the contributor instructions as a canonical reference implementation when it is not one.
+  **Impact:** The first act of the game is its least spatial. After the reworked Broom Closet and the strong Corridor, three consecutive flat rooms make the ship read as cardboard scenery and undercut the established visual identity.
+  **Suggested fix:** Give each a depth plan matching the Corridor: converging side walls derived from a shared vanishing point, a defined back-wall band, a ceiling plane, and depth-scaled props. Preserve existing hotspot rectangles.
+  **Acceptance criteria:** Each shipboard interior presents at least three readable depth layers and perspective-consistent major geometry, and the contributor instructions name a room that genuinely demonstrates the standard. *(RESOLVED in `v1.0.42`: all three rooms rebuilt with a ceiling wedge, back wall, converging side walls with perspective seams, and a receding floor runner. Wall-mounted fixtures — lab terminal, specimen cases, pod bays, emergency locker, fire cabinet, conduit and corridor door — are now perspective trapezoids, with hotspots realigned to the new geometry.)*
+
+- [x] [Priority: Medium]
+  **Area:** UX / Discoverability
+  **File(s):** [js/engine.js](js/engine.js)
+  **Issue:** Interactive objects are only revealed by the hover label in `drawHotspotLabel`, which depends on `mousemove`. On touch, `touchstart` sets the cursor position and immediately performs the action, so a tap commits before anything is identified. There is no key or gesture to reveal interactables.
+  **Impact:** Touch players — the audience Enhanced mode is the default for — must blind-tap the scene to find objects, which reads as an unresponsive game rather than a discoverable one.
+  **Suggested fix:** Add a hotspot-reveal affordance (a held tap or a toggle that outlines/labels visible hotspots, plus a keyboard shortcut on desktop), keeping it purely additive so Classic play is unaffected.
+  **Acceptance criteria:** A touch player can identify interactive objects without triggering an action, and the same affordance is reachable from the keyboard. *(RESOLVED in `v1.0.42`: added a hotspot-reveal overlay that outlines and labels every visible hotspot, toggled by the `F2` key or the keyboard-focusable Objects button, which stays visible on mobile.)*
+
+- [x] [Priority: Medium]
+  **Area:** Content / Discoverability
+  **File(s):** [js/game.js](js/game.js)
+  **Issue:** At the Frontier Outpost, the route to the Kerona Docking Bay — the entrance to the entire Pipz/prisoner rescue arc — is signalled only by a small arrow and rotated micro-text at the extreme right screen edge, while the Cantina, Trading Post and Landing Pad all have full mounted signboards.
+  **Impact:** The game's strongest optional storyline (30+ points, the prisoner badge and frequency chip, the alternate console route, and the new reunion epilogue) is easy to miss entirely because its entrance is the weakest affordance on the busiest screen.
+  **Suggested fix:** Give the docking-bay route signage and framing consistent with the other outpost destinations, or add a narration nudge once the player has a reason to travel.
+  **Acceptance criteria:** The docking bay reads as a signposted destination at a glance, comparable to the other outpost buildings. *(RESOLVED in `v1.0.42`: the route now has a mounted "DOCKING BAY B / WRECK ZONE" signboard on a post, a graded track leading off-screen and a direction arrow, with the exit hotspot widened to match.)*
+
+- [x] [Priority: Low]
+  **Area:** Content / Narration Consistency
+  **File(s):** [js/game.js](js/game.js)
+  **Issue:** The Engine Room description states "Emergency lighting casts everything in sickly red", but the room renders predominantly cool blue-grey with only small red accents on two status panels and the extinguisher cabinet.
+  **Impact:** Narration and art disagree in a room the player is asked to study carefully for the Korvak rescue.
+  **Suggested fix:** Either warm the room's ambient lighting to match the text, or revise the description to match the rendered palette.
+  **Acceptance criteria:** The stated lighting and the rendered lighting agree. *(RESOLVED in `v1.0.42`: the engine room now renders in warm reds with a sickly red wash, keeping the reactor core as the single cool accent.)*
+
+- [x] [Priority: Low]
+  **Area:** Graphics Quality / Composition
+  **File(s):** [js/game.js](js/game.js)
+  **Issue:** The Trading Post reserves roughly the bottom third of the frame for a near-black, undifferentiated foreground in which the player stands with no floor material or perspective cue, despite the July 2026 pass targeting exactly this pattern elsewhere.
+  **Impact:** The merchant scene reads as a lit display case floating above an empty void, weakening the shop's sense of place.
+  **Suggested fix:** Extend a perspective floor treatment forward with subtle material and lighting falloff, and add a foreground occluder or two to anchor the player.
+  **Acceptance criteria:** The player stands on a readable floor plane continuous with the counter and back wall. *(RESOLVED in `v1.0.42`: the trading post floor gained a receding runner, warm light spill from the display wall and board seams.)*
+
+- [x] [Priority: Low]
+  **Area:** Graphics Quality / Consistency
+  **File(s):** [js/game.js](js/game.js)
+  **Issue:** The Draknoid Brig still draws long thin perspective guide lines that radiate from the vanishing point across the floor and over the cell blocks, the same floor-grid treatment deliberately removed from the Corridor, Cave and Desert in `v1.0.35`.
+  **Impact:** Reintroduces an abandoned convention, and the lines cross in front of geometry they should sit behind, reading as rendering artifacts.
+  **Suggested fix:** Remove the radiating lines and convey depth through the existing tapered cell blocks and tonal floor banding.
+  **Acceptance criteria:** No floor guide lines remain, and no depth cue is drawn over objects that occlude it. *(RESOLVED in `v1.0.42`: the radiating lines were removed and replaced with a floor runner drawn beneath the cell blocks.)*
+
+- [x] [Priority: Low]
+  **Area:** Graphics Quality / Materials
+  **File(s):** [js/game.js](js/game.js)
+  **Issue:** The Cave's painting panel is a hard-edged, brightly lit rectangle applied over the rock face, and the pool and tunnel mouth are similarly clean geometric shapes.
+  **Impact:** The strongest man-made-looking element in an organic cave is the one meant to be ancient rock art, so the room's best story detail reads as a pasted sprite.
+  **Suggested fix:** Break the panel's silhouette into the rock with irregular edges and tonal blending, and soften the pool and tunnel outlines.
+  **Acceptance criteria:** The paintings read as pigment on an uneven cave wall rather than a rectangular overlay. *(RESOLVED in `v1.0.42`: the offending shape was the cave entrance, drawn as stacked rectangles that also painted over the pictographs. The entrance is now an irregular daylight opening with a rock lip, and the pictographs were moved onto clear rock and drawn afterwards — they were previously invisible.)*
+
+---
+
+## Resolution Record — August 26, 2026
+
+The High-severity interaction regression found in this review was fixed in `v1.0.41`: Enhanced mode now chains only on a genuine dismissal via `canChainAfterDismiss()`, touch and pointer share that rule, and a regression test asserts that a click during the typewriter reveal cannot trigger the next action.
+
+`v1.0.42` then closed every remaining open item in this backlog:
+
+- Rebuilt the Science Lab, Escape Pod Bay and Engine Room as pseudo-3D rooms with perspective side walls and trapezoidal wall fixtures.
+- Gave the Engine Room the warm emergency lighting its description promises.
+- Added `F2` / Objects hotspot highlighting so touch players can identify objects without acting.
+- Signposted the Kerona Docking Bay route at the outpost.
+- Fixed the Cave entrance rectangle and surfaced the pictographs, which the entrance had been painting over.
+- Added a floor runner to the Trading Post and removed the Brig's stray perspective guide lines.
+- Replaced the transient `_showActionWindow` flag with an explicit `showMessage` option plus an `actionScope` handler facade.
+- Added a maskable PWA icon and recorded the intentional medkit/Korvak score exclusivity in code.
+
+Verification: `npm run check` — all static checks pass; 34 Playwright tests pass and 4 are skipped as project-inapplicable. Visual baselines for the Cave and the mobile Cantina, Trading Post, Outpost and Flagship were regenerated and reviewed after the art and toolbar changes.
 
 ---
 

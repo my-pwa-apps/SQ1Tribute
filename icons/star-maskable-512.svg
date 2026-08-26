@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Star Sweeper">
+    <rect width="512" height="512" fill="#080818"/>
+    <!-- Star drawn as a path (not a font glyph) and kept inside the maskable safe circle. -->
+    <path fill="#ffff55" d="M256 91 L293.03 205.03 L412.93 205.01 L315.92 275.47 L352.99 389.49 L256 319 L159.01 389.49 L196.08 275.47 L99.07 205.01 L218.97 205.03 Z"/>
+</svg>
