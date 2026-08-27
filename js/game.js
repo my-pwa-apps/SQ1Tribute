@@ -379,6 +379,31 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.globalAlpha = 1;
         }
 
+        // Ship alert readouts are screen overlays: they get their own backing
+        // plate for legibility and must not ride the screen shake.
+        function drawAlertPanel(ctx, w, headline, headlineBright, lines) {
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            const lineH = 15;
+            const boxW = 380;
+            const boxH = 30 + lines.length * lineH + 10;
+            const bx = Math.round((w - boxW) / 2), by = 24;
+            ctx.fillStyle = 'rgba(0,0,0,0.85)';
+            ctx.fillRect(bx, by, boxW, boxH);
+            ctx.strokeStyle = '#AA0000';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(bx + 2, by + 2, boxW - 4, boxH - 4);
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 14px "Courier New"';
+            ctx.fillStyle = headlineBright ? '#FF5555' : '#CC3333';
+            ctx.fillText(headline, w / 2, by + 21);
+            ctx.font = '10px "Courier New"';
+            ctx.fillStyle = '#FFFF55';
+            lines.forEach((line, i) => ctx.fillText(line, w / 2, by + 38 + i * lineH));
+            ctx.textAlign = 'left';
+            ctx.restore();
+        }
+
         // Draw the current Sierra-style dialog box (if any)
         function drawSierraBox(ctx, w, h) {
             if (!narrationBox) return;
@@ -451,22 +476,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     const fade = Math.min(t / 1500, 1);
                     ctx.font = '12px "Courier New"';
                     ctx.textAlign = 'center';
-                    ctx.fillStyle = `rgba(85,255,85,${fade * 0.8})`;
+                    ctx.fillStyle = `rgba(85,255,85,${fade})`;
                     ctx.fillText('ISS CONSTELLATION', w / 2, 70);
                     ctx.fillText('DEEP SPACE SURVEY VESSEL', w / 2, 88);
                     ctx.font = '10px "Courier New"';
-                    ctx.fillStyle = `rgba(85,255,85,${fade * 0.6})`;
+                    ctx.fillStyle = `rgba(85,255,85,${fade * 0.9})`;
                     ctx.fillText('CREW: 147  |  MISSION DAY: 2,847', w / 2, 120);
                     ctx.fillText('SECTOR: GAMMA QUADRANT, UNCHARTED ZONE', w / 2, 140);
                     if (t > 1800) {
                         const f2 = Math.min((t - 1800) / 1200, 1);
-                        ctx.fillStyle = `rgba(170,170,170,${f2 * 0.7})`;
+                        ctx.fillStyle = `rgba(210,210,210,${f2})`;
                         ctx.fillText('SHIP STATUS: ALL SYSTEMS NOMINAL', w / 2, 180);
                         ctx.fillText('TIME: 03:47 SHIP STANDARD', w / 2, 200);
                     }
                     if (t > 3200) {
                         const f3 = Math.min((t - 3200) / 800, 1);
-                        ctx.fillStyle = `rgba(170,170,170,${f3 * 0.6})`;
+                        ctx.fillStyle = `rgba(210,210,210,${f3})`;
                         ctx.fillText('LOCATION: SUPPLY CLOSET J-6', w / 2, 240);
                     }
                     ctx.textAlign = 'left';
@@ -595,15 +620,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     drawRoom(ctx, w, h, 0.8);
                     drawPlayerBody(ctx, 300, 310, engine.playerSpriteScale(310), 0);
                     const warn = Math.floor(elapsed / 250) % 2;
-                    ctx.fillStyle = warn ? '#FF5555' : '#AA0000';
-                    ctx.font = '14px "Courier New"';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('!! WARNING - PROXIMITY ALERT !!', w / 2, 50);
-                    ctx.fillStyle = '#FFFF55';
-                    ctx.font = '10px "Courier New"';
-                    ctx.fillText('UNIDENTIFIED VESSEL DETECTED', w / 2, 70);
-                    ctx.fillText('CLASSIFICATION: HOSTILE', w / 2, 85);
-                    ctx.textAlign = 'left';
+                    drawAlertPanel(ctx, w, '!! WARNING - PROXIMITY ALERT !!', warn, [
+                        'UNIDENTIFIED VESSEL DETECTED',
+                        'CLASSIFICATION: HOSTILE'
+                    ]);
                     if (t > 100) fireOnce('p3_alarm1', () => engine.sound.alarm());
                     if (t > 1000) fireOnce('p3_alarm2', () => engine.sound.alarm());
                     if (t > 1800) showNarration('p3_react', [
@@ -653,16 +673,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     drawRoom(ctx, w, h, 0.8);
                     alarmGlow(ctx, w, h, engine);
                     drawPlayerBody(ctx, 300, 310, engine.playerSpriteScale(310), 0);
-                    ctx.fillStyle = '#FF5555';
-                    ctx.font = '13px "Courier New"';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('!! EMERGENCY - ALL HANDS !!', w / 2, 40);
-                    ctx.fillStyle = '#FFFF55';
-                    ctx.font = '10px "Courier New"';
-                    ctx.fillText('HULL BREACH ON DECKS 3-5', w / 2, 60);
-                    ctx.fillText('LIFE SUPPORT SYSTEMS FAILING', w / 2, 75);
-                    ctx.fillText('EVACUATION PROTOCOL INITIATED', w / 2, 90);
-                    ctx.textAlign = 'left';
+                    drawAlertPanel(ctx, w, '!! EMERGENCY - ALL HANDS !!', Math.floor(elapsed / 300) % 2, [
+                        'HULL BREACH ON DECKS 3-5',
+                        'LIFE SUPPORT SYSTEMS FAILING',
+                        'EVACUATION PROTOCOL INITIATED'
+                    ]);
                     if (t > 200) fireOnce('p5_alarm1', () => engine.sound.alarm());
                     if (t > 1500) fireOnce('p5_alarm2', () => engine.sound.alarm());
                     if (t > 600) showNarration('p5_getout', [
@@ -1942,14 +1957,14 @@ document.addEventListener('DOMContentLoaded', () => {
             e.setDepthScaling(282, 378, 0.85, 1.0);
             // AGI-inspired barriers: shelves, mop bucket, door area
             e.addBarrier(25, 280, 195, 10);   // Lower shelf base blocks walking through it
-            e.addBarrier(465, 275, 65, 25);    // Mop bucket
+            e.addBarrier(465, 306, 65, 22);    // Mop bucket
             e.addBarrier(345, 305, 35, 25);    // Floor drain
 
             // Foreground layer: bucket rim draws over player when walking behind it
-            e.addForegroundLayer(300, (ctx, eng) => {
+            e.addForegroundLayer(319, (ctx, eng) => {
                 // Bucket front rim (draws over player walking behind bucket)
                 ctx.fillStyle = '#404855';
-                ctx.fillRect(474, 255, 46, 3);
+                ctx.fillRect(474, 299, 46, 3);
             });
         },
         draw: (ctx, w, h, eng) => {
@@ -2172,57 +2187,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 label('POLSH', 1, -6, 4, '#999');
             });
 
-            // Mop & bucket (right side)
+            // Mop & bucket — stands on the floor, whose edge at this x is y~319
             ctx.fillStyle = '#606575';
             ctx.beginPath();
-            ctx.moveTo(480, 245); ctx.lineTo(470, 275); ctx.lineTo(525, 275); ctx.lineTo(515, 245);
+            ctx.moveTo(480, 289); ctx.lineTo(470, 319); ctx.lineTo(525, 319); ctx.lineTo(515, 289);
             ctx.closePath(); ctx.fill();
             // Gray water in bucket
             ctx.fillStyle = '#707580';
-            ctx.fillRect(474, 248, 46, 12);
+            ctx.fillRect(474, 292, 46, 12);
             ctx.fillStyle = '#656a75';
-            ctx.beginPath(); ctx.ellipse(497, 248, 22, 5, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(497, 292, 22, 5, 0, 0, Math.PI * 2); ctx.fill();
             // Bucket rim
             ctx.fillStyle = '#404855';
-            ctx.fillRect(474, 255, 46, 3);
+            ctx.fillRect(474, 299, 46, 3);
             if (!eng.getFlag('has_mop_handle')) {
                 // Full mop with handle
                 ctx.fillStyle = '#AA8844';
-                ctx.fillRect(503, 130, 4, 145);
+                ctx.fillRect(503, 174, 4, 145);
                 ctx.fillStyle = '#CCCCAA';
-                ctx.fillRect(494, 268, 22, 10);
+                ctx.fillRect(494, 312, 22, 10);
                 ctx.fillStyle = '#BBBB99';
-                for (let i = 0; i < 5; i++) ctx.fillRect(496 + i * 4, 275, 2, 6);
+                for (let i = 0; i < 5; i++) ctx.fillRect(496 + i * 4, 319, 2, 6);
             } else {
                 // Mop head flopped on floor, handle taken
                 ctx.fillStyle = '#CCCCAA';
-                ctx.fillRect(485, 278, 26, 6);
+                ctx.fillRect(485, 322, 26, 6);
                 ctx.fillStyle = '#BBBB99';
-                for (let i = 0; i < 6; i++) ctx.fillRect(486 + i * 4, 284, 2, 4);
+                for (let i = 0; i < 6; i++) ctx.fillRect(486 + i * 4, 328, 2, 4);
                 // Broken stub where handle was
                 ctx.fillStyle = '#886633';
-                ctx.fillRect(496, 270, 4, 8);
+                ctx.fillRect(496, 314, 4, 8);
             }
 
-            // Door (center)
+            // Door (center), inset below the back wall's ceiling edge.
             if (eng.getFlag('closet_door_open')) {
                 // Door forced open - corridor visible through gap
                 ctx.fillStyle = '#2a1a1a';
-                ctx.fillRect(270, 42, 100, 233);
+                ctx.fillRect(270, 60, 100, 215);
                 // Red emergency glow from corridor
                 ctx.fillStyle = 'rgba(180,40,40,0.25)';
-                ctx.fillRect(275, 48, 90, 221);
+                ctx.fillRect(275, 66, 90, 203);
                 // Corridor floor visible
                 ctx.fillStyle = '#3a3a50';
                 ctx.fillRect(275, 230, 90, 39);
                 // Door panels shoved aside
                 ctx.fillStyle = '#4e5e72';
-                ctx.fillRect(263, 42, 14, 233);
+                ctx.fillRect(263, 60, 14, 215);
                 ctx.fillStyle = '#4e5e72';
-                ctx.fillRect(363, 42, 14, 233);
+                ctx.fillRect(363, 60, 14, 215);
                 // Bent frame
                 ctx.fillStyle = '#3e4e62';
-                ctx.fillRect(270, 42, 100, 4);
+                ctx.fillRect(270, 60, 100, 4);
                 ctx.fillRect(270, 271, 100, 4);
                 // Mop handle wedged in gap
                 ctx.fillStyle = '#AA8844';
@@ -2235,11 +2250,11 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 // Door closed/jammed
                 ctx.fillStyle = '#4e5e72';
-                ctx.fillRect(270, 42, 100, 233);
+                ctx.fillRect(270, 60, 100, 215);
                 ctx.fillStyle = '#5a6e84';
-                ctx.fillRect(276, 48, 88, 221);
+                ctx.fillRect(276, 66, 88, 203);
                 ctx.fillStyle = '#3e4e62';
-                ctx.fillRect(318, 48, 4, 221);
+                ctx.fillRect(318, 66, 4, 203);
                 // Handle
                 ctx.fillStyle = '#CCAA22';
                 ctx.fillRect(346, 155, 12, 12);
@@ -2338,7 +2353,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         hotspots: [
             {
-                name: 'Door', x: 270, y: 42, w: 100, h: 233, isExit: true, walkToX: 320, walkToY: 280,
+                name: 'Door', x: 270, y: 60, w: 100, h: 215, isExit: true, walkToX: 320, walkToY: 280,
                 description: 'A heavy sliding door leads to the corridor.',
                 look: (e) => {
                     if (e.getFlag('closet_door_open')) {
@@ -2523,7 +2538,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 use: (e) => e.showMessage('You try to open the lid. It\'s welded shut by time and neglect. Just like your career prospects.')
             },
             {
-                name: 'Mop & Bucket', x: 465, y: 125, w: 65, h: 165,
+                name: 'Mop & Bucket', x: 465, y: 170, w: 65, h: 155,
                 description: 'Your trusty mop and bucket — faithful companions.',
                 look: (e) => {
                     if (e.getFlag('has_mop_handle')) {
@@ -3375,7 +3390,8 @@ document.addEventListener('DOMContentLoaded', () => {
     engine.registerRoom({
         id: 'pod_bay',
         hint: (e) => {
-            if (!e.hasItem('survival_kit') || !e.hasItem('medkit')) return 'The emergency locker has a survival kit and a medkit. Take BOTH before launching the pod — you will not be able to come back.';
+            if (!e.hasItem('survival_kit')) return 'The emergency locker on the left wall holds a survival kit. Take it before you launch — there is no way back.';
+            if (!e.hasItem('medkit') && !e.getFlag('korvak_freed')) return 'You have the survival kit. There is still a medkit in the engine room cabinet, and someone down there badly needs it.';
             return 'Board the pod and use the launch controls. There is no way back, so make sure your inventory is complete.';
         },
         name: 'Escape Pod Bay',
@@ -6032,6 +6048,17 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
     });
 
+    /** Single place that puts out the engine-room conduit fire and scores it. */
+    function douseConduitFire(e) {
+        if (e.getFlag('fire_suppressed')) {
+            e.showMessage('The fire is already out.');
+            return;
+        }
+        e.setFlag('fire_suppressed');
+        e.addScore(5);
+        e.showMessage('You pull the suppression canister from the cabinet and blast the conduit fire. The flames gutter out with a satisfying hiss. The room smells of chemical foam and char.');
+    }
+
     // ========== ROOM 11: ENGINE ROOM ==========
     engine.registerRoom({
         id: 'engine_room',
@@ -6039,6 +6066,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!e.getFlag('cabinet_opened')) return 'The fire suppression cabinet on the left wall is locked. Plasma cutters are good at locks. Korvak has one.';
             if (!e.hasItem('medkit') && !e.getFlag('korvak_freed')) return 'Open the cabinet and take the medkit. Then use it on Korvak.';
             if (!e.getFlag('korvak_freed')) return 'Use the medkit on Korvak.';
+            if (!e.getFlag('fire_suppressed')) return 'That conduit fire is still burning on the right wall. The cabinet holds a suppression canister — use the fire itself to grab it and put the flames out.';
             return 'You are done here. Time to deal with the Draknoids.';
         },
         name: 'Engine Room',
@@ -6375,14 +6403,36 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.addScore(5);
                         e.showMessage('You slice through the cabinet seal with the plasma cutter. The door swings open: a medkit and a suppression canister inside.');
                     } else if (id === 'plasma_cutter' && e.getFlag('cabinet_opened') && !e.getFlag('fire_suppressed')) {
-                        // After cabinet is opened, use canister on fire
-                        e.setFlag('fire_suppressed');
-                        e.addScore(5);
-                        e.showMessage('You grab the suppression canister from the cabinet and blast the conduit fire. The flames gutter out with a satisfying hiss. The room smells of chemical foam and char.');
+                        douseConduitFire(e);
                     } else if (e.getFlag('cabinet_opened') && e.getFlag('fire_suppressed')) {
                         e.showMessage('The cabinet is already open and the fire is already out. This is what success looks like, apparently.');
                     } else {
                         e.showMessage('That won\'t open a locked cabinet.');
+                    }
+                }
+            },
+            {
+                name: 'Conduit Fire',
+                x: 490, y: 204, w: 46, h: 50,
+                get hidden() { return engine.getFlag('fire_suppressed'); },
+                description: 'A ruptured conduit burning on the right wall.',
+                look: (e) => e.showMessage('A ruptured conduit is burning steadily, throwing sparks across the deck plating. It is not spreading yet, but "yet" is doing a great deal of work in that sentence.'),
+                get: (e) => e.showMessage('Picking up a live electrical fire is the sort of decision that ends careers and lives, in that order.'),
+                use: (e) => {
+                    if (!e.getFlag('cabinet_opened')) {
+                        e.showMessage('You have nothing to smother it with. That red suppression cabinet on the other wall would be the obvious place to look.');
+                    } else {
+                        douseConduitFire(e);
+                    }
+                },
+                talk: (e) => e.showMessage('"Nothing to see here," you tell the fire. The fire disagrees, loudly.'),
+                useItem: (e, id) => {
+                    if (id === 'plasma_cutter') {
+                        e.showMessage('Introducing a cutting torch to an existing fire is a bold firefighting philosophy. You reconsider.');
+                    } else if (!e.getFlag('cabinet_opened')) {
+                        e.showMessage('That will not put out an electrical fire. You need proper suppression gear.');
+                    } else {
+                        douseConduitFire(e);
                     }
                 }
             },
@@ -6406,7 +6456,11 @@ document.addEventListener('DOMContentLoaded', () => {
     engine.registerRoom({
         id: 'docking_bay',
         transition: 'wipe',
-        hint: 'Find your shuttle. You will need a nav chip and, ideally, a weapon before flying anywhere dangerous.',
+        hint: (e) => {
+            if (!e.getFlag('pipz_gave_items')) return 'The wrecked freighter is the only thing worth searching here. Get through the hull breach, then talk to whoever is hiding inside.';
+            if (!e.hasItem('cargo_manifest')) return 'There is still a cargo manifest to pick up from the wreck.';
+            return 'This wreck has given up everything it has. You fly out from the landing pad back at the outpost, not from here.';
+        },
         name: 'Kerona Docking Bay',
         description: 'A ramshackle docking bay on the outskirts of Kerona\'s frontier post. The wrecked cargo freighter Ironclad Star dominates the far end, half-buried in sand.',
         onEnter: (e) => {
@@ -6645,9 +6699,10 @@ document.addEventListener('DOMContentLoaded', () => {
         id: 'draknoid_brig',
         transition: 'iris',
         hint: (e) => {
-            if (!e.hasItem('plasma_cutter')) return 'You will not get the prisoners out without a plasma cutter. Korvak in the engine room had one.';
-            if (!e.getFlag('rescued_prisoners')) return 'Use the plasma cutter on the cell bars.';
-            return 'Time to deal with the Draknoid flagship itself.';
+            if (e.getFlag('rescued_prisoners')) return 'Time to deal with the Draknoid flagship itself.';
+            if (e.hasItem('prisoner_badge')) return 'The prisoner badge Pipz gave you authorises this whole cell block — try it on the cell control panel.';
+            if (e.hasItem('plasma_cutter')) return 'Use the plasma cutter on the cell bars.';
+            return 'The cells open with either an authorised prisoner badge or a plasma cutter. Pipz had a badge; Korvak in the engine room had a cutter.';
         },
         name: 'Draknoid Brig',
         description: 'A dimly lit detention block deep inside the Draknoid flagship. Rows of cells line both sides of a narrow corridor, their bar doors sealed magnetically.',

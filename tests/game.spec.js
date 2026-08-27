@@ -138,6 +138,50 @@ test('repeated hints never reduce adventure score', async ({ page }) => {
     expect(scores).toEqual({ first: 10, second: 10 });
 });
 
+test('the conduit fire can be put out by acting on the fire itself', async ({ page }) => {
+    await clearState(page);
+    await finishIntro(page);
+    const result = await page.evaluate(() => {
+        const e = window.engine;
+        const act = (name, action, item) => {
+            const hs = e.rooms.engine_room.hotspots.filter((h) => h.name === name && !h.hidden).pop();
+            if (!hs) return false;
+            e.currentAction = action;
+            e.selectedItem = item || null;
+            e.performAction(hs);
+            e.selectedItem = null;
+            e.textWindow = null;
+            return true;
+        };
+        const attempt = (setup) => {
+            e.flags = {};
+            e.inventory = [];
+            e.goToRoom('engine_room', 320, 340);
+            e.roomTransition = 0;
+            setup(act);
+            return e.getFlag('fire_suppressed');
+        };
+        return {
+            fireTargetable: (() => {
+                e.flags = {};
+                e.goToRoom('engine_room', 320, 340);
+                return e.rooms.engine_room.hotspots.some((h) => h.name === 'Conduit Fire' && !h.hidden);
+            })(),
+            blockedBeforeCabinet: attempt((a) => a('Conduit Fire', 'use')),
+            viaFire: attempt((a) => { a('Fire Suppression Cabinet', 'use'); a('Conduit Fire', 'use'); }),
+            viaCutter: attempt((a) => {
+                e.addToInventory('plasma_cutter');
+                a('Fire Suppression Cabinet', 'use');
+                a('Fire Suppression Cabinet', 'use', 'plasma_cutter');
+            })
+        };
+    });
+    expect(result.fireTargetable, 'the fire needs its own hotspot').toBe(true);
+    expect(result.blockedBeforeCabinet, 'cannot douse it before opening the cabinet').toBe(false);
+    expect(result.viaFire, 'using the fire should put it out').toBe(true);
+    expect(result.viaCutter, 'the original cabinet route must keep working').toBe(true);
+});
+
 test('death can be recovered with restart', async ({ page }) => {
     await clearState(page);
     await finishIntro(page, 'c');

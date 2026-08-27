@@ -2313,6 +2313,10 @@ class GameEngine {
         const cs = this.cutscene;
         const progress = Math.min(cs.elapsed / cs.duration, 1);
         cs.draw(ctx, this.WIDTH, this.HEIGHT, progress, cs.elapsed);
+        // Overlays sit on the screen, not in the scene, so they must not ride
+        // the shake transform (and the fade must still cover every edge).
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         // Sierra-style fade in / out at cutscene boundaries (200ms each)
         const fadeIn = cs.elapsed < 200 ? 1 - cs.elapsed / 200 : 0;
         const remaining = cs.duration - cs.elapsed;
@@ -2339,6 +2343,7 @@ class GameEngine {
             ctx.fillText('Click to skip', this.WIDTH - 10, this.HEIGHT - 8);
             ctx.textAlign = 'left';
         }
+        ctx.restore();
     }
 
     /** Draw the room art and every Y-sorted actor / foreground layer in it. */
@@ -3004,12 +3009,13 @@ class GameEngine {
         const lift = Math.cos(walkPhase);
         const walkBob = walking ? Math.round(Math.abs(stride) * 0.7 * s) : 0;
 
-        // Leg animation — subtle vertical offsets for front/back views.
+        // Leg animation — one foot lifts at a time; neither ever sinks below the
+        // ground line at y + 12s, where the contact shadow sits.
         let leftLeg = 0, rightLeg = 0;
         if (walking) {
             const walkCycle = stride * 1.5 * s;
-            leftLeg = walkCycle;
-            rightLeg = -walkCycle;
+            leftLeg = Math.min(0, walkCycle);
+            rightLeg = Math.min(0, -walkCycle);
         }
         // Boot offset — foot tap only moves the boot, not the leg
         let leftBoot = leftLeg, rightBoot = rightLeg;
@@ -3175,13 +3181,14 @@ class GameEngine {
             // can write coordinates in a +x = forward layout regardless of facing).
             const d = dir * s;
 
-            // Far leg (back) — slight stride offset, sits behind torso
+            // Far leg (back) — the planted leg: its foot stays on the ground
+            // line while the body bobs, so the leg lengthens instead.
             ctx.fillStyle = '#AAAAAA';
-            ctx.fillRect(x - 0.5 * d, py + 1 * s, 2 * d, 8 * s);
+            ctx.fillRect(x - 0.5 * d, py + 1 * s, 2 * d, (y + 9 * s) - (py + 1 * s));
             ctx.fillStyle = '#1A1A1A';
-            ctx.fillRect(x - 1.5 * d - stridePix * 0.4, py + 9 * s, 4 * d, 3 * s);
+            ctx.fillRect(x - 1.5 * d - stridePix * 0.4, y + 9 * s, 4 * d, 3 * s);
             ctx.fillStyle = '#0A0A0A';
-            ctx.fillRect(x - 1.5 * d - stridePix * 0.4, py + 11 * s, 4 * d, 1 * s);
+            ctx.fillRect(x - 1.5 * d - stridePix * 0.4, y + 11 * s, 4 * d, 1 * s);
 
             // Far arm (back) — peeks behind torso, swings opposite the near leg
             ctx.fillStyle = '#EEEEEE';
@@ -3209,14 +3216,15 @@ class GameEngine {
             ctx.fillStyle = '#AAAAAA';
             ctx.fillRect(x + 1.5 * d, py - 0.5 * s, 2 * d, 2.5 * s);
 
-            // Near leg (front) — strides forward/back with the cycle
+            // Near leg (front) — strides forward/back with the cycle. Anchored to
+            // the ground reference so the foot plants whenever it is not lifted.
             ctx.fillStyle = '#BBBBBB';
-            ctx.fillRect(x + 1.5 * d, py + 1 * s, 2 * d, 8 * s);
+            ctx.fillRect(x + 1.5 * d, py + 1 * s, 2 * d, (y + 9 * s - liftPix) - (py + 1 * s));
             // Near boot
             ctx.fillStyle = '#222222';
-            ctx.fillRect(x + 0.5 * d + stridePix, py + 9 * s - liftPix, 4 * d, 3 * s);
+            ctx.fillRect(x + 0.5 * d + stridePix, y + 9 * s - liftPix, 4 * d, 3 * s);
             ctx.fillStyle = '#111111';
-            ctx.fillRect(x + 0.5 * d + stridePix, py + 11 * s - liftPix, 4 * d, 1 * s);
+            ctx.fillRect(x + 0.5 * d + stridePix, y + 11 * s - liftPix, 4 * d, 1 * s);
 
             // Near arm — swings opposite the near leg
             ctx.fillStyle = '#FFFFFF';
@@ -3231,7 +3239,8 @@ class GameEngine {
             // Neck
             ctx.fillStyle = '#EEBB77';
             ctx.fillRect(x - 1 * d, py - 11 * s, 3 * d, 1 * s);
-            // Head — same 8s tall as front view, slightly thinner profile
+            // Head — 7s in profile plus a 1s neck, so the silhouette reaches the
+            // same height as the front view's 8s head
             ctx.fillStyle = '#FFCC88';
             ctx.fillRect(x - 3 * d, py - 18 * s, 7 * d, 7 * s);
             // Subtle nose bump on the forward side
