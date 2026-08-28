@@ -143,27 +143,40 @@ class SoundEngine {
         this._osc('sine', 1200, t + 0.012, 0.02, 0.04);
     }
 
-    /** Ascending chime — item acquired */
+    /** Ascending chime — item acquired (3-voice chiptune arpeggio) */
     pickup() {
         this._cue('item acquired');
         if (!this.ctx) return;
         const t = this._t();
-        this._osc('sine', 660, t, 0.1, 0.15);
-        this._osc('sine', 880, t + 0.07, 0.1, 0.14);
-        this._osc('sine', 1100, t + 0.14, 0.12, 0.12);
-        this._osc('triangle', 1320, t + 0.2, 0.2, 0.09);
+        // Voice 1 (Lead square)
+        this._osc('square', 659.25, t, 0.08, 0.09);         // E5
+        this._osc('square', 830.61, t + 0.06, 0.08, 0.09);  // G#5
+        this._osc('square', 987.77, t + 0.12, 0.08, 0.10);  // B5
+        this._osc('square', 1318.51, t + 0.18, 0.22, 0.12); // E6
+        // Voice 2 (Harmonic accompaniment)
+        this._osc('triangle', 329.63, t, 0.15, 0.08);       // E4
+        this._osc('triangle', 493.88, t + 0.12, 0.28, 0.08); // B4
+        // Voice 3 (Chiptune sparkle)
+        this._osc('sine', 1318.51, t + 0.18, 0.25, 0.06);
+        this._osc('sine', 1661.22, t + 0.24, 0.20, 0.04);
     }
 
-    /** Rising arpeggio — score points earned */
+    /** Rising arpeggio — score points earned (Tandy 3-voice flourish) */
     scoreUp() {
         this._cue('points scored');
         if (!this.ctx) return;
         const t = this._t();
-        this._osc('sine', 523, t, 0.07, 0.09);
-        this._osc('sine', 659, t + 0.07, 0.07, 0.09);
-        this._osc('sine', 784, t + 0.14, 0.07, 0.09);
-        this._osc('triangle', 1047, t + 0.21, 0.22, 0.07);
-        this._osc('sine', 1047, t + 0.21, 0.22, 0.05);
+        // Voice 1 (Lead pulse arpeggio)
+        this._osc('square', 523.25, t, 0.06, 0.08);         // C5
+        this._osc('square', 659.25, t + 0.05, 0.06, 0.08);  // E5
+        this._osc('square', 783.99, t + 0.10, 0.06, 0.08);  // G5
+        this._osc('square', 1046.50, t + 0.15, 0.22, 0.10); // C6
+        // Voice 2 (Harmonic 3rd)
+        this._osc('triangle', 261.63, t, 0.12, 0.07);       // C4
+        this._osc('triangle', 523.25, t + 0.10, 0.25, 0.06); // C5
+        // Voice 3 (Upper shimmer)
+        this._osc('sine', 1046.50, t + 0.15, 0.24, 0.06);
+        this._osc('sine', 1318.51, t + 0.20, 0.18, 0.04);
     }
 
     /** Hydraulic hiss + mechanical clunk */
@@ -185,32 +198,44 @@ class SoundEngine {
         this._osc('sine', 500, t + 0.04, 0.12, 0.025);
     }
 
-    /** Descending buzzer — player died */
+    /** Descending buzzer — player died (Dissonant minor downward crash) */
     death() {
         this._cue('you have died');
         if (!this.ctx) return;
         const t = this._t();
-        const o = this._osc('sawtooth', 440, t, 0.7, 0.18);
-        if (o) o.frequency.exponentialRampToValueAtTime(55, t + 0.7);
-        this._osc('square', 220, t + 0.05, 0.5, 0.07);
-        this._noise(t + 0.1, 0.6, 0.05);
-        this._osc('sine', 110, t + 0.3, 0.5, 0.08);
+        const o1 = this._osc('sawtooth', 466.16, t, 0.7, 0.16); // Bb4
+        if (o1) o1.frequency.exponentialRampToValueAtTime(55, t + 0.7);
+        const o2 = this._osc('square', 440, t, 0.65, 0.12);    // A4 (dissonant semitone)
+        if (o2) o2.frequency.exponentialRampToValueAtTime(50, t + 0.65);
+        this._noise(t + 0.08, 0.6, 0.06, 1200);
+        this._osc('sawtooth', 110, t + 0.25, 0.55, 0.09);
     }
 
-    /** Triumphant fanfare — victory! */
+    /** Triumphant fanfare — victory! (4-voice brassy chiptune cadence) */
     victory() {
         this._cue('victory fanfare');
         if (!this.ctx) return;
         const t = this._t();
-        const notes = [523, 659, 784, 1047, 1319, 1568];
-        notes.forEach((f, i) => {
-            this._osc('sine', f, t + i * 0.1, 0.25, 0.1);
-            this._osc('triangle', f * 1.001, t + i * 0.1, 0.25, 0.05);
+        // Fanfare motif
+        const notes = [
+            { f: 523.25, tOfs: 0.00, dur: 0.12 }, // C5
+            { f: 659.25, tOfs: 0.12, dur: 0.12 }, // E5
+            { f: 783.99, tOfs: 0.24, dur: 0.12 }, // G5
+            { f: 1046.50, tOfs: 0.36, dur: 0.30 }, // C6
+            { f: 880.00, tOfs: 0.68, dur: 0.14 }, // A5
+            { f: 1046.50, tOfs: 0.84, dur: 0.14 }, // C6
+            { f: 1174.66, tOfs: 1.00, dur: 0.60 }  // D6
+        ];
+        notes.forEach(n => {
+            this._osc('square', n.f, t + n.tOfs, n.dur, 0.12);
+            this._osc('triangle', n.f * 0.5, t + n.tOfs, n.dur, 0.08);
+            this._osc('sine', n.f * 2, t + n.tOfs, n.dur * 0.8, 0.04);
         });
-        // Final sustained chord
-        this._osc('sine', 1047, t + 0.6, 0.9, 0.07);
-        this._osc('sine', 1319, t + 0.65, 0.85, 0.05);
-        this._osc('sine', 1568, t + 0.7, 0.8, 0.04);
+        // Final sustained grand chord
+        this._osc('square', 1046.50, t + 1.6, 1.2, 0.10); // C6
+        this._osc('square', 1318.51, t + 1.6, 1.2, 0.08); // E6
+        this._osc('square', 1567.98, t + 1.6, 1.2, 0.08); // G6
+        this._osc('triangle', 523.25, t + 1.6, 1.4, 0.12); // C5 bass
     }
 
     /** Descending zap — energy weapon */

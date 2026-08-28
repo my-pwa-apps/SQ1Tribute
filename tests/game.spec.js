@@ -93,6 +93,31 @@ test('game starts, announces narration, and saves a validated slot', async ({ pa
     expect(save.flags.alarm_active).toBe(true);
 });
 
+test('walking out of the closet does not bounce the player straight back in', async ({ page }) => {
+    await clearState(page);
+    await finishIntro(page);
+    await page.evaluate(() => window.engine.setFlag('closet_door_open'));
+
+    const hold = async (key, ms) => {
+        await page.keyboard.down(key);
+        await page.waitForTimeout(ms);
+        await page.keyboard.up(key);
+        await page.waitForTimeout(250);
+    };
+    const room = () => page.evaluate(() => window.engine.currentRoomId);
+
+    await hold('ArrowUp', 2000);
+    expect(await room()).toBe('corridor');
+
+    // Walking forward on arrival used to re-trigger the door behind the player.
+    await hold('ArrowUp', 1500);
+    expect(await room()).toBe('corridor');
+    await hold('ArrowDown', 1500);
+    expect(await room()).toBe('corridor');
+    await hold('ArrowUp', 1500);
+    expect(await room()).toBe('corridor');
+});
+
 test('enhanced Look actions display a response and chain on the next click', async ({ page }) => {
     await clearState(page);
     await finishIntro(page);

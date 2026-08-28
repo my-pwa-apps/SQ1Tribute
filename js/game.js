@@ -2364,7 +2364,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 onExit: (e) => {
                     if (e.getFlag('closet_door_open')) {
-                        e.goToRoom('corridor', 320, 310);
+                        // Step out beside the doorway, clear of its walk-in trigger and Dr. Chen's body.
+                        e.goToRoom('corridor', 270, 310);
                     } else {
                         e.showMessage('The door is jammed shut! The frame is warped from the attack. You need to find something to pry it open.');
                     }

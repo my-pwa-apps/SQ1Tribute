@@ -17,6 +17,11 @@ const PAL = (typeof window !== 'undefined' && window.SS_PALETTE) || {
 // so the sprite is scaled to sit in Sierra's ego-to-doorway range.
 const PLAYER_SPRITE_SCALE = 1.45;
 
+// Auto-walk exit trigger box, and the larger box the player must leave before an
+// exit they arrived through can fire again.
+const EXIT_TRIGGER_X = 15, EXIT_TRIGGER_Y = 10;
+const EXIT_REARM_X = 70, EXIT_REARM_Y = 55;
+
 class GameEngine {
     constructor(gameDefinition = {}) {
         this.game = this.createGameDefinition(gameDefinition);
@@ -108,6 +113,7 @@ class GameEngine {
         this.roomTransition = 0;
         this.roomTransitionStyle = 'fade'; // 'fade' | 'iris' | 'wipe'
         this.exitCooldown = 0;
+        this.disarmedExits = [];
 
         // Reusable drawables array for Y-sorted rendering (avoid per-frame allocation)
         this._drawables = [];
@@ -718,6 +724,7 @@ class GameEngine {
     goToRoom(roomId, px, py) {
         const room = this.rooms[roomId];
         if (!room) { console.error('Room not found:', roomId); return; }
+        const cameFromAnotherRoom = !!this.currentRoomId && this.currentRoomId !== roomId;
         this.roomTransition = 1.0; // Start fade-in
         // Rooms may pick a Sierra transition: 'fade' (default), 'iris' or 'wipe'.
         this.roomTransitionStyle = room.transition || 'fade';
@@ -734,7 +741,29 @@ class GameEngine {
         this.playerFacing = 'toward';
         this.pendingAction = null;
         if (room.onEnter) room.onEnter(this);
+        // Doorways the player arrives on top of stay disarmed until they step clear,
+        // so walking forward out of a door cannot bounce straight back through it.
+        this.disarmedExits = cameFromAnotherRoom ? this.exitsWithinRearmRange(room) : [];
         this.showMessage(room.description);
+    }
+
+    /** Walk-to point that fires an exit when the player walks onto it. */
+    exitTriggerPoint(hotspot) {
+        return {
+            x: hotspot.walkToX !== undefined ? hotspot.walkToX : (hotspot.x + hotspot.w / 2),
+            y: hotspot.walkToY !== undefined ? hotspot.walkToY : this.playerY
+        };
+    }
+
+    isPlayerWithinRearmRange(hotspot) {
+        const point = this.exitTriggerPoint(hotspot);
+        return Math.abs(this.playerX - point.x) < EXIT_REARM_X &&
+            Math.abs(this.playerY - point.y) < EXIT_REARM_Y;
+    }
+
+    exitsWithinRearmRange(room) {
+        if (!room.hotspots) return [];
+        return room.hotspots.filter((hs) => hs.isExit && !hs.hidden && this.isPlayerWithinRearmRange(hs));
     }
 
     // ---- Inventory ----
@@ -1129,6 +1158,76 @@ class GameEngine {
             return;
         }
 
+        // Easter egg / classic Sierra actions & sensory verbs
+        const firstWord = command.split(' ')[0];
+        if (['jump', 'leap'].includes(firstWord)) {
+            this.showMessage('You perform an athletic vertical leap. The local artificial gravity responds with mild disinterest.');
+            return;
+        }
+        if (['dance', 'boogie'].includes(firstWord)) {
+            this.showMessage('You bust out a stunning zero-g disco move. The universe is simply not ready for your talents.');
+            return;
+        }
+        if (['sing', 'chant', 'hum'].includes(firstWord)) {
+            this.showMessage("You belt out a stirring stanza of 'The Ballad of Sector 4'. An unseen critic weeps in agony.");
+            return;
+        }
+        if (['yell', 'scream', 'shout', 'holler'].includes(firstWord)) {
+            this.showMessage('You scream into the void. The void immediately files a noise violation complaint.');
+            return;
+        }
+        if (['pray', 'worship'].includes(firstWord)) {
+            this.showMessage('You mutter a fervent plea to the patron saint of sanitation. A mop somewhere rattles in spiritual solidarity.');
+            return;
+        }
+        if (['swear', 'curse', 'damn', 'shit', 'fuck', 'crap'].includes(firstWord)) {
+            this.showMessage("You utter an unprintable galactic obscenity. The ship's computer blushes in binary.");
+            return;
+        }
+        if (['fart', 'burp'].includes(firstWord)) {
+            this.showMessage('You release a small burst of personal propulsion. The environmental scrubbers work overtime.');
+            return;
+        }
+        if (['sleep', 'nap', 'rest'].includes(firstWord)) {
+            this.showMessage('There is no time for a nap! The fate of the galaxy — and your pension — hangs in the balance.');
+            return;
+        }
+        if (['clean', 'sweep', 'mop'].includes(firstWord) && !command.includes('with') && !command.includes('handle') && !command.includes('on')) {
+            this.showMessage('Your janitorial instincts flare up, but this particular crisis requires higher-level galactic intervention.');
+            return;
+        }
+        if (['swim', 'paddle'].includes(firstWord)) {
+            this.showMessage('You paddle your arms enthusiastically. Air is notoriously difficult to swim through.');
+            return;
+        }
+        if (['die', 'suicide'].includes(firstWord)) {
+            this.showMessage('Giving up now would look terrible on your annual performance review.');
+            return;
+        }
+        if (['smell', 'sniff'].includes(firstWord)) {
+            const restOfCmd = command.slice(firstWord.length).trim();
+            if (!restOfCmd || ['room', 'air', 'around', 'here'].includes(restOfCmd)) {
+                const roomSmells = {
+                    broom_closet: 'Smells of industrial floor wax, lemon cleaner, and thirty years of janitorial solitude.',
+                    corridor: 'The ozone tang of laser fire and burnt conduits hangs heavy in the air.',
+                    science_lab: 'A distinct aroma of ozone, scorched circuit boards, and advanced theoretical physics.',
+                    pod_bay: 'The unmistakable scent of rocket fuel, hydraulic fluid, and imminent escape.',
+                    desert: 'Dry, baking heat with a pungent undercurrent of sulfur and sun-baked sandstone.',
+                    cave: 'Cool, damp air with the ozone hum of raw crystalline energy.',
+                    cantina: 'Stale alien tobacco, spilled Keronian Ale, and questionable galactic life choices.',
+                    outpost: 'Exhaust fumes, roasted space-lizard skewers, and desperate commerce.',
+                    shop: 'Polished chrome, ozone, and the distinct scent of a merchant who refuses refunds.',
+                    draknoid_ship: 'Cold steel, reptilian musk, and imperial tyranny.'
+                };
+                this.showMessage(roomSmells[this.currentRoomId] || 'Your olfactory sensors detect nothing out of the ordinary.');
+                return;
+            }
+        }
+        if (['taste', 'lick'].includes(firstWord)) {
+            this.showMessage('The Federation Health Authority strictly discourages licking unfamiliar planetary matter and alien ship surfaces.');
+            return;
+        }
+
         const parsed = this.parseVerbPhrase(command);
         if (!parsed) {
             this.showMessage(this.parserConfusion(command));
@@ -1251,11 +1350,11 @@ class GameEngine {
 
     parseVerbPhrase(command) {
         const verbAliases = {
-            look: 'look', examine: 'look', inspect: 'look', read: 'look', search: 'look', smell: 'look', listen: 'look', check: 'look',
-            get: 'get', take: 'get', grab: 'get', pick: 'get', pickup: 'get', steal: 'get', acquire: 'get', collect: 'get',
-            talk: 'talk', speak: 'talk', ask: 'talk', chat: 'talk', converse: 'talk',
-            use: 'use', open: 'use', unlock: 'use', pry: 'use', cut: 'use', push: 'use', press: 'use', touch: 'use', drink: 'use', eat: 'use', shoot: 'use', fire: 'use', activate: 'use', apply: 'use',
-            go: 'walk', walk: 'walk', enter: 'walk', run: 'walk'
+            look: 'look', examine: 'look', inspect: 'look', read: 'look', search: 'look', smell: 'look', listen: 'look', check: 'look', peer: 'look', view: 'look', peek: 'look', scan: 'look',
+            get: 'get', take: 'get', grab: 'get', pick: 'get', pickup: 'get', steal: 'get', acquire: 'get', collect: 'get', retrieve: 'get', snag: 'get', pocket: 'get', obtain: 'get',
+            talk: 'talk', speak: 'talk', ask: 'talk', chat: 'talk', converse: 'talk', hail: 'talk', greet: 'talk', question: 'talk', interview: 'talk',
+            use: 'use', open: 'use', unlock: 'use', pry: 'use', cut: 'use', push: 'use', press: 'use', touch: 'use', drink: 'use', eat: 'use', shoot: 'use', fire: 'use', activate: 'use', apply: 'use', insert: 'use', operate: 'use', turn: 'use', switch: 'use', pull: 'use', flip: 'use',
+            go: 'walk', walk: 'walk', enter: 'walk', run: 'walk', step: 'walk', move: 'walk', climb: 'walk', travel: 'walk', head: 'walk'
         };
         const words = command.split(' ');
         let verb = verbAliases[words[0]];
@@ -1468,8 +1567,11 @@ class GameEngine {
         const ctx = this.ctx;
         ctx.font = '13px "Courier New"';
 
+        const portraitId = opts.portrait || (this.activeDialog && this.activeDialog.phase !== 'options' ? this.activeDialog.dialogId : null);
+        const hasPortraitOrItem = !!this.itemCloseUp || !!portraitId;
+
         // Word-wrap text to fit dialogue width
-        const maxLineW = opts.maxWidth || 420;
+        const maxLineW = opts.maxWidth || (hasPortraitOrItem ? 350 : 420);
         const words = text.split(' ');
         const lines = [];
         let line = '';
@@ -1487,14 +1589,15 @@ class GameEngine {
         const lineH = 16;
         const pad = 12;
         const hintH = 20;
-        const boxW = maxLineW + pad * 2 + 16;
-        const boxH = lines.length * lineH + pad * 2 + hintH;
+        const boxW = maxLineW + pad * 2 + 16 + (hasPortraitOrItem ? 68 : 0);
+        const boxH = Math.max(hasPortraitOrItem ? 84 : 0, lines.length * lineH + pad * 2 + hintH);
         const boxX = opts.x !== undefined ? opts.x : Math.round((this.WIDTH - boxW) / 2);
         const boxY = opts.y !== undefined ? opts.y : Math.round((this.HEIGHT - boxH) / 2);
 
         this.textWindow = {
             text: text,
             lines: lines,
+            portrait: portraitId,
             x: boxX, y: boxY, w: boxW, h: boxH,
             timer: 0,
             duration: opts.duration || 0, // 0 = click to dismiss
@@ -1714,6 +1817,278 @@ class GameEngine {
             ctx.fillText('?', cx, cy + 8);
             ctx.textAlign = 'left';
         }
+        ctx.restore();
+    }
+
+    drawPortraitWindow(ctx) {
+        if (!this.textWindow || !this.textWindow.portrait || this.itemCloseUp) return;
+        const tw = this.textWindow;
+        const pId = tw.portrait;
+        const boxSize = 56;
+        const bx = tw.x + tw.w - boxSize - 16;
+        const by = tw.y + 14;
+
+        // Portrait frame
+        ctx.fillStyle = '#0a0a24';
+        ctx.fillRect(bx, by, boxSize, boxSize);
+        ctx.strokeStyle = '#0055AA';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx, by, boxSize, boxSize);
+        ctx.strokeStyle = '#55FFFF';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx + 2, by + 2, boxSize - 4, boxSize - 4);
+
+        const cx = bx + boxSize / 2;
+        const cy = by + boxSize / 2;
+        const t = this.animTimer;
+        const isTalking = !this.isTextFullyRevealed();
+        const isBlinking = (Math.floor(t / 2000) % 5 === 0) && (t % 2000 < 180);
+        const mouthOpen = isTalking && (Math.floor(t / 140) % 2 === 0);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(bx + 3, by + 3, boxSize - 6, boxSize - 6);
+        ctx.clip();
+
+        if (pId === 'bartender') {
+            // Grix: Green 3-eyed alien bartender
+            ctx.fillStyle = '#1a0033';
+            ctx.fillRect(bx + 3, by + 3, boxSize - 6, boxSize - 6);
+            // Shoulders & purple apron
+            ctx.fillStyle = '#3a883a';
+            ctx.fillRect(cx - 16, cy + 10, 32, 18);
+            ctx.fillStyle = '#660066';
+            ctx.fillRect(cx - 10, cy + 12, 20, 16);
+            ctx.fillStyle = '#FFDD55';
+            ctx.fillRect(cx - 8, cy + 13, 3, 3); // Badge
+            // Head (alien teardrop/egg shape)
+            ctx.fillStyle = '#44AA44';
+            ctx.beginPath();
+            ctx.ellipse(cx, cy - 2, 14, 16, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#227722';
+            ctx.fillRect(cx - 11, cy - 14, 4, 3);
+            ctx.fillRect(cx + 7, cy - 12, 3, 3);
+            // Antennae
+            ctx.strokeStyle = '#44AA44';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cx - 6, cy - 16); ctx.lineTo(cx - 10, cy - 22);
+            ctx.moveTo(cx + 6, cy - 16); ctx.lineTo(cx + 10, cy - 22);
+            ctx.stroke();
+            ctx.fillStyle = '#FFFF55';
+            ctx.fillRect(cx - 12, cy - 24, 4, 4);
+            ctx.fillRect(cx + 8, cy - 24, 4, 4);
+            // 3 Eyes
+            if (isBlinking) {
+                ctx.fillStyle = '#227722';
+                ctx.fillRect(cx - 8, cy - 4, 6, 2);
+                ctx.fillRect(cx + 2, cy - 4, 6, 2);
+                ctx.fillRect(cx - 3, cy - 10, 6, 2);
+            } else {
+                ctx.fillStyle = '#FFFF00';
+                ctx.fillRect(cx - 8, cy - 5, 5, 4);
+                ctx.fillRect(cx + 3, cy - 5, 5, 4);
+                ctx.fillRect(cx - 3, cy - 11, 6, 5);
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(cx - 6, cy - 4, 2, 3);
+                ctx.fillRect(cx + 4, cy - 4, 2, 3);
+                ctx.fillRect(cx - 1, cy - 10, 2, 3);
+            }
+            // Mouth
+            ctx.fillStyle = mouthOpen ? '#000000' : '#227722';
+            if (mouthOpen) {
+                ctx.fillRect(cx - 5, cy + 4, 10, 5);
+                ctx.fillStyle = '#AAFFAA';
+                ctx.fillRect(cx - 3, cy + 4, 6, 2);
+            } else {
+                ctx.fillRect(cx - 6, cy + 5, 12, 2);
+            }
+        } else if (pId === 'zorthak') {
+            // Zorthak: Scruffy reptilian alien pilot with goggles
+            ctx.fillStyle = '#2a1a08';
+            ctx.fillRect(bx + 3, by + 3, boxSize - 6, boxSize - 6);
+            // Flight jacket
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(cx - 16, cy + 10, 32, 18);
+            ctx.fillStyle = '#D2691E';
+            ctx.fillRect(cx - 12, cy + 12, 24, 16);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(cx - 14, cy + 9, 28, 4);
+            // Head
+            ctx.fillStyle = '#A08060';
+            ctx.fillRect(cx - 12, cy - 12, 24, 22);
+            // Aviator cap & goggles
+            ctx.fillStyle = '#4A2A0A';
+            ctx.fillRect(cx - 13, cy - 16, 26, 8);
+            ctx.fillRect(cx - 14, cy - 10, 3, 14);
+            ctx.fillRect(cx + 11, cy - 10, 3, 14);
+            // Goggles rested on forehead
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(cx - 10, cy - 14, 20, 5);
+            ctx.fillStyle = '#FFAA00';
+            ctx.fillRect(cx - 9, cy - 13, 7, 3);
+            ctx.fillRect(cx + 2, cy - 13, 7, 3);
+            // Eyes
+            if (isBlinking) {
+                ctx.fillStyle = '#4A2A0A';
+                ctx.fillRect(cx - 8, cy - 3, 5, 2);
+                ctx.fillRect(cx + 3, cy - 3, 5, 2);
+            } else {
+                ctx.fillStyle = '#FFFF55';
+                ctx.fillRect(cx - 8, cy - 4, 5, 4);
+                ctx.fillRect(cx + 3, cy - 4, 5, 4);
+                ctx.fillStyle = '#AA0000';
+                ctx.fillRect(cx - 6, cy - 4, 2, 4);
+                ctx.fillRect(cx + 5, cy - 4, 2, 4);
+            }
+            // Scruff / stubble
+            ctx.fillStyle = '#5A3A1A';
+            ctx.fillRect(cx - 8, cy + 4, 16, 5);
+            // Mouth
+            ctx.fillStyle = mouthOpen ? '#000000' : '#331100';
+            ctx.fillRect(cx - 5, cy + 5, 10, mouthOpen ? 4 : 2);
+        } else if (pId === 'korvak') {
+            // Korvak: Wounded starship engineer
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(bx + 3, by + 3, boxSize - 6, boxSize - 6);
+            // Fleet uniform
+            ctx.fillStyle = '#AA0000';
+            ctx.fillRect(cx - 16, cy + 10, 32, 18);
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(cx - 6, cy + 10, 12, 18);
+            // Head
+            ctx.fillStyle = '#DDAA88';
+            ctx.fillRect(cx - 11, cy - 11, 22, 22);
+            // Grey hair
+            ctx.fillStyle = '#888899';
+            ctx.fillRect(cx - 12, cy - 16, 24, 7);
+            ctx.fillRect(cx - 13, cy - 12, 3, 10);
+            ctx.fillRect(cx + 10, cy - 12, 3, 10);
+            // Bandage across head
+            ctx.fillStyle = '#EEEEEE';
+            ctx.fillRect(cx - 12, cy - 11, 24, 5);
+            ctx.fillStyle = '#AA2222';
+            ctx.fillRect(cx + 2, cy - 10, 4, 3);
+            // Eyes
+            if (isBlinking) {
+                ctx.fillStyle = '#553322';
+                ctx.fillRect(cx - 8, cy - 3, 5, 2);
+                ctx.fillRect(cx + 3, cy - 3, 5, 2);
+            } else {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(cx - 8, cy - 4, 5, 3);
+                ctx.fillRect(cx + 3, cy - 4, 5, 3);
+                ctx.fillStyle = '#336699';
+                ctx.fillRect(cx - 6, cy - 4, 3, 3);
+                ctx.fillRect(cx + 4, cy - 4, 3, 3);
+            }
+            // Mouth
+            ctx.fillStyle = mouthOpen ? '#331111' : '#552211';
+            ctx.fillRect(cx - 5, cy + 4, 10, mouthOpen ? 4 : 2);
+        } else if (pId === 'pipz') {
+            // Pipz: Young girl stowaway with oversized space helmet
+            ctx.fillStyle = '#221122';
+            ctx.fillRect(bx + 3, by + 3, boxSize - 6, boxSize - 6);
+            // Spacer jumpsuit
+            ctx.fillStyle = '#555566';
+            ctx.fillRect(cx - 14, cy + 11, 28, 17);
+            ctx.fillStyle = '#FF8800';
+            ctx.fillRect(cx - 6, cy + 11, 12, 17);
+            // Oversized orange helmet/cap
+            ctx.fillStyle = '#FF6600';
+            ctx.beginPath();
+            ctx.arc(cx, cy - 7, 16, Math.PI, 0);
+            ctx.fill();
+            ctx.fillRect(cx - 16, cy - 7, 32, 6);
+            // Face
+            ctx.fillStyle = '#F5CBA7';
+            ctx.fillRect(cx - 10, cy - 4, 20, 16);
+            // Messy hair bangs
+            ctx.fillStyle = '#4A2A1A';
+            ctx.fillRect(cx - 10, cy - 5, 20, 3);
+            ctx.fillRect(cx - 11, cy - 3, 3, 8);
+            ctx.fillRect(cx + 8, cy - 3, 3, 8);
+            // Grease smudge
+            ctx.fillStyle = 'rgba(60, 40, 20, 0.6)';
+            ctx.fillRect(cx + 2, cy + 2, 4, 3);
+            // Big eyes
+            if (isBlinking) {
+                ctx.fillStyle = '#4A2A1A';
+                ctx.fillRect(cx - 7, cy - 1, 5, 2);
+                ctx.fillRect(cx + 2, cy - 1, 5, 2);
+            } else {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(cx - 8, cy - 2, 6, 5);
+                ctx.fillRect(cx + 2, cy - 2, 6, 5);
+                ctx.fillStyle = '#0088CC';
+                ctx.fillRect(cx - 6, cy - 2, 4, 4);
+                ctx.fillRect(cx + 3, cy - 2, 4, 4);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(cx - 6, cy - 2, 2, 2);
+                ctx.fillRect(cx + 3, cy - 2, 2, 2);
+            }
+            // Mouth
+            ctx.fillStyle = mouthOpen ? '#552222' : '#AA5555';
+            ctx.fillRect(cx - 4, cy + 6, 8, mouthOpen ? 4 : 2);
+        } else if (pId === 'tiny') {
+            // Tiny: Blue-skinned merchant with giant eyes and monocle
+            ctx.fillStyle = '#002233';
+            ctx.fillRect(bx + 3, by + 3, boxSize - 6, boxSize - 6);
+            // Merchant robe
+            ctx.fillStyle = '#006644';
+            ctx.fillRect(cx - 16, cy + 10, 32, 18);
+            ctx.fillStyle = '#D4AF37';
+            ctx.fillRect(cx - 5, cy + 10, 10, 18);
+            // Head
+            ctx.fillStyle = '#4A90E2';
+            ctx.beginPath();
+            ctx.ellipse(cx, cy - 3, 15, 14, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Big black glossy eyes
+            if (isBlinking) {
+                ctx.fillStyle = '#1B4F72';
+                ctx.fillRect(cx - 12, cy - 6, 9, 3);
+                ctx.fillRect(cx + 3, cy - 6, 9, 3);
+            } else {
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.ellipse(cx - 7, cy - 5, 5, 6, 0, 0, Math.PI * 2);
+                ctx.ellipse(cx + 7, cy - 5, 5, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(cx - 9, cy - 8, 3, 3);
+                ctx.fillRect(cx + 5, cy - 8, 3, 3);
+            }
+            // Gold jeweler's monocle on right eye
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cx + 7, cy - 5, 7, 0, Math.PI * 2);
+            ctx.stroke();
+            // Mouth
+            ctx.fillStyle = mouthOpen ? '#000000' : '#1B4F72';
+            if (mouthOpen) {
+                ctx.fillRect(cx - 6, cy + 4, 12, 4);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(cx - 5, cy + 4, 2, 2);
+                ctx.fillRect(cx - 1, cy + 4, 2, 2);
+                ctx.fillRect(cx + 3, cy + 4, 2, 2);
+            } else {
+                ctx.fillRect(cx - 7, cy + 5, 14, 2);
+            }
+        } else {
+            // Generic space adventurer / narrator portrait
+            ctx.fillStyle = '#111133';
+            ctx.fillRect(bx + 3, by + 3, boxSize - 6, boxSize - 6);
+            ctx.fillStyle = '#8888AA';
+            ctx.beginPath();
+            ctx.arc(cx, cy - 2, 12, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#444466';
+            ctx.fillRect(cx - 14, cy + 10, 28, 18);
+        }
+
         ctx.restore();
     }
 
@@ -2124,10 +2499,16 @@ class GameEngine {
                 for (let i = room.hotspots.length - 1; i >= 0; i--) {
                     const hs = room.hotspots[i];
                     if (!hs.isExit || hs.hidden) continue;
-                    const exitX = hs.walkToX !== undefined ? hs.walkToX : (hs.x + hs.w / 2);
-                    const exitY = hs.walkToY !== undefined ? hs.walkToY : this.playerY;
+                    if (this.disarmedExits.includes(hs)) {
+                        if (!this.isPlayerWithinRearmRange(hs)) {
+                            this.disarmedExits = this.disarmedExits.filter((exit) => exit !== hs);
+                        }
+                        continue;
+                    }
+                    const point = this.exitTriggerPoint(hs);
                     // Check if player is close enough to the exit walk-to point
-                    if (Math.abs(this.playerX - exitX) < 15 && Math.abs(this.playerY - exitY) < 10) {
+                    if (Math.abs(this.playerX - point.x) < EXIT_TRIGGER_X &&
+                        Math.abs(this.playerY - point.y) < EXIT_TRIGGER_Y) {
                         if (hs.onExit) {
                             this.playerWalking = false;
                             hs.onExit(this);
@@ -2401,6 +2782,7 @@ class GameEngine {
 
         // AGI-inspired: Sierra text window overlay
         this.drawTextWindow(ctx);
+        this.drawPortraitWindow(ctx);
         this.drawItemCloseUpWindow(ctx);
 
         // AGS-inspired: dialog options overlay
