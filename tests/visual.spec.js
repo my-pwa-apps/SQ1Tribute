@@ -213,4 +213,49 @@ test.describe('visual regression', () => {
         });
         await expectCanvas(page, 'victory-overlay.png');
     });
+
+    test('interface surfaces keep their Sierra styling', async ({ page }, testInfo) => {
+        test.skip(testInfo.project.name !== 'chromium');
+        await startEnhanced(page);
+
+        await setRoomState(page, 'cantina', {});
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.currentAction = 'talk';
+            const pilot = e.rooms.cantina.hotspots.filter((hotspot) => hotspot.name === 'Alien Pilot' && !hotspot.hidden).pop();
+            e.performAction(pilot);
+            for (let i = 0; i < 20; i++) {
+                if (e.activeDialog && e.activeDialog.phase === 'options') break;
+                if (!e.textWindow) break;
+                e.completeTextReveal();
+                e.dismissTextWindow();
+            }
+        });
+        await expectCanvas(page, 'dialog-options.png');
+
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.activeDialog = null;
+            e.textWindow = null;
+            e.die('The airlock cycles. Space is exactly as cold as advertised.');
+            e.completeTextReveal();
+        });
+        await expectCanvas(page, 'death-overlay.png');
+
+        await page.goto('/?visual-test=1');
+        await page.evaluate(() => localStorage.clear());
+        await page.reload();
+        await page.keyboard.press('c');
+        for (let index = 0; index < 18; index++) {
+            await page.keyboard.press('Space');
+            await page.waitForTimeout(40);
+        }
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.textWindow = null;
+            e.showMessage('"SAFETY FIRST!" declares the poster, featuring a cheerful stick figure.');
+            e.completeTextReveal();
+        });
+        await expectCanvas(page, 'classic-parser-window.png');
+    });
 });

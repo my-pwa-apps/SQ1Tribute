@@ -3916,11 +3916,15 @@ class GameEngine {
         }
         if (line) ctx.fillText(line, this.WIDTH / 2, lineY);
 
-        // Blinking restart prompt
+        // The prompt stays legible; only the accent brackets blink.
+        ctx.font = '14px "Courier New"';
+        ctx.fillStyle = '#FFFF55';
+        const retryText = 'Press R to try again';
+        ctx.fillText(retryText, this.WIDTH / 2, by + bh - 22);
         if (Math.floor(this.animTimer / 700) % 2) {
-            ctx.font = '14px "Courier New"';
-            ctx.fillStyle = '#FFFF55';
-            ctx.fillText('Press R to try again', this.WIDTH / 2, by + bh - 22);
+            const half = ctx.measureText(retryText).width / 2;
+            ctx.fillText('\u25b6', this.WIDTH / 2 - half - 14, by + bh - 22);
+            ctx.fillText('\u25c0', this.WIDTH / 2 + half + 14, by + bh - 22);
         }
         ctx.textAlign = 'left';
     }
@@ -3978,10 +3982,14 @@ class GameEngine {
             ctx.fillText(line, this.WIDTH / 2, by + 195 + index * 20);
         });
 
+        ctx.font = '14px "Courier New"';
+        ctx.fillStyle = '#FFFF55';
+        const replayText = 'Press R to play again';
+        ctx.fillText(replayText, this.WIDTH / 2, by + 260);
         if (Math.floor(this.animTimer / 700) % 2) {
-            ctx.font = '14px "Courier New"';
-            ctx.fillStyle = '#FFFF55';
-            ctx.fillText('Press R to play again', this.WIDTH / 2, by + 260);
+            const half = ctx.measureText(replayText).width / 2;
+            ctx.fillText('\u25b6', this.WIDTH / 2 - half - 14, by + 260);
+            ctx.fillText('\u25c0', this.WIDTH / 2 + half + 14, by + 260);
         }
         ctx.textAlign = 'left';
     }
