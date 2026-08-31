@@ -22,6 +22,19 @@ const PLAYER_SPRITE_SCALE = 1.45;
 const EXIT_TRIGGER_X = 15, EXIT_TRIGGER_Y = 10;
 const EXIT_REARM_X = 70, EXIT_REARM_Y = 55;
 
+// The ego wears a worn janitor coverall, not a pressed dress uniform. Pure white
+// blew out against bright exteriors and under CRT bloom, so the greyscale suit
+// ramp is remapped to a dirty off-white at draw time. Keeping this as a lookup
+// (rather than editing ~40 sprite literals) keeps every view in step.
+const SUIT_REMAP = {
+    '#FFFFFF': '#D9D2B4',
+    '#EEEEEE': '#C6BF9F',
+    '#DDDDDD': '#B4AD8D',
+    '#CCCCCC': '#A79F80',
+    '#BBBBBB': '#9A9375',
+    '#AAAAAA': '#8C8568'
+};
+
 class GameEngine {
     constructor(gameDefinition = {}) {
         this.game = this.createGameDefinition(gameDefinition);
@@ -183,6 +196,10 @@ class GameEngine {
         // Rooms can register draw callbacks that render AFTER the player
         // based on Y-position, giving proper depth occlusion
         this.foregroundLayers = []; // { y, draw(ctx, eng) }
+
+        // Dominant light source for the current room. Drives the direction and
+        // length of cast shadows so characters sit in the scene's lighting.
+        this.sceneLight = null; // { x, y, strength }
 
         // Walkable area barriers (AGI priority 0/1 control lines)
         // Rooms can define rectangular barriers the player can't cross
@@ -2143,6 +2160,7 @@ class GameEngine {
         this.clearBarriers();
         this.clearEdgeTransitions();
         this.clearNPCs();
+        this.sceneLight = null;
         this.textWindow = null;
         this.activeDialog = null;
         this.clearAccessibleDialogOptions();
@@ -2162,6 +2180,12 @@ class GameEngine {
      *  e.g. setDepthScaling(280, 370, 0.7, 1.0) — smaller at top, full size at bottom */
     setDepthScaling(farY, nearY, farScale, nearScale) {
         this.depthScaling = { farY, nearY, farScale, nearScale };
+    }
+
+    /** Declare the room's dominant light so cast shadows lean away from it.
+     *  strength 0 keeps the old symmetric puddle; 1 gives a full-length cast. */
+    setSceneLight(x, y, strength) {
+        this.sceneLight = { x, y, strength: strength == null ? 0.6 : strength };
     }
 
     /** Get the depth scale factor for a given Y position (AGS get_area_scaling). */
@@ -3035,6 +3059,18 @@ class GameEngine {
             const size = nx() > 0.85 ? 2 : 1;
             ctx.fillRect(sx, sy, size, 1);
         }
+        // Foreground beacons — a handful of full-brightness stars with cross
+        // flare, so the field reads in three depth tiers instead of one.
+        rng = 24601;
+        for (let i = 0; i < 12; i++) {
+            const sx = Math.round(nx() * W), sy = Math.round(nx() * H);
+            const pulse = 0.55 + Math.sin(t / 520 + i * 2.1) * 0.45;
+            ctx.fillStyle = `rgba(255,255,235,${pulse})`;
+            ctx.fillRect(sx, sy, 2, 2);
+            ctx.fillStyle = `rgba(200,215,255,${pulse * 0.4})`;
+            ctx.fillRect(sx - 2, sy, 6, 1);
+            ctx.fillRect(sx, sy - 2, 1, 6);
+        }
 
         // ---- Nebula glow (purple/blue, Space Quest style) ----
         const nebX = 480 + Math.sin(t / 12000) * 30;
@@ -3058,19 +3094,42 @@ class GameEngine {
         ctx.fillRect(0, 0, W, H);
 
         // ---- Large planet (SQ1-style desert world) ----
+        // Banded rather than gradient-shaded: a smooth radial fill was the least
+        // retro object on the screen. Five hard steps plus a dithered terminator
+        // is how a 16-colour artist would have solved the same sphere.
         const planetX = 545, planetY = 175, planetR = 55;
-        // Planet shadow (dark side, crescent effect)
-        const pg = ctx.createRadialGradient(planetX - 25, planetY - 20, planetR * 0.1, planetX, planetY, planetR);
-        pg.addColorStop(0, '#AA8855');
-        pg.addColorStop(0.35, '#997744');
-        pg.addColorStop(0.6, '#775533');
-        pg.addColorStop(0.85, '#443322');
-        pg.addColorStop(1, '#221811');
-        ctx.fillStyle = pg;
+        const litX = planetX - 25, litY = planetY - 20;
+        const bands = ['#CCAA66', '#AA8855', '#997744', '#775533', '#443322', '#221811'];
+        ctx.save();
         ctx.beginPath();
         ctx.arc(planetX, planetY, planetR, 0, Math.PI * 2);
-        ctx.fill();
-        // Atmospheric glow
+        ctx.clip();
+        for (let b = bands.length - 1; b >= 0; b--) {
+            ctx.fillStyle = bands[b];
+            ctx.beginPath();
+            ctx.arc(litX, litY, planetR * (0.34 + b * 0.36), 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Dither the two brightest terminators so the steps do not read as banding.
+        for (let b = 1; b < 3; b++) {
+            const r = planetR * (0.34 + b * 0.36);
+            ctx.fillStyle = bands[b];
+            for (let a = 0; a < Math.PI * 2; a += 0.06) {
+                if ((Math.round(a * 24) & 1) === 0) continue;
+                ctx.fillRect(Math.round(litX + Math.cos(a) * r), Math.round(litY + Math.sin(a) * r), 2, 2);
+            }
+        }
+        // Surface details (craters/terrain bands)
+        ctx.fillStyle = 'rgba(0,0,0,0.10)';
+        ctx.beginPath(); ctx.arc(planetX - 30, planetY - 20, 25, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(planetX + 15, planetY + 30, 15, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(planetX - 50, planetY + 25, 10, 0, Math.PI * 2); ctx.fill();
+        // Terrain bands
+        ctx.fillStyle = 'rgba(100,80,50,0.10)';
+        ctx.fillRect(planetX - planetR, planetY - 10, planetR * 2, 8);
+        ctx.fillRect(planetX - planetR, planetY + 20, planetR * 2, 5);
+        ctx.restore();
+        // Atmospheric rim, drawn outside the clip so it reads as a halo
         ctx.strokeStyle = 'rgba(170,140,100,0.15)';
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -3081,31 +3140,22 @@ class GameEngine {
         ctx.beginPath();
         ctx.arc(planetX, planetY, planetR + 5, 0, Math.PI * 2);
         ctx.stroke();
-        // Surface details (craters/terrain bands)
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(planetX, planetY, planetR, 0, Math.PI * 2);
-        ctx.clip();
-        ctx.fillStyle = 'rgba(0,0,0,0.08)';
-        ctx.beginPath(); ctx.arc(planetX - 30, planetY - 20, 25, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(planetX + 15, planetY + 30, 15, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(planetX - 50, planetY + 25, 10, 0, Math.PI * 2); ctx.fill();
-        // Terrain bands
-        ctx.fillStyle = 'rgba(100,80,50,0.06)';
-        ctx.fillRect(planetX - planetR, planetY - 10, planetR * 2, 8);
-        ctx.fillRect(planetX - planetR, planetY + 20, planetR * 2, 5);
-        ctx.restore();
+        ctx.lineWidth = 1;
 
         // ---- Small moon ----
         const moonX = 465, moonY = 120, moonR = 10;
-        const mg = ctx.createRadialGradient(moonX - 3, moonY - 3, 1, moonX, moonY, moonR);
-        mg.addColorStop(0, '#BBBBAA');
-        mg.addColorStop(0.7, '#888877');
-        mg.addColorStop(1, '#444440');
-        ctx.fillStyle = mg;
+        ctx.save();
         ctx.beginPath();
         ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.clip();
+        const moonBands = ['#BBBBAA', '#888877', '#444440'];
+        for (let b = moonBands.length - 1; b >= 0; b--) {
+            ctx.fillStyle = moonBands[b];
+            ctx.beginPath();
+            ctx.arc(moonX - 3, moonY - 3, moonR * (0.45 + b * 0.5), 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
 
         // ---- Animated title ship ----
         const shipCycle = (t % 20000) / 20000; // 20s loop
@@ -3299,11 +3349,58 @@ class GameEngine {
         const ry = (o.ry != null ? o.ry : 1.6) * scale;
         const alpha = o.alpha != null ? o.alpha : 0.28;
         if (rx <= 0 || ry <= 0) return;
+        const light = o.light !== undefined ? o.light : this.sceneLight;
         ctx.save();
         ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-        ctx.beginPath();
-        ctx.ellipse(cx, groundY, rx, ry, 0, 0, Math.PI * 2);
+        if (light) {
+            // Lean the puddle away from the light and stretch it with distance,
+            // so a character reads as lit by the room rather than by the camera.
+            const dx = cx - light.x, dy = groundY - light.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            const reach = light.strength * Math.min(1.9, 0.45 + dist / 340);
+            ctx.translate(cx + (dx / dist) * rx * reach * 1.7, groundY + Math.abs(dy / dist) * ry * reach);
+            ctx.rotate(Math.atan2(dy / dist * 0.34, dx / dist));
+            ctx.beginPath();
+            ctx.ellipse(0, 0, rx * (1 + reach * 0.85), ry, 0, 0, Math.PI * 2);
+        } else {
+            ctx.beginPath();
+            ctx.ellipse(cx, groundY, rx, ry, 0, 0, Math.PI * 2);
+        }
         ctx.fill();
+        ctx.restore();
+    }
+
+    /** Soft pool of light on a surface. Rooms call this after painting the floor
+     *  so ceiling strips, fires and glowing props actually spill onto the ground. */
+    lightPool(ctx, x, y, radius, color, alpha) {
+        if (radius <= 0) return;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        const rgb = color || '255,235,180';
+        g.addColorStop(0, `rgba(${rgb},${alpha == null ? 0.18 : alpha})`);
+        g.addColorStop(0.55, `rgba(${rgb},${(alpha == null ? 0.18 : alpha) * 0.35})`);
+        g.addColorStop(1, `rgba(${rgb},0)`);
+        ctx.save();
+        ctx.fillStyle = g;
+        ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+        ctx.restore();
+    }
+
+    /** Darken the frame edges so the eye is pushed to the centre of the scene.
+     *  Clipped below the status bar so the HUD keeps its flat black. */
+    vignette(ctx, strength, color) {
+        const s = strength == null ? 0.35 : strength;
+        if (s <= 0) return;
+        const W = this.WIDTH, H = this.HEIGHT, top = 17;
+        const g = ctx.createRadialGradient(W / 2, H * 0.58, H * 0.28, W / 2, H * 0.58, H * 0.95);
+        g.addColorStop(0, 'rgba(0,0,0,0)');
+        g.addColorStop(0.6, `rgba(${color || '0,0,0'},${s * 0.35})`);
+        g.addColorStop(1, `rgba(${color || '0,0,0'},${s})`);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, top, W, H - top);
+        ctx.clip();
+        ctx.fillStyle = g;
+        ctx.fillRect(0, top, W, H - top);
         ctx.restore();
     }
 
@@ -3341,6 +3438,25 @@ class GameEngine {
         return this._pixelCtxProxy;
     }
 
+    /** Wrap a context so the ego's greyscale suit ramp is remapped to the worn
+     *  coverall palette. Colours outside SUIT_REMAP pass through untouched. */
+    _suitCtx(ctx) {
+        if (!this._suitCtxProxy || this._suitCtxTarget !== ctx) {
+            this._suitCtxTarget = ctx;
+            this._suitCtxProxy = new Proxy(ctx, {
+                get: (t, prop) => {
+                    const value = t[prop];
+                    return typeof value === 'function' ? value.bind(t) : value;
+                },
+                set: (t, prop, value) => {
+                    t[prop] = (prop === 'fillStyle' && SUIT_REMAP[value]) || value;
+                    return true;
+                }
+            });
+        }
+        return this._suitCtxProxy;
+    }
+
     /** Snapped sprite scale for the ego at a given floor Y. Shared with the
      *  cutscene mini-animations so gameplay and cutscenes stay the same size. */
     playerSpriteScale(y) {
@@ -3350,7 +3466,7 @@ class GameEngine {
     }
 
     drawPlayer(ctx0) {
-        const ctx = this._pixelCtx(ctx0);
+        const ctx = this._suitCtx(this._pixelCtx(ctx0));
         const x = Math.round(this.playerX);
         const y = Math.round(this.playerY);
         const dir = this.playerDir;
@@ -3444,19 +3560,38 @@ class GameEngine {
             // Body
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
-            ctx.fillStyle = '#EEEEEE';
+            // Dark edge columns read as a Sierra sprite outline and keep the ego
+            // legible against both pale sand and dark hull plating.
+            ctx.fillStyle = '#3A3628';
             ctx.fillRect(x - 5 * s, y - 10 * s, 1 * s, 11 * s);
             ctx.fillRect(x + 4 * s, y - 10 * s, 1 * s, 11 * s);
             ctx.fillStyle = '#DDDDDD';
             ctx.fillRect(x - 1 * s, y - 6 * s, 2 * s, 4 * s);
+            // Asymmetric shoulders: a lifetime of dragging a mop bucket drops the
+            // right side, which gives the silhouette a readable slouch.
+            ctx.fillStyle = '#EEEEEE';
+            ctx.fillRect(x - 5 * s, y - 11 * s, 4 * s, 1 * s);
+            ctx.fillStyle = '#3A3628';
+            ctx.fillRect(x - 5 * s, y - 12 * s, 4 * s, 1 * s);
+            ctx.fillRect(x + 1 * s, y - 10 * s, 4 * s, 1 * s);
             // Gold collar
             ctx.fillStyle = '#555555';
             ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
             // Belt
             ctx.fillStyle = '#333333';
             ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
-            ctx.fillStyle = '#AAAAAA';
+            ctx.fillStyle = '#B9BAC6';
             ctx.fillRect(x - 1.5 * s, y - 0.5 * s, 3 * s, 2.5 * s);
+            // Janitorial utility pouches and cyan maintenance badge make the
+            // hero readable as crew support rather than a generic astronaut.
+            ctx.fillStyle = '#AA5500';
+            ctx.fillRect(x - 6 * s, y - 0.5 * s, 2 * s, 3 * s);
+            ctx.fillStyle = '#5555FF';
+            ctx.fillRect(x + 4 * s, y, 2 * s, 2.5 * s);
+            ctx.fillStyle = '#55FFFF';
+            ctx.fillRect(x + 1.5 * s, y - 8 * s, 2.5 * s, 2 * s);
+            ctx.fillStyle = '#007777';
+            ctx.fillRect(x + 2.5 * s, y - 7.5 * s, 1 * s, 1 * s);
             // Arms
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(x - 7 * s, y - 8 * s, 2 * s, 7 * s);
@@ -3480,12 +3615,12 @@ class GameEngine {
             ctx.fillRect(x - 2 * s, y - 19 * s, 4 * s, 1 * s);
             // Eyes (both visible!)
             // Left eye
-            ctx.fillStyle = '#FFFFFF';
+            ctx.fillStyle = '#F2F0E2';
             ctx.fillRect(x - 3 * s, y - 15 * s, 2.5 * s, 2 * s);
             ctx.fillStyle = '#4477CC';
             ctx.fillRect(x - 2.5 * s + idleHeadOfs, y - 15 * s, 1.5 * s, 2 * s);
             // Right eye
-            ctx.fillStyle = '#FFFFFF';
+            ctx.fillStyle = '#F2F0E2';
             ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
             ctx.fillStyle = '#4477CC';
             ctx.fillRect(x + 1 * s + idleHeadOfs, y - 15 * s, 1.5 * s, 2 * s);
@@ -3509,9 +3644,14 @@ class GameEngine {
             // Body (back of uniform, darker)
             ctx.fillStyle = '#EEEEEE';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
-            ctx.fillStyle = '#CCCCCC';
+            ctx.fillStyle = '#3A3628';
             ctx.fillRect(x - 5 * s, y - 10 * s, 1 * s, 11 * s);
             ctx.fillRect(x + 4 * s, y - 10 * s, 1 * s, 11 * s);
+            ctx.fillRect(x + 1 * s, y - 10 * s, 4 * s, 1 * s);
+            ctx.fillStyle = '#EEEEEE';
+            ctx.fillRect(x - 5 * s, y - 11 * s, 4 * s, 1 * s);
+            ctx.fillStyle = '#3A3628';
+            ctx.fillRect(x - 5 * s, y - 12 * s, 4 * s, 1 * s);
             // Back seam
             ctx.fillStyle = '#BBBBBB';
             ctx.fillRect(x - 0.5 * s, y - 9 * s, 1 * s, 10 * s);
@@ -3521,6 +3661,15 @@ class GameEngine {
             // Belt
             ctx.fillStyle = '#333333';
             ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
+            ctx.fillStyle = '#AA5500';
+            ctx.fillRect(x - 6 * s, y - 0.5 * s, 2 * s, 3 * s);
+            ctx.fillStyle = '#5555FF';
+            ctx.fillRect(x + 4 * s, y, 2 * s, 2.5 * s);
+            // Maintenance stripe remains recognizable when walking away.
+            ctx.fillStyle = '#007777';
+            ctx.fillRect(x - 3 * s, y - 8 * s, 6 * s, 2 * s);
+            ctx.fillStyle = '#55FFFF';
+            ctx.fillRect(x - 2 * s, y - 8 * s, 4 * s, 1 * s);
             // Arms
             ctx.fillStyle = '#EEEEEE';
             ctx.fillRect(x - 7 * s, y - 8 * s, 2 * s, 7 * s);
@@ -3583,11 +3732,16 @@ class GameEngine {
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(x - 3 * d, py - 10 * s, 7 * d, 11 * s);
             // Shading on the back side of the suit
-            ctx.fillStyle = '#EEEEEE';
+            ctx.fillStyle = '#3A3628';
             ctx.fillRect(x - 3 * d, py - 10 * s, 1 * d, 11 * s);
             // Front-edge highlight
             ctx.fillStyle = '#DDDDDD';
             ctx.fillRect(x + 3 * d, py - 9 * s, 1 * d, 9 * s);
+            // Slumped rear shoulder — matches the front view's asymmetry.
+            ctx.fillStyle = '#EEEEEE';
+            ctx.fillRect(x - 3 * d, py - 11 * s, 3 * d, 1 * s);
+            ctx.fillStyle = '#3A3628';
+            ctx.fillRect(x - 3 * d, py - 12 * s, 3 * d, 1 * s);
             // Collar
             ctx.fillStyle = '#555555';
             ctx.fillRect(x - 3 * d, py - 10 * s, 7 * d, 1 * s);
@@ -3595,8 +3749,17 @@ class GameEngine {
             ctx.fillStyle = '#333333';
             ctx.fillRect(x - 3 * d, py, 7 * d, 2 * s);
             // Belt buckle (front of belt only)
-            ctx.fillStyle = '#AAAAAA';
+            ctx.fillStyle = '#B9BAC6';
             ctx.fillRect(x + 1.5 * d, py - 0.5 * s, 2 * d, 2.5 * s);
+            // Profile badge and tool pouch preserve the janitor silhouette.
+            ctx.fillStyle = '#55FFFF';
+            ctx.fillRect(x + 1.5 * d, py - 8 * s, 2 * d, 2 * s);
+            ctx.fillStyle = '#007777';
+            ctx.fillRect(x + 2 * d, py - 7.5 * s, 1 * d, 1 * s);
+            ctx.fillStyle = '#AA5500';
+            ctx.fillRect(x - 3.5 * d, py - 0.5 * s, 2 * d, 3 * s);
+            ctx.fillStyle = '#5555FF';
+            ctx.fillRect(x - 4 * d, py + 1.5 * s, 1.5 * d, 2.5 * s);
 
             // Near leg (front) — strides forward/back with the cycle. Anchored to
             // the ground reference so the foot plants whenever it is not lifted.
@@ -3640,7 +3803,7 @@ class GameEngine {
             ctx.fillStyle = '#EEBB77';
             ctx.fillRect(x - 1 * d, py - 14 * s, 1 * d, 2 * s);
             // Forward-facing eye
-            ctx.fillStyle = '#FFFFFF';
+            ctx.fillStyle = '#F2F0E2';
             ctx.fillRect(x + 1.5 * d, py - 15 * s, 2 * d, 2 * s);
             ctx.fillStyle = '#4477CC';
             ctx.fillRect(x + 2 * d, py - 15 * s, 1.5 * d, 2 * s);

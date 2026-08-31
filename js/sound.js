@@ -288,16 +288,49 @@ class SoundEngine {
         this._osc('triangle', 1320, t + 0.15, 0.35, 0.015);
     }
 
-    /** Dramatic boot-up chord — game begins */
-    gameStart() {
+    /** Main title motif — optimistic space-opera ascent with a comic final turn. */
+    titleTheme() {
         if (!this.ctx) return;
         const t = this._t();
-        this._osc('sine', 220, t, 0.18, 0.07);
-        this._osc('sine', 330, t + 0.1, 0.16, 0.07);
-        this._osc('sine', 440, t + 0.2, 0.14, 0.08);
-        this._osc('triangle', 660, t + 0.3, 0.1, 0.07);
-        this._osc('sine', 880, t + 0.38, 0.25, 0.1);
-        this._osc('triangle', 880, t + 0.38, 0.25, 0.05);
+        const melody = [392.00, 523.25, 659.25, 783.99, 659.25, 880.00, 783.99];
+        melody.forEach((freq, i) => {
+            const offset = i < 4 ? i * 0.16 : 0.72 + (i - 4) * 0.18;
+            const duration = i === melody.length - 1 ? 0.55 : 0.14;
+            this._osc('square', freq, t + offset, duration, 0.055);
+            this._osc('triangle', freq * 0.5, t + offset, duration + 0.06, 0.04);
+        });
+        this._osc('sine', 196.00, t, 1.65, 0.045);
+        this._osc('sine', 293.66, t + 1.08, 0.38, 0.035);
+    }
+
+    /** The janitor's motif — a brisk working tune ending one note short of heroic. */
+    playerMotif() {
+        if (!this.ctx) return;
+        const t = this._t();
+        const notes = [261.63, 329.63, 392.00, 523.25, 466.16];
+        notes.forEach((freq, i) => {
+            const offset = i < 4 ? i * 0.12 : 0.58;
+            this._osc('square', freq, t + offset, i === 4 ? 0.34 : 0.10, 0.045);
+            if (i < 4) this._osc('triangle', freq * 0.5, t + offset, 0.16, 0.025);
+        });
+    }
+
+    /** Draknoid leitmotif — low tritone steps heard on entering their ship. */
+    draknoidMotif() {
+        if (!this.ctx) return;
+        const t = this._t();
+        const notes = [73.42, 103.83, 77.78, 110.00];
+        notes.forEach((freq, i) => {
+            const offset = i * 0.28;
+            this._osc('sawtooth', freq, t + offset, 0.38, 0.045);
+            this._osc('sine', freq * 2, t + offset + 0.03, 0.30, 0.025);
+        });
+        this._osc('triangle', 36.71, t, 1.35, 0.05);
+    }
+
+    /** Dramatic title flourish — game begins. */
+    gameStart() {
+        this.titleTheme();
     }
 
     /** Deep boom — explosions, impacts */
@@ -504,6 +537,7 @@ class SoundEngine {
 
             case 'draknoid_ship':
                 // Alien ship: deep ominous drone + electronic pulses
+                this.draknoidMotif();
                 this._ambientTimer = setInterval(() => {
                     if (this.muted || !this.ctx) return;
                     const t = this._t();

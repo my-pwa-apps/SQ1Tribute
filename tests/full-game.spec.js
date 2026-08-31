@@ -21,7 +21,7 @@ async function clearState(page) {
 
 async function startClassicGame(page) {
     await page.keyboard.press('c');
-    for (let index = 0; index < 16; index++) {
+    for (let index = 0; index < 18; index++) {
         await page.keyboard.press('Space');
         await page.waitForTimeout(80);
     }

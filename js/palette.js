@@ -3,10 +3,10 @@
 // ------------------------------------------------------------
 // Central colour vocabulary for the engine and game content.
 //
-// Every value here is byte-identical to the literal it replaced,
-// so extracting these names does not change a single rendered
-// pixel. New art should prefer these names over raw hex so the
-// game keeps one coherent colour signature.
+// New art should prefer these names over raw hex so the game keeps
+// one coherent colour signature. The EGA block below is the
+// period-accurate reference ramp; the named entries are the
+// game's own extended signature built around it.
 // ============================================================
 
 (function (global) {
@@ -67,19 +67,27 @@
         TEXT_MUTED: '#AAAAAA',
 
         // ---- Player sprite ----
+        // The ego is a janitor in a worn coverall. Values here match the
+        // SUIT_REMAP ramp applied in js/engine.js drawPlayer.
         PLAYER: {
-            suit: '#FFFFFF',
-            suitShadow: '#EEEEEE',
-            legs: '#BBBBBB',
-            legHighlight: '#DDDDDD',
+            suit: '#D9D2B4',
+            suitShadow: '#C6BF9F',
+            suitOutline: '#3A3628',
+            legs: '#9A9375',
+            legHighlight: '#B4AD8D',
             collar: '#555555',
             belt: '#333333',
-            buckle: '#AAAAAA',
+            buckle: '#B9BAC6',
             skin: '#FFCC88',
             skinShadow: '#EEBB77',
             hair: '#BB7733',
             iris: '#4477CC',
-            boots: '#222222'
+            eyeWhite: '#F2F0E2',
+            boots: '#222222',
+            workPatch: '#55FFFF',
+            workPatchDark: '#007777',
+            toolPouch: '#AA5500',
+            cleaningRag: '#5555FF'
         }
     };
 

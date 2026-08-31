@@ -26,7 +26,7 @@ async function startEnhanced(page) {
     await page.evaluate(() => localStorage.clear());
     await page.reload();
     await page.keyboard.press('e');
-    for (let index = 0; index < 14; index++) {
+    for (let index = 0; index < 18; index++) {
         await page.keyboard.press('Space');
         await page.waitForTimeout(40);
     }
@@ -54,6 +54,17 @@ async function expectCanvas(page, name) {
     });
 }
 
+async function setRoomState(page, room, flags) {
+    await page.evaluate(([roomId, roomFlags]) => {
+        const e = window.engine;
+        Object.entries(roomFlags).forEach(([name, value]) => e.setFlag(name, value));
+        e.goToRoom(roomId, 320, 330);
+        e.roomTransition = 0;
+        e.textWindow = null;
+        e.animTimer = 1;
+    }, [room, flags]);
+}
+
 test.describe('visual regression', () => {
     test('desktop room art matrix', async ({ page }, testInfo) => {
         test.skip(testInfo.project.name !== 'chromium');
@@ -63,7 +74,11 @@ test.describe('visual regression', () => {
         await expectCanvas(page, 'title.png');
 
         await startEnhanced(page);
-        for (const room of ['broom_closet', 'corridor', 'desert', 'cave', 'cantina', 'docking_bay', 'draknoid_ship']) {
+        for (const room of [
+            'broom_closet', 'corridor', 'science_lab', 'pod_bay', 'engine_room',
+            'desert', 'cave', 'outpost', 'cantina', 'shop', 'docking_bay',
+            'draknoid_brig', 'draknoid_ship'
+        ]) {
             await loadRoom(page, room);
             await expectCanvas(page, `${room}.png`);
         }
@@ -106,7 +121,96 @@ test.describe('visual regression', () => {
             e.performAction(drive);
             e.cutscene.elapsed = 8500;
             e.animTimer = e.scoreFlashUntil + 1;
+            e._visualTestUpdate = e.update;
+            e.update = () => {};
         });
         await expectCanvas(page, 'pipz-reunion.png');
+    });
+
+    test('major puzzle states remain visually legible', async ({ page }, testInfo) => {
+        test.skip(testInfo.project.name !== 'chromium');
+        await startEnhanced(page);
+
+        const states = [
+            ['pod_bay', { pod_launched: true, got_kit: true }, 'pod-bay-launched.png'],
+            ['engine_room', { cabinet_opened: true, fire_suppressed: true, korvak_freed: true }, 'engine-room-resolved.png'],
+            ['outpost', { flew_away: true }, 'outpost-ship-gone.png'],
+            ['cantina', { pilot_has_drink: true, pilot_left: true }, 'cantina-pilot-left.png'],
+            ['shop', { bought_ray: true }, 'shop-ray-bought.png'],
+            ['draknoid_brig', { brig_cells_open: true, rescued_prisoners: true }, 'draknoid-brig-rescued.png'],
+            ['draknoid_ship', { guard_defeated: true, guard_anim_done: true, field_down: true }, 'draknoid-ship-secured.png']
+        ];
+
+        for (const [room, flags, image] of states) {
+            await setRoomState(page, room, flags);
+            await expectCanvas(page, image);
+        }
+    });
+
+    test('cinematic story beats preserve the Sierra presentation', async ({ page }, testInfo) => {
+        test.skip(testInfo.project.name !== 'chromium');
+        await page.goto('/?visual-test=1');
+        await page.evaluate(() => localStorage.clear());
+        await page.reload();
+        await page.keyboard.press('e');
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.cutscene.elapsed = 4300;
+            e._visualTestUpdate = e.update;
+            e.update = () => {};
+        });
+        await expectCanvas(page, 'intro-status.png');
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.update = e._visualTestUpdate;
+            delete e._visualTestUpdate;
+        });
+
+        for (let index = 0; index < 18; index++) {
+            await page.keyboard.press('Space');
+            await page.waitForTimeout(40);
+        }
+        await setRoomState(page, 'pod_bay', {});
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.addToInventory('cartridge');
+            e.addToInventory('survival_kit');
+            const pod = e.rooms.pod_bay.hotspots.find((hotspot) => hotspot.name === 'Escape Pod');
+            pod.onExit(e);
+            e.textWindow = null;
+            e.cutscene.elapsed = 3200;
+            e._visualTestUpdate = e.update;
+            e.update = () => {};
+        });
+        await expectCanvas(page, 'pod-launch-cutscene.png');
+
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.update = e._visualTestUpdate;
+            delete e._visualTestUpdate;
+            e.skipCutscene();
+            e.setFlag('guard_defeated');
+            e.setFlag('guard_anim_done');
+            e.setFlag('field_down');
+            e.score = e.game.maxScore;
+            e.goToRoom('draknoid_ship', 320, 330);
+            e.roomTransition = 0;
+            const drive = e.rooms.draknoid_ship.hotspots.find((hotspot) => hotspot.name === 'Quantum Drive');
+            e.currentAction = 'get';
+            e.performAction(drive);
+            e.cutscene.elapsed = 4700;
+            e._visualTestUpdate = e.update;
+            e.update = () => {};
+        });
+        await expectCanvas(page, 'victory-escape-cutscene.png');
+
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.update = e._visualTestUpdate;
+            delete e._visualTestUpdate;
+            e.skipCutscene();
+            e.completeTextReveal();
+        });
+        await expectCanvas(page, 'victory-overlay.png');
     });
 });

@@ -15,6 +15,23 @@ Open items only (resolved items from prior reviews are retained below for histor
 
 ---
 
+## Dated Findings — Art Direction Review (2026-08-31)
+
+- [x] [Priority: High] **Composition** — Every room was back wall plus empty floor; five rooms (corridor, pod bay, desert, outpost, brig) had no foreground layer at all. *(RESOLVED: near conduits, a launch railing, a dune ridge and boulder, street crates and a hitching rail, and cell-bay uprights now give each of those rooms a third depth plane.)*
+- [x] [Priority: High] **Lighting** — Floors were uniform flat colour with no light direction; contact shadows were symmetric puddles regardless of light source. *(RESOLVED: `setSceneLight`, `lightPool` and `vignette` added to the engine; `drawContactShadow` now leans and stretches away from the room light. The desert casts a second shadow from its smaller sun.)*
+- [x] [Priority: High] **Ego readability** — The pure-white suit blew out against bright exteriors and under CRT bloom, and the silhouette was a symmetric rectangle. *(RESOLVED: `SUIT_REMAP` recolours the greyscale ramp to a worn coverall, plus a dark sprite outline and a slumped right shoulder.)*
+- [x] [Priority: High] **Dr. Chen read as debris** — Drawn as a flat horizontal plank at the ego's feet, directly on the walk path to the closet door. *(RESOLVED: reposed along a receding axis with the head nearest camera, given a shadow, and shifted clear of the walk path; barrier and hotspot moved to match.)*
+- [x] [Priority: Medium] **Science lab was under-dressed** — One desk and two grey boxes undercut the LOOK verb. *(RESOLVED: specimen tanks with a live occupant, severed ceiling cables, a coasting centrifuge and a bubbling beaker rack, plus two new non-scoring hotspots.)*
+- [x] [Priority: Medium] **Desert had no aerial perspective** — Distant ranges were drawn at full contrast, sand was ruled stripes, and neither sun cast a shadow. *(RESOLVED: three ranges graded toward the haze colour, dithered wavy dune bands, and twin cast shadows on props and the ego.)*
+- [x] [Priority: Medium] **Draknoid guard was green-on-green** — Effectively camouflaged against his own ship. *(RESOLVED: framed sentry alcove behind him plus a violet rim light, the only non-green in the chamber.)*
+- [x] [Priority: Medium] **Corridor door signage ignored perspective** — Flat axis-aligned 4px text on trapezoidal doors. *(RESOLVED: skewed onto each door plane and mounted on signboards.)*
+- [x] [Priority: Low] **Title planet and starfield were not retro** — Smooth radial gradient sphere and a single-brightness star layer. *(RESOLVED: six hard bands with a dithered terminator, banded moon, and a third star tier with cross flare.)*
+- [x] [Priority: Low] **Engine room beam read as a rendering glitch** — Flat black slab with no lit edge. *(RESOLVED: shaded as an I-beam with a lit top flange, rivets, buckles, sheared ends and a cast shadow.)*
+
+Open follow-up: the ship interiors still sit in a muted 256-colour register while Kerona is full EGA. Unifying them (or shipping the SCI palette as an opt-in "VGA mode" beside the F9 CRT toggle) remains the largest outstanding art-direction decision.
+
+---
+
 ## Dated Findings — Retro Review
 
 - [x] [Priority: High]

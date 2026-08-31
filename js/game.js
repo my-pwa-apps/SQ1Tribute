@@ -368,6 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
             engine.screenShake = 0;
             engine.cutscene = null;
             engine.playerVisible = true;
+            engine.sound.playerMotif();
             engine.goToRoom('broom_closet', 320, 310);
         }
 
@@ -458,13 +459,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (cb) cb(elapsed);
                     return;
                 }
-                // Click during early phases with no box: skip fade-in, jump to narration
-                if (introPhase < 3) {
-                    phaseStartTime = elapsed - pauseAccum - 9999;
+                // Fast-forward only to the next authored beat. The old broad skip
+                // jumped from the first warning directly to gameplay, bypassing the
+                // attack explosions, screen shake and emergency readout whenever a
+                // player pressed Space while following the advance prompt.
+                const nextBeat = [
+                    4201,
+                    2001,
+                    narrationSeen.has('p2_yawn') ? 2201 : 601,
+                    1801,
+                    narrationSeen.has('p4_shudder') ? 1601 : 601,
+                    601
+                ][introPhase];
+                if (nextBeat !== undefined) {
+                    phaseStartTime = elapsed - pauseAccum - nextBeat;
                     return;
                 }
-                // Click with no box during action phases = skip to end
-                if (introPhase >= 3) endIntro();
+                if (introPhase === 6) endIntro();
             },
             draw: (ctx, w, h, progress, elapsed) => {
                 const t = phaseT(elapsed);
@@ -791,11 +802,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function alarmGlow(ctx, w, h, eng) {
         const pulse = Math.floor(eng.animTimer / 500) % 2;
-        if (pulse) {
-            ctx.fillStyle = 'rgba(255,0,0,0.12)';
-            // Start at y=17 to avoid bleeding over the top action bar
-            ctx.fillRect(0, 17, w, h - 17);
-        }
+        if (!pulse) return;
+        // Red alert wash concentrated near the ceiling fixtures, fading out
+        // before the floor. A flat full-canvas tint washed every prop colour
+        // to the same plum-grey; Sierra alarm lighting stayed a local glow.
+        const g = ctx.createLinearGradient(0, 17, 0, h);
+        g.addColorStop(0, 'rgba(255,40,30,0.16)');
+        g.addColorStop(0.45, 'rgba(255,40,30,0.05)');
+        g.addColorStop(1, 'rgba(255,40,30,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 17, w, h - 17);
     }
 
     function alarmLight(ctx, x, y, eng) {
@@ -942,28 +958,58 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.save();
         ctx.translate(x, y);
         ctx.scale(scale, scale);
-        // Dark angular hull
-        ctx.fillStyle = '#2a3328';
+        // Black outline and angular underside give the flagship a heavy,
+        // predatory silhouette even when it is only a few dozen pixels wide.
+        ctx.fillStyle = '#080d09';
+        ctx.beginPath();
+        ctx.moveTo(-84, 0); ctx.lineTo(-42, -29); ctx.lineTo(62, -24);
+        ctx.lineTo(84, -10); ctx.lineTo(84, 10); ctx.lineTo(62, 24);
+        ctx.lineTo(-42, 29); ctx.lineTo(-84, 0);
+        ctx.closePath(); ctx.fill();
+
+        ctx.fillStyle = '#344332';
         ctx.beginPath();
         ctx.moveTo(-80, 0); ctx.lineTo(-40, -25); ctx.lineTo(60, -20);
         ctx.lineTo(80, -8); ctx.lineTo(80, 8); ctx.lineTo(60, 20);
-        ctx.lineTo(-40, 25); ctx.lineTo(-80, 0);
-        ctx.closePath(); ctx.fill();
-        // Command tower
-        ctx.fillStyle = '#3a4338';
-        ctx.fillRect(10, -30, 40, 15);
-        // Armor plating lines
-        ctx.strokeStyle = '#1a2318';
+        ctx.lineTo(-40, 25); ctx.closePath(); ctx.fill();
+        // Lit dorsal armor and shadowed lower plating.
+        ctx.fillStyle = '#455743';
+        ctx.beginPath();
+        ctx.moveTo(-40, -25); ctx.lineTo(60, -20); ctx.lineTo(78, -8);
+        ctx.lineTo(-55, -7); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#202d22';
+        ctx.beginPath();
+        ctx.moveTo(-78, 2); ctx.lineTo(78, 8); ctx.lineTo(60, 20);
+        ctx.lineTo(-40, 25); ctx.closePath(); ctx.fill();
+        // Command tower, antenna and armored prow.
+        ctx.fillStyle = '#111a13';
+        ctx.fillRect(8, -33, 44, 18);
+        ctx.fillStyle = '#4c5d49';
+        ctx.fillRect(12, -31, 36, 13);
+        ctx.fillStyle = '#6d8067';
+        ctx.fillRect(17, -31, 25, 2);
+        ctx.fillStyle = '#263328';
+        ctx.fillRect(62, -15, 13, 30);
+        ctx.fillRect(24, -38, 2, 7);
+        // Armor seams track the rake of the hull.
+        ctx.strokeStyle = '#101a12';
         ctx.lineWidth = 1;
         for (let i = -30; i < 70; i += 20) {
             ctx.beginPath(); ctx.moveTo(i, -18); ctx.lineTo(i + 10, 18); ctx.stroke();
         }
-        // Red viewport
-        ctx.fillStyle = '#f22';
-        ctx.fillRect(50, -5, 6, 10);
-        // Green engine glow
-        ctx.fillStyle = '#4f4';
-        ctx.fillRect(-82, -4, 4, 8);
+        // A narrow blood-red bridge and stacked engine apertures.
+        ctx.fillStyle = '#551515';
+        ctx.fillRect(48, -6, 12, 12);
+        ctx.fillStyle = '#ff3434';
+        ctx.fillRect(51, -4, 7, 7);
+        ctx.fillStyle = 'rgba(85,255,102,0.2)';
+        ctx.fillRect(-89, -11, 8, 22);
+        ctx.fillStyle = '#55ff66';
+        ctx.fillRect(-85, -9, 5, 7);
+        ctx.fillRect(-85, 2, 5, 7);
+        ctx.fillStyle = '#d7ff99';
+        ctx.fillRect(-85, -7, 2, 3);
+        ctx.fillRect(-85, 4, 2, 3);
         ctx.restore();
     }
 
@@ -1261,35 +1307,68 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function drawPipzReunion(ctx, w, h) {
-        gradientRect(ctx, 0, 0, w, h * 0.68, '#5a2848', '#c07048');
-        gradientRect(ctx, 0, h * 0.68, w, h * 0.32, '#493323', '#241b18');
-        ctx.fillStyle = '#5f5048';
-        ctx.fillRect(70, 125, 500, 150);
-        ctx.fillStyle = '#222a38';
-        ctx.fillRect(205, 145, 230, 130);
+        gradientRect(ctx, 0, 0, w, 190, '#24162f', '#9c4e48');
+        gradientRect(ctx, 0, 190, w, h - 190, '#574032', '#211a1a');
+        // Deep hangar mouth and structural frame.
+        ctx.fillStyle = '#171d2b';
+        ctx.beginPath();
+        ctx.moveTo(122, 74); ctx.lineTo(518, 74); ctx.lineTo(570, 286);
+        ctx.lineTo(70, 286); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#675850';
+        ctx.fillRect(70, 68, 500, 17);
+        ctx.fillRect(70, 275, 500, 12);
+        ctx.fillRect(70, 68, 14, 219);
+        ctx.fillRect(556, 68, 14, 219);
+        ctx.fillStyle = '#2b3343';
+        ctx.fillRect(205, 116, 230, 159);
+        // Receding ceiling ribs and floor seams reinforce the cinematic depth.
+        ctx.strokeStyle = '#485268';
+        ctx.lineWidth = 3;
+        for (let x = 108; x <= 532; x += 53) {
+            ctx.beginPath(); ctx.moveTo(x, 84); ctx.lineTo(320 + (x - 320) * 0.54, 116); ctx.stroke();
+        }
+        ctx.strokeStyle = '#745744';
+        ctx.lineWidth = 2;
+        for (let x = 40; x < w; x += 70) {
+            ctx.beginPath(); ctx.moveTo(320, 275); ctx.lineTo(x, h); ctx.stroke();
+        }
+        // Dock lights lead the eye toward the reunited family.
         ctx.fillStyle = '#FFAA22';
         for (let x = 205; x < 435; x += 24) ctx.fillRect(x, 268, 12, 7);
         ctx.fillStyle = '#55FFFF';
+        ctx.fillRect(74, 84, 5, 178);
+        ctx.fillRect(561, 84, 5, 178);
+        ctx.fillStyle = '#55FFFF';
         ctx.font = 'bold 14px "Courier New"';
         ctx.textAlign = 'center';
-        ctx.fillText('KERONA DOCKING BAY', w / 2, 112);
+        ctx.fillText('KERONA DOCKING BAY', w / 2, 56);
+        ctx.fillStyle = 'rgba(255,190,100,0.12)';
+        ctx.beginPath(); ctx.arc(320, 286, 62, 0, Math.PI * 2); ctx.fill();
 
         const people = [
-            { x: 280, h: 48, body: '#9b694f', skin: '#d8a07e' },
-            { x: 360, h: 44, body: '#805b43', skin: '#d8a07e' },
-            { x: 320, h: 28, body: '#5b7fa0', skin: '#e0aa88' }
+            { x: 286, height: 48, body: '#9b694f', skin: '#d8a07e', face: 1 },
+            { x: 354, height: 44, body: '#805b43', skin: '#d8a07e', face: -1 },
+            { x: 320, height: 28, body: '#5b7fa0', skin: '#e0aa88', face: 0 }
         ];
         people.forEach((person) => {
             const y = 310;
             ctx.fillStyle = person.body;
-            ctx.fillRect(person.x - 7, y - person.h, 14, person.h - 12);
+            ctx.fillRect(person.x - 7, y - person.height, 14, person.height - 12);
             ctx.fillStyle = person.skin;
-            ctx.fillRect(person.x - 6, y - person.h - 12, 12, 12);
+            ctx.fillRect(person.x - 6, y - person.height - 12, 12, 12);
             ctx.fillStyle = '#35251f';
-            ctx.fillRect(person.x - 6, y - person.h - 12, 12, 3);
+            ctx.fillRect(person.x - 6, y - person.height - 12, 12, 3);
             ctx.fillStyle = '#2c2630';
             ctx.fillRect(person.x - 6, y - 12, 5, 12);
             ctx.fillRect(person.x + 1, y - 12, 5, 12);
+            // Outstretched arms turn three blocks into an unmistakable reunion.
+            if (person.face) {
+                ctx.fillStyle = person.body;
+                const armX = person.face > 0 ? person.x + 7 : person.x - 18;
+                ctx.fillRect(armX, y - person.height + 8, 11, 5);
+                ctx.fillStyle = person.skin;
+                ctx.fillRect(person.face > 0 ? armX + 9 : armX, y - person.height + 8, 3, 5);
+            }
         });
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 16px "Courier New"';
@@ -1817,6 +1896,15 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillRect(px - 5 * s, py, 10 * s, 2 * s);
         ctx.fillStyle = PLAYER_PALETTE.buckle;
         ctx.fillRect(px - 1.5 * s, py - 0.5 * s, 3 * s, 2.5 * s);
+        // Janitorial identity details shared with the in-room ego sprite.
+        ctx.fillStyle = PLAYER_PALETTE.toolPouch;
+        ctx.fillRect(px - 6 * s, py - 0.5 * s, 2 * s, 3 * s);
+        ctx.fillStyle = PLAYER_PALETTE.cleaningRag;
+        ctx.fillRect(px + 4 * s, py, 2 * s, 2.5 * s);
+        ctx.fillStyle = PLAYER_PALETTE.workPatch;
+        ctx.fillRect(px + 1.5 * s, py - 8 * s, 2.5 * s, 2 * s);
+        ctx.fillStyle = PLAYER_PALETTE.workPatchDark;
+        ctx.fillRect(px + 2.5 * s, py - 7.5 * s, 1 * s, 1 * s);
         // Head
         ctx.fillStyle = PLAYER_PALETTE.skin;
         ctx.fillRect(px - 4 * s, py - 18 * s, 8 * s, 8 * s);
@@ -1906,6 +1994,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Belt buckle
         ctx.fillStyle = PLAYER_PALETTE.buckle;
         ctx.fillRect(beltX - 1.5 * s, cy - 1.5 * s, 3 * s, 3 * s);
+        ctx.fillStyle = PLAYER_PALETTE.toolPouch;
+        ctx.fillRect(beltX - 1 * s, cy - 6 * s, 3 * s, 2 * s);
+        ctx.fillStyle = PLAYER_PALETTE.cleaningRag;
+        ctx.fillRect(beltX, cy + 4 * s, 2.5 * s, 2 * s);
+
+        // Cyan maintenance patch on the sleeping uniform.
+        ctx.fillStyle = PLAYER_PALETTE.workPatch;
+        ctx.fillRect(bodyX + 3 * s, cy - 5 * s, 2 * s, 2.5 * s);
+        ctx.fillStyle = PLAYER_PALETTE.workPatchDark;
+        ctx.fillRect(bodyX + 3.5 * s, cy - 4 * s, 1 * s, 1 * s);
 
         // ---- FRONT ARM (resting above body surface) ----
         ctx.fillStyle = PLAYER_PALETTE.suit;
@@ -2693,13 +2791,43 @@ document.addEventListener('DOMContentLoaded', () => {
             // Sierra pseudo-3D: floor back edge y=255..275, front edge y=400.
             e.setDepthScaling(262, 380, 0.68, 1.0);
             // AGI-inspired barriers: fallen crew member, debris
-            e.addBarrier(320, 325, 65, 20);    // Dr. Chen's body
+            e.addBarrier(350, 325, 80, 20);    // Dr. Chen's body
             e.addBarrier(230, 315, 25, 15);    // Debris cluster left
             e.addBarrier(415, 345, 20, 15);    // Debris cluster right
 
             // Edge transitions for corridor (AGI EGOEDGE/NEWROOM)
             e.setEdgeTransition('left', (eng) => {
                 eng.goToRoom('broom_closet', 320, 310);
+            });
+
+            // Overhead strip lighting sits deep in the corridor, so cast shadows
+            // fall toward the camera.
+            e.setSceneLight(320, 90, 0.55);
+
+            // Near conduit bundles frame the shot and give the empty foreground a
+            // third depth plane the ego can walk behind.
+            e.addForegroundLayer(352, (ctx, eng) => {
+                const bob = Math.floor(eng.animTimer / 500) % 2;
+                // Left conduit bundle, floor to ceiling
+                ctx.fillStyle = '#12121e';
+                ctx.fillRect(0, 17, 30, 383);
+                ctx.fillStyle = '#1c1c2e';
+                ctx.fillRect(20, 17, 8, 383);
+                ctx.fillStyle = '#3b3b58';
+                ctx.fillRect(29, 17, 2, 383);
+                ctx.fillStyle = '#12121e';
+                ctx.fillRect(0, 168, 36, 14);
+                ctx.fillStyle = '#2a2a42';
+                ctx.fillRect(0, 170, 34, 3);
+                // Right-hand broken pipe, venting where it sheared
+                ctx.fillStyle = '#12121e';
+                ctx.fillRect(612, 17, 28, 383);
+                ctx.fillStyle = '#3b3b58';
+                ctx.fillRect(610, 17, 2, 383);
+                ctx.fillStyle = '#12121e';
+                ctx.fillRect(604, 236, 36, 12);
+                ctx.fillStyle = `rgba(200,215,255,${bob ? 0.14 : 0.07})`;
+                ctx.fillRect(596, 240, 16, 4);
             });
         },
         draw: (ctx, w, h, eng) => {
@@ -2796,11 +2924,20 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.moveTo(60, 93); ctx.lineTo(60, 268);
             ctx.stroke();
             ctx.lineWidth = 1;
-            // Lab label
-            ctx.font = '10px "Courier New"';
-            ctx.fillStyle = '#88AACC';
-            ctx.fillText('SCIENCE', 30, 140);
-            ctx.fillText('  LAB', 30, 153);
+            // Lab label — skewed onto the door plane (top edge drops 13px over 80px).
+            // Anchored clear of the near conduit that frames the left edge.
+            ctx.save();
+            ctx.translate(38, 134);
+            ctx.transform(1, 0.1625, 0, 1, 0, 0);
+            ctx.fillStyle = '#26323e';
+            ctx.fillRect(-2, -10, 62, 26);
+            ctx.fillStyle = '#1a232c';
+            ctx.fillRect(-2, 14, 62, 2);
+            ctx.font = 'bold 11px "Courier New"';
+            ctx.fillStyle = '#9CC4E4';
+            ctx.fillText('SCIENCE', 0, 0);
+            ctx.fillText('  LAB', 0, 12);
+            ctx.restore();
 
             // Pod bay door (right wall — perspective trapezoid)
             // Right wall runs (640,0)→(440,55)→(440,255)→(640,275)
@@ -2823,11 +2960,19 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.moveTo(580, 93); ctx.lineTo(580, 268);
             ctx.stroke();
             ctx.lineWidth = 1;
-            // Pod label
-            ctx.font = '10px "Courier New"';
-            ctx.fillStyle = '#88AACC';
-            ctx.fillText('ESCAPE', 552, 140);
-            ctx.fillText(' PODS', 552, 153);
+            // Pod label — mirror skew of the lab door
+            ctx.save();
+            ctx.translate(550, 132);
+            ctx.transform(1, -0.1625, 0, 1, 0, 0);
+            ctx.fillStyle = '#26323e';
+            ctx.fillRect(-2, -10, 62, 26);
+            ctx.fillStyle = '#1a232c';
+            ctx.fillRect(-2, 14, 62, 2);
+            ctx.font = 'bold 11px "Courier New"';
+            ctx.fillStyle = '#9CC4E4';
+            ctx.fillText('ESCAPE', 0, 0);
+            ctx.fillText(' PODS', 0, 12);
+            ctx.restore();
             // Keycard reader — on wall next to door
             ctx.fillStyle = eng.getFlag('pod_bay_unlocked') ? '#22AA22' : '#AA2222';
             ctx.fillRect(534, 170, 6, 10);
@@ -2853,11 +2998,17 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath();
             ctx.moveTo(490, 142); ctx.lineTo(516, 138); ctx.lineTo(516, 194); ctx.lineTo(490, 193);
             ctx.closePath(); ctx.fill();
-            // Engine room label
-            ctx.font = '8px "Courier New"';
-            ctx.fillStyle = '#88AACC';
-            ctx.fillText('ENGINE', 474, 183);
-            ctx.fillText('  ROOM', 474, 194);
+            // Engine room label — skewed onto the recessed door plane
+            ctx.save();
+            ctx.translate(472, 178);
+            ctx.transform(1, -0.161, 0, 1, 0, 0);
+            ctx.fillStyle = '#242c36';
+            ctx.fillRect(-2, -8, 44, 22);
+            ctx.font = 'bold 9px "Courier New"';
+            ctx.fillStyle = '#9CC4E4';
+            ctx.fillText('ENGINE', 0, 0);
+            ctx.fillText('  ROOM', 0, 11);
+            ctx.restore();
 
             // Supply Closet door (back wall)
             ctx.fillStyle = '#4a5e70';
@@ -2924,8 +3075,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Blood smear near crew member
             ctx.fillStyle = 'rgba(120,20,20,0.3)';
-            ctx.fillRect(365, 340, 15, 4);
-            ctx.fillRect(370, 338, 8, 3);
+            ctx.fillRect(350, 346, 18, 4);
+            ctx.fillRect(356, 343, 9, 3);
 
             // Debris - more detail
             ctx.fillStyle = '#444';
@@ -2941,30 +3092,56 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#5a5a7a';
             ctx.fillRect(202, 356, 16, 4);
 
-            // Fallen crew member (Dr. Chen)
-            // Torso
-            ctx.fillStyle = '#884444';
-            ctx.fillRect(330, 330, 50, 14);
-            // Lab coat
-            ctx.fillStyle = '#998888';
-            ctx.fillRect(332, 330, 46, 12);
-            // Head
+            // Fallen crew member (Dr. Chen). Laid out along a receding axis with
+            // the head nearest the camera, so she reads as a person rather than
+            // another piece of floor debris. Kept clear of the closet-door walk
+            // path so the ego never stands on top of her.
+            eng.drawContactShadow(ctx, 394, 344, 1, { rx: 44, ry: 8, alpha: 0.34, light: null });
+            // Boots and legs, foreshortened away from the viewer. Kept warm
+            // (brown/rose) rather than grey so she reads against the cool
+            // blue-grey corridor floor instead of blending into it.
+            ctx.fillStyle = '#241c18';
+            ctx.fillRect(430, 316, 12, 7);
+            ctx.fillStyle = '#6e5850';
+            ctx.fillRect(406, 318, 26, 10);
+            ctx.fillStyle = '#82695f';
+            ctx.fillRect(406, 318, 26, 2);
+            // Hips
+            ctx.fillStyle = '#5c473f';
+            ctx.fillRect(394, 320, 14, 14);
+            // Torso in a lab coat — largest mass because it is nearest
+            ctx.fillStyle = '#ab9490';
+            ctx.fillRect(370, 321, 26, 19);
+            ctx.fillStyle = '#c4ada8';
+            ctx.fillRect(370, 321, 26, 3);
+            ctx.fillStyle = '#8a726d';
+            ctx.fillRect(370, 337, 26, 3);
+            // Coat lapel
+            ctx.fillStyle = '#7a3a3a';
+            ctx.fillRect(382, 324, 4, 13);
+            // Shoulder rolled toward the floor
+            ctx.fillStyle = '#b8a19c';
+            ctx.fillRect(368, 324, 6, 12);
+            // Outstretched arm and hand reaching toward the player
+            ctx.fillStyle = '#ab9490';
+            ctx.fillRect(356, 336, 16, 6);
             ctx.fillStyle = '#CC9977';
-            ctx.fillRect(380, 325, 14, 14);
-            // Dark hair
+            ctx.fillRect(348, 337, 9, 6);
+            // Head, turned to one side
+            ctx.fillStyle = '#CC9977';
+            ctx.fillRect(354, 324, 17, 16);
+            ctx.fillStyle = '#B98868';
+            ctx.fillRect(354, 336, 17, 4);
+            // Dark hair spilling onto the deck
             ctx.fillStyle = '#222233';
-            ctx.fillRect(380, 325, 14, 5);
-            ctx.fillRect(392, 325, 3, 10);
-            // Arm outstretched
-            ctx.fillStyle = '#998888';
-            ctx.fillRect(323, 335, 10, 4);
-            // Hand
-            ctx.fillStyle = '#CC9977';
-            ctx.fillRect(318, 335, 6, 4);
+            ctx.fillRect(352, 322, 19, 7);
+            ctx.fillRect(348, 326, 6, 12);
+            ctx.fillStyle = '#33334a';
+            ctx.fillRect(354, 322, 10, 2);
 
             // KEYCARD on body — only visible before pickup
             if (!eng.getFlag('got_keycard_corridor')) {
-                const kcx = 338, kcy = 330;
+                const kcx = 375, kcy = 325;
                 // Card body (small badge clipped to coat)
                 ctx.fillStyle = '#DDDDCC';
                 ctx.fillRect(kcx, kcy, 20, 12);
@@ -3003,14 +3180,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Closed eyes (she's gone)
             ctx.fillStyle = '#222233';
-            ctx.fillRect(384, 331, 2, 1);
-            ctx.fillRect(389, 331, 2, 1);
+            ctx.fillRect(360, 331, 3, 1);
+            ctx.fillRect(366, 331, 3, 1);
 
             // Emergency lights
             alarmLight(ctx, 140, 6, eng);
             alarmLight(ctx, 480, 6, eng);
             alarmLight(ctx, 295, 57, eng);
             alarmGlow(ctx, w, h, eng);
+
+            // Light spilling onto the deck: the ceiling strip, the alarm domes and
+            // the engine-room breach. Without these the floor read as flat colour.
+            eng.lightPool(ctx, 320, 300, 190, '150,160,210', 0.21);
+            const flare = Math.floor(eng.animTimer / 500) % 2 ? 0.2 : 0.09;
+            eng.lightPool(ctx, 140, 300, 130, '255,60,50', flare);
+            eng.lightPool(ctx, 480, 300, 130, '255,60,50', flare);
+            eng.lightPool(ctx, 505, 285, 95, '220,70,30', 0.16);
+            eng.vignette(ctx, 0.3);
         },
         hotspots: [
             {
@@ -3046,7 +3232,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 onExit: (e) => e.goToRoom('broom_closet', 320, 310)
             },
             {
-                name: 'Fallen Crew Member', x: 325, y: 322, w: 70, h: 26,
+                name: 'Fallen Crew Member', x: 346, y: 316, w: 98, h: 30,
                 description: 'Someone lies motionless on the floor.',
                 look: (e) => {
                     e.showMessage('It\'s Dr. Chen from the xenophysics team. She didn\'t make it. Whatever hit the ship was fast and merciless. You notice her security keycard is still clipped to her uniform pocket.');
@@ -3121,6 +3307,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillStyle = '#555570';
                 ctx.fillRect(240, 268, 185, 4); // Table front edge
             });
+
+            // Overhead strip, deep in the room.
+            e.setSceneLight(330, 40, 0.5);
 
             // Edge transition: right side back to corridor
             e.setEdgeTransition('right', (eng) => {
@@ -3278,10 +3467,28 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.font = '9px "Courier New"';
             ctx.fillText('EXIT', 445, 186);
 
-            // Overturned chair
-            ctx.fillStyle = '#444458';
-            ctx.fillRect(200, 300, 30, 20);
-            ctx.fillRect(210, 290, 10, 10);
+            // Overturned chair. Warm wood-tone against the cool blue-grey floor
+            // (the flat #444458 it used before sat almost on top of the floor
+            // colour and was invisible despite being a real hotspot).
+            ctx.fillStyle = '#7a5a34';
+            ctx.fillRect(198, 302, 34, 8);
+            ctx.fillStyle = '#8f6a3e';
+            ctx.fillRect(198, 302, 34, 3);
+            // Legs splayed in the air
+            ctx.strokeStyle = '#5c4326';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(202, 302); ctx.lineTo(196, 282);
+            ctx.moveTo(212, 302); ctx.lineTo(210, 280);
+            ctx.moveTo(222, 310); ctx.lineTo(232, 292);
+            ctx.moveTo(230, 310); ctx.lineTo(244, 296);
+            ctx.stroke();
+            ctx.lineWidth = 1;
+            // Backrest, fallen to the side
+            ctx.fillStyle = '#8f6a3e';
+            ctx.fillRect(196, 292, 6, 16);
+            ctx.fillStyle = '#a5804e';
+            ctx.fillRect(196, 292, 2, 16);
 
             // Spilled specimen vials on floor
             ctx.fillStyle = '#44CC88';
@@ -3319,8 +3526,109 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(330, 291, 12, 16);
             ctx.fillRect(360, 296, 12, 16);
 
+            // --- Lab dressing ---
+            // Specimen tanks on the back wall. One is cracked and drained; the
+            // other still holds something that has not stopped moving.
+            const bob = Math.sin(eng.animTimer / 900) * 3;
+            const twitch = Math.sin(eng.animTimer / 240) * 1.5;
+            [[322, false], [356, true]].forEach(([tx, alive]) => {
+                ctx.fillStyle = '#191f2e';
+                ctx.fillRect(tx, 60, 32, 88);
+                ctx.fillStyle = '#3c4356';
+                ctx.fillRect(tx, 60, 32, 5);
+                ctx.fillRect(tx, 143, 32, 5);
+                ctx.fillStyle = alive ? '#0f3a2c' : '#2a2030';
+                ctx.fillRect(tx + 3, 66, 26, 76);
+                if (alive) {
+                    ctx.fillStyle = '#1d6b4a';
+                    ctx.fillRect(tx + 3, 74, 26, 68);
+                    // Suspended specimen: a knot of tendrils, slowly drifting
+                    ctx.fillStyle = '#7FE0A8';
+                    ctx.fillRect(tx + 10, 96 + bob, 12, 12);
+                    ctx.fillStyle = '#B8F5D0';
+                    ctx.fillRect(tx + 13, 99 + bob, 3, 3);
+                    ctx.fillStyle = '#4FBF88';
+                    ctx.fillRect(tx + 6, 106 + bob + twitch, 5, 2);
+                    ctx.fillRect(tx + 21, 105 + bob - twitch, 5, 2);
+                    ctx.fillRect(tx + 14, 108 + bob, 2, 9);
+                    ctx.fillRect(tx + 18, 108 + bob, 2, 7);
+                    // Rising bubbles
+                    for (let bI = 0; bI < 4; bI++) {
+                        const by = 140 - ((eng.animTimer / 14 + bI * 21) % 70);
+                        ctx.fillStyle = 'rgba(200,255,225,0.45)';
+                        ctx.fillRect(tx + 6 + bI * 5, by, 2, 2);
+                    }
+                } else {
+                    // Cracked glass and a dry residue line where the fluid sat
+                    ctx.strokeStyle = '#8894AA';
+                    ctx.beginPath();
+                    ctx.moveTo(tx + 5, 70); ctx.lineTo(tx + 17, 92);
+                    ctx.lineTo(tx + 10, 104); ctx.lineTo(tx + 25, 130);
+                    ctx.stroke();
+                    ctx.fillStyle = '#4a3550';
+                    ctx.fillRect(tx + 3, 128, 26, 14);
+                }
+                // Glass highlight down the left curve of the cylinder
+                ctx.fillStyle = 'rgba(190,215,255,0.16)';
+                ctx.fillRect(tx + 5, 68, 3, 72);
+                ctx.fillStyle = '#7E8AA0';
+                ctx.font = '5px "Courier New"';
+                ctx.fillText(alive ? 'SPEC-114' : 'SPEC-113', tx + 2, 152);
+            });
+
+            // Severed cable runs dumped out of the ceiling by the blast
+            ctx.lineWidth = 2;
+            [[206, '#8a5a20'], [216, '#2a4a7a'], [226, '#6a2a2a'], [470, '#2a4a7a'], [482, '#8a5a20']].forEach(([cx, col], i) => {
+                ctx.strokeStyle = col;
+                ctx.beginPath();
+                ctx.moveTo(cx, 50);
+                ctx.quadraticCurveTo(cx + (i % 2 ? 14 : -14), 82, cx + (i % 2 ? 4 : -6), 118 + i * 5);
+                ctx.stroke();
+            });
+            ctx.lineWidth = 1;
+            if (Math.floor(eng.animTimer / 180) % 6 === 0) {
+                ctx.fillStyle = '#FFFF55';
+                ctx.fillRect(220, 122, 2, 2);
+                ctx.fillRect(224, 126, 1, 1);
+            }
+
+            // Centrifuge, lid up and rotor still coasting
+            ctx.fillStyle = '#3c4356';
+            ctx.fillRect(258, 156, 44, 24);
+            ctx.fillStyle = '#6b7488';
+            ctx.fillRect(258, 152, 44, 5);
+            ctx.fillStyle = '#141a26';
+            ctx.fillRect(263, 160, 34, 14);
+            const spin = (eng.animTimer / 300) % 1;
+            ctx.fillStyle = '#8895AA';
+            ctx.fillRect(263 + Math.floor(spin * 30), 164, 5, 6);
+            ctx.fillStyle = Math.floor(eng.animTimer / 700) % 2 ? '#FF5555' : '#661111';
+            ctx.fillRect(296, 154, 4, 3);
+
+            // Beaker rack, one still bubbling over a hotplate that nobody switched off
+            ctx.fillStyle = '#3a4450';
+            ctx.fillRect(318, 172, 54, 8);
+            ctx.fillRect(318, 162, 3, 12);
+            ['#44CC88', '#CC8844', '#5588CC', '#AA55CC'].forEach((liq, i) => {
+                const bx = 322 + i * 13;
+                ctx.fillStyle = 'rgba(200,225,255,0.22)';
+                ctx.fillRect(bx, 158, 9, 14);
+                ctx.fillStyle = liq;
+                ctx.fillRect(bx + 1, 165, 7, 6);
+                if (i === 0) {
+                    const bubY = 165 - ((eng.animTimer / 20 + i * 30) % 14);
+                    ctx.fillStyle = 'rgba(120,255,190,0.6)';
+                    ctx.fillRect(bx + 4, bubY, 2, 2);
+                }
+            });
+
             alarmLight(ctx, 310, 5, eng);
             alarmGlow(ctx, w, h, eng);
+
+            // Ceiling strip and the live tank spill onto the deck.
+            eng.lightPool(ctx, 330, 300, 175, '170,190,225', lightOn ? 0.22 : 0.07);
+            eng.lightPool(ctx, 372, 200, 80, '80,220,150', 0.13);
+            eng.vignette(ctx, 0.3);
         },
         hotspots: [
             {
@@ -3383,6 +3691,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: 'Exit', x: 420, y: 92, w: 76, h: 172, isExit: true, walkToX: 458, walkToY: 330,
                 description: 'Door back to the corridor.',
                 onExit: (e) => e.goToRoom('corridor', 120, 310)
+            },
+            {
+                name: 'Specimen Tanks', x: 318, y: 56, w: 74, h: 96,
+                description: 'Two containment cylinders on the back wall.',
+                look: (e) => e.showMessage('Two containment cylinders. SPEC-113 is cracked and drained, its occupant long since evaporated into a purple crust. SPEC-114 is intact, and the thing inside is still moving. It has noticed you. It presses a tendril against the glass in what you desperately hope is a wave.'),
+                get: (e) => e.showMessage('You put your hand on the release valve, think about every documentary you have ever seen, and put your hand back in your pocket.'),
+                use: (e) => e.showMessage('The control panel offers PURGE, VENT, and RELEASE. Every one of those options ends the same way and you are not in that kind of story.'),
+                talk: (e) => e.showMessage('"Hey buddy. Bad day?" The specimen rotates slowly to face you. You take that as a yes.')
+            },
+            {
+                name: 'Centrifuge', x: 256, y: 150, w: 48, h: 32,
+                description: 'A benchtop centrifuge, still coasting down.',
+                look: (e) => e.showMessage('A benchtop centrifuge with the lid flipped open mid-run. The rotor is still turning, slowly, hours after whoever started it stopped needing the results.'),
+                get: (e) => e.showMessage('It is bolted to the bench, weighs more than you do, and is currently full of somebody\'s blood samples. Hard pass.'),
+                use: (e) => e.showMessage('You close the lid. The machine beeps once, gratefully, and keeps spinning. Somewhere in the universe, one procedure is still going to plan.')
             }
         ]
     });
@@ -3401,6 +3724,38 @@ document.addEventListener('DOMContentLoaded', () => {
             e.sound.startAmbient('ship_hum');
             // Sierra pseudo-3D: floor runs 258..400.
             e.setDepthScaling(276, 378, 0.72, 1.0);
+
+            // Launch floods sit high and forward of the bays.
+            e.setSceneLight(320, 40, 0.5);
+
+            // Near safety railing and a dropped cargo pallet frame the launch
+            // apron and give the empty foreground a plane to walk behind.
+            e.addForegroundLayer(360, (ctx, eng) => {
+                const strobe = Math.floor(eng.animTimer / 400) % 2;
+                // Gap on the left keeps the corridor doorway readable.
+                ctx.fillStyle = '#20202f';
+                ctx.fillRect(104, 356, 536, 7);
+                ctx.fillStyle = '#3a3a52';
+                ctx.fillRect(104, 356, 536, 2);
+                for (let px = 120; px < 640; px += 96) {
+                    ctx.fillStyle = '#20202f';
+                    ctx.fillRect(px, 356, 9, 44);
+                    ctx.fillStyle = '#3a3a52';
+                    ctx.fillRect(px, 356, 2, 44);
+                }
+                // Hazard chevrons along the apron edge
+                for (let hx = 104; hx < 640; hx += 24) {
+                    ctx.fillStyle = (((hx - 104) / 24) & 1) ? '#c8a416' : '#1b1b28';
+                    ctx.fillRect(hx, 366, 24, 4);
+                }
+                // Abandoned cargo pallet, bottom right
+                ctx.fillStyle = '#1c2030';
+                ctx.fillRect(508, 372, 96, 28);
+                ctx.fillStyle = '#2c3348';
+                ctx.fillRect(508, 372, 96, 4);
+                ctx.fillStyle = strobe ? '#FF7744' : '#5a2a14';
+                ctx.fillRect(596, 376, 5, 4);
+            });
 
             // Edge transition: left back to corridor
             e.setEdgeTransition('left', (eng) => {
@@ -3752,6 +4107,35 @@ document.addEventListener('DOMContentLoaded', () => {
             e.setEdgeTransition('right', (eng) => {
                 eng.showMessage('The desert stretches to the horizon. Going that way would be suicide without more supplies.');
             });
+
+            // Primary sun, high and to the right.
+            e.setSceneLight(498, 78, 0.7);
+
+            // Near dune ridge and a shaded boulder give the empty lower third a
+            // foreground plane for the ego to walk behind.
+            e.addForegroundLayer(374, (ctx) => {
+                ctx.fillStyle = '#C97A2A';
+                ctx.beginPath();
+                ctx.moveTo(0, 400); ctx.lineTo(0, 372); ctx.lineTo(90, 361); ctx.lineTo(210, 372);
+                ctx.lineTo(340, 364); ctx.lineTo(470, 375); ctx.lineTo(580, 366); ctx.lineTo(640, 373);
+                ctx.lineTo(640, 400); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#FFAA00';
+                ctx.beginPath();
+                ctx.moveTo(0, 372); ctx.lineTo(90, 361); ctx.lineTo(210, 372); ctx.lineTo(340, 364);
+                ctx.lineTo(470, 375); ctx.lineTo(580, 366); ctx.lineTo(640, 373);
+                ctx.lineTo(640, 377); ctx.lineTo(0, 376); ctx.closePath(); ctx.fill();
+                // Boulder, lit from the upper right to match the suns
+                ctx.fillStyle = '#6a3c14';
+                ctx.beginPath();
+                ctx.moveTo(560, 400); ctx.lineTo(566, 358); ctx.lineTo(596, 344);
+                ctx.lineTo(626, 356); ctx.lineTo(634, 400); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#8a5220';
+                ctx.beginPath();
+                ctx.moveTo(596, 344); ctx.lineTo(626, 356); ctx.lineTo(628, 400); ctx.lineTo(602, 400);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#C97A2A';
+                ctx.fillRect(598, 350, 24, 3);
+            });
         },
         onUpdate: (e, dt) => {
             if (!e.hasItem('survival_kit') && !e.getFlag('used_kit')) {
@@ -3776,8 +4160,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(0, 110, w, 34);
 
             // Checker bands avoid soft gradients and keep a limited-palette look.
+            // The lower band dithers into the horizon haze rather than straight
+            // into sand yellow, which read as a green stripe across the sky.
             ditherRect(ctx, 0, 82, w, 44, '#5555FF', '#55AAFF', 2);
-            ditherRect(ctx, 0, 129, w, 30, '#55AAFF', '#FFFF55', 2);
+            ditherRect(ctx, 0, 129, w, 30, '#55AAFF', '#e0b070', 2);
 
             // Twin suns as round discs with soft halos (no hard outline).
             const disc = (cx, cy, r, color) => {
@@ -3800,32 +4186,63 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#e0b070';
             ctx.fillRect(0, 150, w, 52);
 
-            // Distant mesas and mountains.
-            ctx.fillStyle = '#8a5a2e';
+            // Distant mesas and mountains. Aerial perspective: the furthest range
+            // sits closest to the haze colour and the nearest range carries the
+            // full-strength earth tone, so depth reads without any outline.
+            ctx.fillStyle = '#D8A468';
             ctx.beginPath();
             ctx.moveTo(0, 179); ctx.lineTo(40, 160); ctx.lineTo(88, 166); ctx.lineTo(132, 148);
             ctx.lineTo(190, 170); ctx.lineTo(244, 156); ctx.lineTo(304, 176); ctx.lineTo(360, 150);
             ctx.lineTo(424, 166); ctx.lineTo(492, 146); ctx.lineTo(560, 168); ctx.lineTo(640, 154);
             ctx.lineTo(640, 196); ctx.lineTo(0, 196); ctx.closePath(); ctx.fill();
-            ctx.fillStyle = '#AA5500';
+            ditherRect(ctx, 0, 150, w, 22, '#D8A468', '#e0b070', 2);
+            ctx.fillStyle = '#B87038';
             ctx.beginPath();
             ctx.moveTo(0, 183); ctx.lineTo(42, 166); ctx.lineTo(92, 172); ctx.lineTo(134, 154);
             ctx.lineTo(192, 176); ctx.lineTo(246, 162); ctx.lineTo(306, 181); ctx.lineTo(362, 156);
             ctx.lineTo(424, 172); ctx.lineTo(494, 152); ctx.lineTo(560, 174); ctx.lineTo(640, 160);
             ctx.lineTo(640, 201); ctx.lineTo(0, 201); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#AA5500';
+            ctx.beginPath();
+            ctx.moveTo(0, 190); ctx.lineTo(58, 180); ctx.lineTo(120, 186); ctx.lineTo(178, 176);
+            ctx.lineTo(250, 188); ctx.lineTo(322, 179); ctx.lineTo(400, 190); ctx.lineTo(470, 178);
+            ctx.lineTo(548, 189); ctx.lineTo(640, 181);
+            ctx.lineTo(640, 204); ctx.lineTo(0, 204); ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#FFAA00';
-            ctx.fillRect(0, 194, w, 8);
+            ctx.fillRect(0, 197, w, 6);
 
-            // Sand field, as flat bands like the reference screen.
+            // Sand field. Wavy dithered dune bodies rather than ruled stripes, which
+            // previously read as colour banding instead of terrain.
             ctx.fillStyle = '#FFFF55';
             ctx.fillRect(0, 202, w, 198);
-            ctx.fillStyle = '#AA5500';
-            ctx.fillRect(0, 202, w, 3);
-            ctx.fillRect(0, 218, w, 3);
-            ctx.fillStyle = '#FFAA00';
-            ctx.fillRect(0, 209, w, 4);
-            ctx.fillRect(0, 229, w, 3);
-            ditherRect(ctx, 0, 238, w, 36, '#FFFF55', '#FFAA00', 4);
+            const dune = (baseY, amp, period, c1, c2, thickness, crest) => {
+                for (let x = 0; x < w; x += 2) {
+                    const yy = Math.round(baseY + Math.sin(x / period) * amp);
+                    ditherRect(ctx, x, yy, 2, thickness, c1, c2, 2);
+                    // Windward crest catches the suns; the body below stays shaded.
+                    ctx.fillStyle = crest;
+                    ctx.fillRect(x, yy - 1, 2, 1);
+                }
+            };
+            dune(210, 4, 200, '#AA5500', '#FFAA00', 6, '#FFCC44');
+            dune(240, 9, 260, '#FFAA00', '#FFFF55', 14, '#FFEE88');
+            dune(284, 13, 340, '#FFAA00', '#FFFF55', 20, '#FFEE88');
+            dune(338, 15, 430, '#FFAA00', '#FFFF55', 26, '#FFEE88');
+
+            // Two suns, two shadows. Both discs sit up and to the right, so every
+            // solid object throws a long primary and a fainter secondary to the
+            // lower-left. Without these the desert had no light direction at all.
+            const castShade = (cx, cy, rx, ry) => {
+                ctx.fillStyle = 'rgba(150,80,0,0.26)';
+                ctx.beginPath(); ctx.ellipse(cx - rx * 0.55, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = 'rgba(150,80,0,0.14)';
+                ctx.beginPath(); ctx.ellipse(cx - rx * 0.95, cy + ry * 0.4, rx * 1.15, ry * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+            };
+            castShade(146, 303, 74, 10);
+            castShade(420, 224, 58, 7);
+            castShade(303, 324, 22, 5);
+            castShade(521, 332, 12, 4);
+            castShade(260, 342, 20, 4);
 
             // Crashed escape pod: chunky, half-buried, tonal shading (no hard outline).
             ctx.fillStyle = '#555566';
@@ -3865,25 +4282,32 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(151 + smokeFrame * 3, 246 - smokeFrame * 5, 5, 2);
             ctx.fillRect(160 - smokeFrame * 2, 234 - smokeFrame * 4, 6, 2);
 
-            // North rock formation and cave entrance.
+            // North rock formation and cave entrance. Stepped mesa profile rather
+            // than a single peak, so it reads as eroded rock instead of a cone.
             ctx.fillStyle = '#7a4a1e';
             ctx.beginPath();
-            ctx.moveTo(364, 224); ctx.lineTo(388, 170); ctx.lineTo(406, 180);
-            ctx.lineTo(430, 154); ctx.lineTo(463, 193); ctx.lineTo(477, 225);
+            ctx.moveTo(364, 224); ctx.lineTo(376, 186); ctx.lineTo(400, 180); ctx.lineTo(406, 166);
+            ctx.lineTo(444, 160); ctx.lineTo(452, 178); ctx.lineTo(466, 190); ctx.lineTo(477, 225);
             ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#AA5500';
             ctx.beginPath();
-            ctx.moveTo(374, 220); ctx.lineTo(392, 177); ctx.lineTo(410, 187);
-            ctx.lineTo(430, 162); ctx.lineTo(456, 197); ctx.lineTo(468, 220);
+            ctx.moveTo(374, 220); ctx.lineTo(384, 190); ctx.lineTo(404, 185); ctx.lineTo(410, 172);
+            ctx.lineTo(440, 167); ctx.lineTo(447, 184); ctx.lineTo(459, 196); ctx.lineTo(468, 220);
             ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#FFAA00';
             ctx.beginPath();
-            ctx.moveTo(392, 177); ctx.lineTo(410, 187); ctx.lineTo(398, 216); ctx.lineTo(382, 221);
+            ctx.moveTo(384, 190); ctx.lineTo(404, 185); ctx.lineTo(398, 216); ctx.lineTo(382, 221);
             ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#555500';
             ctx.beginPath();
-            ctx.moveTo(430, 162); ctx.lineTo(456, 197); ctx.lineTo(468, 220); ctx.lineTo(438, 220);
+            ctx.moveTo(440, 167); ctx.lineTo(447, 184); ctx.lineTo(459, 196); ctx.lineTo(468, 220); ctx.lineTo(438, 220);
             ctx.closePath(); ctx.fill();
+            // Eroded strata catch the low suns and break up the silhouette.
+            ctx.fillStyle = '#C97A2A';
+            ctx.fillRect(388, 198, 22, 2);
+            ctx.fillRect(432, 190, 24, 2);
+            ctx.fillStyle = '#6a3c14';
+            ctx.fillRect(392, 208, 18, 2);
             ctx.fillStyle = '#000000';
             ctx.fillRect(403, 196, 29, 27);
             ctx.fillStyle = '#550000';
@@ -3939,6 +4363,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const py = 258 + p * 25 + ((p * 11) % 9);
                 ctx.fillRect(px, py, 18, 1);
                 ctx.fillRect(px + 25, py + 4, 10, 1);
+            }
+
+            // Secondary shadow from the smaller sun. The engine draws the primary
+            // from eng.sceneLight; this one has to be painted under the ego here.
+            if (eng.playerVisible && !eng.dead) {
+                const ps = eng.playerSpriteScale(eng.playerY);
+                eng.drawContactShadow(ctx, eng.playerX, eng.playerY + 12 * ps, ps, {
+                    alpha: 0.15, light: { x: 564, y: 92, strength: 0.8 }
+                });
             }
         },
         hotspots: [
@@ -4058,6 +4491,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.moveTo(352, 270); ctx.lineTo(347, 325); ctx.lineTo(357, 325);
                 ctx.closePath(); ctx.fill();
             });
+
+            // The crystals are the only real light source in here, so give the
+            // ego a gentle rim-light kiss when standing near them. The first cut
+            // of this washed the entire cave into a flat cyan haze; it now only
+            // grazes a tight radius so the crystal peaks read as crystal, and the
+            // player, and not as one merged glowing blob.
+            e.addForegroundLayer(9999, (ctx, eng) => {
+                if (eng.getFlag('got_crystal')) return;
+                const dist = Math.hypot(eng.playerX - 320, eng.playerY - 280);
+                if (dist > 130) return;
+                const near = 1 - Math.min(dist / 130, 1);
+                const pulse = (0.05 + Math.sin(eng.animTimer / 600) * 0.018) * near;
+                ctx.save();
+                ctx.globalCompositeOperation = 'lighter';
+                const g = ctx.createRadialGradient(eng.playerX, eng.playerY - 20, 4, eng.playerX, eng.playerY - 20, 46);
+                g.addColorStop(0, `rgba(60,220,200,${pulse})`);
+                g.addColorStop(1, 'rgba(50,180,170,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(eng.playerX - 46, eng.playerY - 66, 92, 92);
+                ctx.restore();
+            });
+
+            // Crystals light the room from floor level, so shadows fan outward.
+            e.setSceneLight(320, 262, 0.5);
 
             // Edge transitions
             e.setEdgeTransition('left', (eng) => {
@@ -4430,6 +4887,45 @@ document.addEventListener('DOMContentLoaded', () => {
             // AGI-inspired barriers: fuel barrels, street lamp
             e.addBarrier(190, 290, 45, 15);    // Fuel barrels
             e.addBarrier(396, 290, 10, 15);    // Street lamp pole base
+
+            // Twin suns again, high and right.
+            e.setSceneLight(520, 60, 0.65);
+
+            // Near street clutter: a crate stack and a hitching rail the ego can
+            // pass behind, so the dusty street reads as three planes deep.
+            e.addForegroundLayer(368, (ctx) => {
+                // Crate stack, bottom left
+                ctx.fillStyle = '#4a3a20';
+                ctx.fillRect(8, 344, 74, 56);
+                ctx.fillStyle = '#6a5430';
+                ctx.fillRect(8, 344, 74, 5);
+                ctx.fillRect(8, 344, 5, 56);
+                ctx.fillStyle = '#2e2412';
+                ctx.fillRect(20, 358, 50, 4);
+                ctx.fillRect(20, 380, 50, 4);
+                ctx.fillStyle = '#3a2c18';
+                ctx.fillRect(30, 322, 52, 24);
+                ctx.fillStyle = '#5a4728';
+                ctx.fillRect(30, 322, 52, 4);
+                // Hitching rail across the near kerb
+                ctx.fillStyle = '#3a2c18';
+                ctx.fillRect(180, 372, 300, 6);
+                ctx.fillRect(196, 372, 8, 28);
+                ctx.fillRect(452, 372, 8, 28);
+                ctx.fillStyle = '#5a4728';
+                ctx.fillRect(180, 372, 300, 2);
+                // Dust drift piled against the kerb — dithered and scalloped
+                // rather than a flat rectangle, so it doesn't read as a letterbox bar.
+                for (let dx = 180; dx < 480; dx += 20) {
+                    const bump = 4 + ((dx / 20) % 3) * 2;
+                    ditherRect(ctx, dx, 386 - bump, 20, 14 + bump, '#C08A44', '#E0A860', 2);
+                }
+                ctx.fillStyle = '#F0C078';
+                for (let dx = 180; dx < 480; dx += 20) {
+                    const bump = 4 + ((dx / 20) % 3) * 2;
+                    ctx.fillRect(dx, 386 - bump, 20, 2);
+                }
+            });
 
             // AGI-inspired NPC: wandering alien creature (like SQ1's Ulence Flats aliens)
             if (!e.getNPC('outpost_alien')) {
@@ -6106,10 +6602,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.save();
                     ctx.beginPath(); ctx.rect(224, 290, 62, 34); ctx.clip();
                     ctx.translate(320, 310); ctx.rotate(-0.1);
-                    ctx.fillStyle = '#3a3040';
+                    ctx.fillStyle = '#241c2e';
                     ctx.fillRect(-90, -8, 180, 16);
-                    ctx.fillStyle = '#2a2030';
-                    ctx.fillRect(-90, -8, 180, 5);
+                    ctx.fillStyle = '#4a3f56';
+                    ctx.fillRect(-90, -8, 180, 4);
+                    ctx.fillStyle = '#6d5f7c';
+                    ctx.fillRect(-90, -10, 180, 3);
+                    ctx.fillStyle = '#8f7fa2';
+                    ctx.fillRect(-90, -10, 180, 1);
+                    ctx.fillStyle = '#3a2028';
+                    ctx.fillRect(-90, 5, 180, 3);
+                    ctx.fillStyle = '#15101c';
+                    for (let bx = -82; bx < 86; bx += 14) ctx.fillRect(bx, -3, 2, 2);
                     ctx.restore();
                 } else if (!eng.getFlag('korvak_left')) {
                     eng.drawContactShadow(ctx, 153, 342, 1, { rx: 14, ry: 3.5, alpha: 0.28 });
@@ -6208,18 +6712,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 ], true);
             alarmLight(ctx, 428, 82, eng);
 
-            // Collapsed beam across floor (wreckage)
-            ctx.fillStyle = '#3a3040';
+            // Collapsed beam across floor (wreckage). Shaded as a solid I-beam
+            // rather than a flat slab, which previously read as a hole in the art.
+            ctx.fillStyle = 'rgba(10,6,14,0.5)';
+            ctx.beginPath(); ctx.ellipse(316, 322, 96, 11, -0.08, 0, Math.PI * 2); ctx.fill();
             ctx.save();
             ctx.translate(320, 310);
             ctx.rotate(-0.1);
+            // Web and lower flange in shadow
+            ctx.fillStyle = '#241c2e';
             ctx.fillRect(-90, -8, 180, 16);
-            ctx.fillStyle = '#2a2030';
-            ctx.fillRect(-90, -8, 180, 5);
+            ctx.fillStyle = '#4a3f56';
+            ctx.fillRect(-90, -8, 180, 4);
+            // Top flange catches the emergency lighting
+            ctx.fillStyle = '#6d5f7c';
+            ctx.fillRect(-90, -10, 180, 3);
+            ctx.fillStyle = '#8f7fa2';
+            ctx.fillRect(-90, -10, 180, 1);
+            // Lower edge picks up the fire glow bouncing off the deck
+            ctx.fillStyle = '#3a2028';
+            ctx.fillRect(-90, 5, 180, 3);
+            // Rivet line and stress buckles
+            ctx.fillStyle = '#15101c';
+            for (let bx = -82; bx < 86; bx += 14) ctx.fillRect(bx, -3, 2, 2);
+            ctx.fillStyle = '#2f2640';
+            ctx.fillRect(-24, -8, 3, 16);
+            ctx.fillRect(38, -8, 3, 16);
+            // Sheared ends, torn rather than cut
+            ctx.fillStyle = '#5a4d68';
+            ctx.beginPath();
+            ctx.moveTo(90, -10); ctx.lineTo(97, -4); ctx.lineTo(92, 2); ctx.lineTo(96, 8); ctx.lineTo(90, 8);
+            ctx.closePath(); ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(-90, -10); ctx.lineTo(-97, -5); ctx.lineTo(-93, 1); ctx.lineTo(-98, 8); ctx.lineTo(-90, 8);
+            ctx.closePath(); ctx.fill();
             ctx.restore();
-            // Scorch marks under beam
-            ctx.fillStyle = 'rgba(20,10,10,0.6)';
-            ctx.beginPath(); ctx.ellipse(320, 314, 80, 12, 0, 0, Math.PI * 2); ctx.fill();
 
             // Conduit pipe damage on the right wall
             ctx.fillStyle = '#334455';
@@ -6713,6 +7240,34 @@ document.addEventListener('DOMContentLoaded', () => {
             // Cell bar barriers — can't walk into cells
             e.addBarrier(30, 200, 120, 150);
             e.addBarrier(490, 200, 120, 150);
+
+            // The only light is the strip running down the middle of the block.
+            e.setSceneLight(320, 60, 0.45);
+
+            // Near cell-bay uprights frame the corridor and darken the foreground.
+            e.addForegroundLayer(366, (ctx, eng) => {
+                const flick = Math.floor(eng.animTimer / 500) % 2;
+                [[0, 44], [596, 44]].forEach(([bx, bw]) => {
+                    ctx.fillStyle = '#05050e';
+                    ctx.fillRect(bx, 80, bw, 320);
+                    ctx.fillStyle = '#1e1e38';
+                    ctx.fillRect(bx === 0 ? bx + bw - 3 : bx, 80, 3, 320);
+                });
+                ctx.fillStyle = '#05050e';
+                ctx.fillRect(0, 366, 640, 34);
+                ctx.fillStyle = '#1b1b34';
+                ctx.fillRect(0, 366, 640, 3);
+                // Deck plating seams stop the near band reading as a letterbox bar
+                ctx.fillStyle = '#12122a';
+                for (let sx = -40; sx < 700; sx += 80) {
+                    ctx.beginPath();
+                    ctx.moveTo(sx, 400); ctx.lineTo(sx + 26, 369);
+                    ctx.lineTo(sx + 28, 369); ctx.lineTo(sx + 3, 400);
+                    ctx.closePath(); ctx.fill();
+                }
+                ctx.fillStyle = flick ? 'rgba(200,60,50,0.16)' : 'rgba(200,60,50,0.06)';
+                ctx.fillRect(0, 369, 640, 31);
+            });
         },
         draw: (ctx, w, h, eng) => {
             // Dark corridor background
@@ -7475,6 +8030,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Normal standing guard - alive and menacing
                 // Contact shadow grounds the guard on the chamber floor.
                 eng.drawContactShadow(ctx, 121, 291, 1, { rx: 27, ry: 4.5, alpha: 0.3 });
+                // The chamber is mono-green, so the guard was camouflaged against
+                // his own ship. A framed sentry alcove behind him and a violet rim
+                // light on his lit edge pull the silhouette off the wall.
+                ctx.fillStyle = '#0e2a0e';
+                ctx.fillRect(66, 100, 112, 194);
+                ctx.fillStyle = '#1a4a1a';
+                ctx.fillRect(66, 100, 112, 6);
+                ctx.fillRect(66, 100, 6, 194);
+                ctx.fillRect(172, 100, 6, 194);
+                ctx.fillStyle = 'rgba(0,10,0,0.62)';
+                ctx.fillRect(74, 106, 96, 188);
+                ctx.fillStyle = '#33AA33';
+                ctx.font = '7px "Courier New"';
+                ctx.fillText('SENTRY 1', 74, 98);
                 // Body - large, menacing
                 ctx.fillStyle = '#114411';
                 ctx.fillRect(95, 160, 50, 90);
@@ -7567,6 +8136,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillStyle = '#444444';
                 ctx.fillRect(95, 285, 3, 4);
                 ctx.fillRect(146, 285, 3, 4);
+                // Violet rim light down the near edge, plus a warm catch on the
+                // helmet crest — the only non-green in the room, by design.
+                ctx.fillStyle = '#B45CE0';
+                ctx.fillRect(93, 160, 2, 90);
+                ctx.fillRect(78, 170, 2, 45);
+                ctx.fillRect(101, 125, 2, 35);
+                ctx.fillRect(98, 118, 2, 18);
+                ctx.fillRect(98, 250, 2, 35);
+                ctx.fillStyle = '#E0A0FF';
+                ctx.fillRect(100, 116, 40, 2);
+                ctx.fillRect(113, 110, 12, 2);
+                ctx.fillStyle = '#6A2A90';
+                ctx.fillRect(160, 170, 2, 45);
+                ctx.fillRect(145, 160, 2, 90);
             }
 
             // Exit / airlock (left)

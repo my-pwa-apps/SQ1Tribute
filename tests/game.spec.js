@@ -8,7 +8,7 @@ async function clearState(page) {
 
 async function finishIntro(page, modeKey = 'e') {
     await page.keyboard.press(modeKey);
-    for (let index = 0; index < 14; index++) {
+    for (let index = 0; index < 18; index++) {
         await page.keyboard.press('Space');
         await page.waitForTimeout(120);
     }
@@ -79,6 +79,36 @@ test('title mode switching keeps inactive gameplay chrome hidden', async ({ page
     await expect(page.locator('body')).toHaveClass(new RegExp(initialMode === 'classic' ? 'enhanced-mode' : 'classic-mode'));
     await expect(page.locator('#action-bar')).toBeHidden();
     await expect(page.locator('#message-text')).toContainText(/interface selected/i);
+});
+
+test('startup advances preserve the warning, explosions, and emergency sequence', async ({ page }) => {
+    await clearState(page);
+    await page.evaluate(() => {
+        const e = window.engine;
+        e.__introAnnouncements = [];
+        e.__introExplosions = 0;
+        const announce = e.announce.bind(e);
+        e.announce = (text) => {
+            e.__introAnnouncements.push(text);
+            announce(text);
+        };
+        e.sound.explosion = () => { e.__introExplosions++; };
+    });
+    await page.keyboard.press('e');
+    for (let index = 0; index < 18; index++) {
+        await page.keyboard.press('Space');
+        await page.waitForTimeout(120);
+    }
+    const intro = await page.evaluate(() => ({
+        announcements: window.engine.__introAnnouncements,
+        explosions: window.engine.__introExplosions,
+        room: window.engine.currentRoomId
+    }));
+    expect(intro.announcements.join(' ')).toMatch(/proximity alert|what the/i);
+    expect(intro.announcements.join(' ')).toMatch(/ship shudders violently/i);
+    expect(intro.announcements.join(' ')).toMatch(/need to get out/i);
+    expect(intro.explosions).toBe(2);
+    expect(intro.room).toBe('broom_closet');
 });
 
 test('game starts, announces narration, and saves a validated slot', async ({ page }) => {
@@ -161,6 +191,40 @@ test('repeated hints never reduce adventure score', async ({ page }) => {
         return { first, second: window.engine.score };
     });
     expect(scores).toEqual({ first: 10, second: 10 });
+});
+
+test('title, player, and Draknoid motifs have distinct procedural signatures', async ({ page }) => {
+    await clearState(page);
+    const signatures = await page.evaluate(() => {
+        const sound = window.engine.sound;
+        const originalCtx = sound.ctx;
+        const originalOsc = sound._osc;
+        sound.ctx = { currentTime: 0 };
+        const capture = (play) => {
+            const notes = [];
+            sound._osc = (type, frequency, start, duration) => {
+                notes.push([type, Math.round(frequency), start, duration]);
+                return null;
+            };
+            play();
+            return notes;
+        };
+        try {
+            return {
+                title: capture(() => sound.titleTheme()),
+                player: capture(() => sound.playerMotif()),
+                draknoid: capture(() => sound.draknoidMotif())
+            };
+        } finally {
+            sound._osc = originalOsc;
+            sound.ctx = originalCtx;
+        }
+    });
+    expect(signatures.title.length).toBeGreaterThanOrEqual(14);
+    expect(signatures.player.length).toBeGreaterThanOrEqual(9);
+    expect(signatures.draknoid.length).toBeGreaterThanOrEqual(9);
+    expect(signatures.title).not.toEqual(signatures.player);
+    expect(signatures.player).not.toEqual(signatures.draknoid);
 });
 
 test('the conduit fire can be put out by acting on the fire itself', async ({ page }) => {
@@ -295,7 +359,7 @@ test.describe('touch controls', () => {
         const canvas = page.locator('#game-canvas');
         const box = await canvas.boundingBox();
         await page.touchscreen.tap(box.x + box.width * (220 / 640), box.y + box.height * (352 / 400));
-        for (let index = 0; index < 14; index++) {
+        for (let index = 0; index < 18; index++) {
             await page.keyboard.press('Space');
             await page.waitForTimeout(120);
         }
