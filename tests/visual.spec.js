@@ -87,6 +87,14 @@ test.describe('visual regression', () => {
         await page.evaluate(() => { window.engine.crtEffects = true; });
         await setRoomState(page, 'corridor', {});
         await expectCanvas(page, 'corridor-crt.png');
+
+        await page.evaluate(() => { window.engine.crtEffects = false; });
+        await setRoomState(page, 'science_lab', {});
+        await page.evaluate(() => {
+            window.engine.animTimer = 300;
+            window.engine.render();
+        });
+        await expectCanvas(page, 'science-lab-monitor-on.png');
     });
 
     test('mobile scene detail and framing', async ({ page }, testInfo) => {

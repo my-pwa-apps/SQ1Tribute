@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     {
                         text: 'Are there any survivors?',
-                        response: '"I heard voices in the pod bay — maybe some made it out. There was a prisoner manifest from a Draknoid patrol that docked two weeks ago. They might have taken some of us alive. I saw them dragging crewmates toward their shuttle."',
+                        response: '"I heard voices in the pod bay — maybe some made it out. One of their boarding tablets was logging prisoners as they dragged crewmates toward the shuttle. They took some of us alive. If that list reached their ship, there may still be time."',
                         once: true
                     },
                     {
@@ -187,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     {
                         text: 'Let me take a look at that leg.',
-                        response: '"It\'s not pretty. I could survive if I had a medkit — there should be one in the fire suppression cabinet on the left wall, right here in this room. If you scavenged the crashed pod on the desert, that wreck had one too. I\'d get it myself but... well."',
+                        response: '"It\'s not pretty. I could survive if I had a medkit — there should be one in the fire suppression cabinet on the left wall, right here in this room. Emergency pods carry another in their crash lockers, but that won\'t help me once you launch. I\'d get this one myself but... well."',
                         once: true
                     },
                     {
@@ -236,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     },
                     {
                         text: 'Is there anything useful on this freighter?',
-                        response: '"The cargo hold is mostly torched, but I\'ve been living up here near the bridge. Dad always kept a frequency chip in the emergency locker — still works. And there\'s a cargo manifest in the nav console somewhere. Oh, and I found this prisoner badge near the hatch..."',
+                        response: '"The cargo hold is mostly torched, but I\'ve been living up here near the bridge. Dad always kept a frequency chip in the emergency locker — still works. The blast knocked the cargo manifest out by the hull breach. Oh, and I found this prisoner badge near the hatch..."',
                         action: (eng) => {
                             if (!eng.getFlag('pipz_gave_items')) {
                                 eng.setFlag('pipz_gave_items');
@@ -716,6 +716,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========== DRAWING HELPERS ==========
     const ditherPatternCache = new Map();
+    const perspectiveSurfaceCanvas = document.createElement('canvas');
+
+    /** Paint a small logical surface, then map it into a wall trapezoid one
+     * pixel column at a time. Canvas affine transforms can only shear text;
+     * this also compresses glyphs toward the vanishing edge. */
+    function drawPerspectiveSurface(ctx, sourceWidth, sourceHeight, quad, paint) {
+        perspectiveSurfaceCanvas.width = sourceWidth;
+        perspectiveSurfaceCanvas.height = sourceHeight;
+        const source = perspectiveSurfaceCanvas.getContext('2d');
+        source.imageSmoothingEnabled = false;
+        source.clearRect(0, 0, sourceWidth, sourceHeight);
+        paint(source);
+
+        const leftHeight = quad.bl.y - quad.tl.y;
+        const rightHeight = quad.br.y - quad.tr.y;
+        const compression = Math.max(-0.4, Math.min(0.4,
+            (leftHeight - rightHeight) / Math.max(leftHeight, rightHeight)));
+        const mapU = (u) => u + compression * u * (1 - u);
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        for (let sx = 0; sx < sourceWidth; sx++) {
+            const u0 = mapU(sx / sourceWidth);
+            const u1 = mapU((sx + 1) / sourceWidth);
+            const x0 = quad.tl.x + (quad.tr.x - quad.tl.x) * u0;
+            const x1 = quad.tl.x + (quad.tr.x - quad.tl.x) * u1;
+            const topY = quad.tl.y + (quad.tr.y - quad.tl.y) * u0;
+            const bottomY = quad.bl.y + (quad.br.y - quad.bl.y) * u0;
+            ctx.drawImage(perspectiveSurfaceCanvas, sx, 0, 1, sourceHeight,
+                x0, topY, Math.max(1, x1 - x0 + 0.35), bottomY - topY);
+        }
+        ctx.restore();
+    }
 
     function getDitherPattern(ctx, c1, c2, ps) {
         const key = `${c1}|${c2}|${ps}`;
@@ -1776,25 +1808,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // CUTSCENE 6: Brig prisoner rescue
-    function cutsceneBrigRescue(ctx, w, h, progress, elapsed) {
+    function cutsceneBrigRescue(ctx, w, h, progress, elapsed, releaseMethod) {
         ctx.fillStyle = '#0a1a0a'; ctx.fillRect(0, 0, w, h);
         if (progress < 0.35) {
             const p = progress / 0.35;
             ctx.fillStyle = '#0a1a0a'; ctx.fillRect(0, 0, w, h);
             drawDoorway(ctx, w * 0.35, h * 0.15, w * 0.3, h * 0.65, 'BRIG-7', false, '#2a5a2a');
-            const cutY = h * 0.15 + p * h * 0.65;
-            ctx.fillStyle = 'rgba(255,200,50,' + (0.9 - p * 0.2) + ')';
-            ctx.beginPath(); ctx.arc(w * 0.35, cutY, 5, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = 'rgba(255,255,200,0.6)';
-            ctx.beginPath(); ctx.arc(w * 0.35, cutY, 2, 0, Math.PI * 2); ctx.fill();
-            for (let i = 0; i < 5; i++) {
-                const sx = w * 0.35 + Math.cos(elapsed * 0.02 + i) * (3 + i * 2);
-                const sy = cutY + Math.sin(elapsed * 0.015 + i) * (3 + i);
-                ctx.fillStyle = 'rgba(255,220,80,' + (0.7 - i * 0.1) + ')';
-                ctx.fillRect(sx, sy, 2, 2);
+            if (releaseMethod === 'prisoner_badge') {
+                const readerX = w * 0.68, readerY = h * 0.48;
+                ctx.fillStyle = '#333344'; ctx.fillRect(readerX - 18, readerY - 30, 36, 60);
+                ctx.fillStyle = Math.floor(elapsed / 180) % 2 ? '#55FF55' : '#228822';
+                ctx.fillRect(readerX - 11, readerY - 20, 22, 14);
+                ctx.fillStyle = '#CCCC88'; ctx.fillRect(readerX - 15, readerY + 2, 30, 16);
+                ctx.fillStyle = '#334455'; ctx.fillRect(readerX - 12, readerY + 5, 24, 10);
+                ctx.fillStyle = '#8f8'; ctx.font = '12px "Courier New"'; ctx.textAlign = 'center';
+                ctx.fillText('CLEARANCE ACCEPTED', w / 2, h - 30); ctx.textAlign = 'left';
+            } else {
+                const cutY = h * 0.15 + p * h * 0.65;
+                ctx.fillStyle = 'rgba(255,200,50,' + (0.9 - p * 0.2) + ')';
+                ctx.beginPath(); ctx.arc(w * 0.35, cutY, 5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,200,0.6)';
+                ctx.beginPath(); ctx.arc(w * 0.35, cutY, 2, 0, Math.PI * 2); ctx.fill();
+                for (let i = 0; i < 5; i++) {
+                    const sx = w * 0.35 + Math.cos(elapsed * 0.02 + i) * (3 + i * 2);
+                    const sy = cutY + Math.sin(elapsed * 0.015 + i) * (3 + i);
+                    ctx.fillStyle = 'rgba(255,220,80,' + (0.7 - i * 0.1) + ')';
+                    ctx.fillRect(sx, sy, 2, 2);
+                }
+                ctx.fillStyle = '#ff8'; ctx.font = '12px "Courier New"'; ctx.textAlign = 'center';
+                ctx.fillText('Cutting through...', w / 2, h - 30); ctx.textAlign = 'left';
             }
-            ctx.fillStyle = '#ff8'; ctx.font = '12px "Courier New"'; ctx.textAlign = 'center';
-            ctx.fillText('Cutting through...', w / 2, h - 30); ctx.textAlign = 'left';
         } else if (progress < 0.65) {
             const p = (progress - 0.35) / 0.3;
             ctx.fillStyle = '#0a1a0a'; ctx.fillRect(0, 0, w, h);
@@ -1816,8 +1859,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (Math.floor(elapsed / 300) % 2) { ctx.fillStyle = 'rgba(255,0,0,0.08)'; ctx.fillRect(0, 0, w, h); }
             const run = Math.floor(elapsed / 160) % 2;
             const baseX = w * 0.55 - p * 180;
-            for (let i = 0; i < 3; i++) {
-                const bx = baseX + i * 22, by = h * 0.78;
+            for (let i = 0; i < 5; i++) {
+                const bx = baseX + i * 18, by = h * 0.78 - (i % 2) * 5;
                 ctx.fillStyle = i === 0 ? PLAYER_PALETTE.suit : '#AA7755';
                 ctx.fillRect(bx - 4, by - 20, 8, 16);
                 ctx.fillStyle = i === 0 ? '#FFCC88' : '#CC9977';
@@ -1847,7 +1890,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.playCutscene({
             duration: 6500,
             skippable: true,
-            draw: (ctx, w, h, prog, elapsed) => cutsceneBrigRescue(ctx, w, h, prog, elapsed),
+            draw: (ctx, w, h, prog, elapsed) => cutsceneBrigRescue(ctx, w, h, prog, elapsed, itemId),
             onEnd: () => {
                 e.goToRoom('draknoid_ship', 200, 310);
                 e.showMessage(successMessage);
@@ -1880,6 +1923,9 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillStyle = '#111111';
         ctx.fillRect(px - 5 * s, py + 11 * s, 5 * s, 1 * s);
         ctx.fillRect(px + 0 * s, py + 11 * s, 5 * s, 1 * s);
+        ctx.fillStyle = PLAYER_PALETTE.bootHighlight;
+        ctx.fillRect(px - 4 * s, py + 9 * s, 2 * s, 1 * s);
+        ctx.fillRect(px + 1 * s, py + 9 * s, 2 * s, 1 * s);
         // Body
         ctx.fillStyle = PLAYER_PALETTE.suit;
         ctx.fillRect(px - 5 * s, py - 10 * s, 10 * s, 11 * s);
@@ -1905,16 +1951,25 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillRect(px + 1.5 * s, py - 8 * s, 2.5 * s, 2 * s);
         ctx.fillStyle = PLAYER_PALETTE.workPatchDark;
         ctx.fillRect(px + 2.5 * s, py - 7.5 * s, 1 * s, 1 * s);
-        // Head
+        // Friendly stepped face and jaw, matching the gameplay sprite.
         ctx.fillStyle = PLAYER_PALETTE.skin;
-        ctx.fillRect(px - 4 * s, py - 18 * s, 8 * s, 8 * s);
+        ctx.fillRect(px - 3 * s, py - 18 * s, 6 * s, 1 * s);
+        ctx.fillRect(px - 4 * s, py - 17 * s, 8 * s, 5 * s);
+        ctx.fillRect(px - 3 * s, py - 12 * s, 6 * s, 2 * s);
         ctx.fillStyle = PLAYER_PALETTE.skinShadow;
-        ctx.fillRect(px - 4 * s, py - 11 * s, 8 * s, 1 * s);
-        // Hair
+        ctx.fillRect(px - 3 * s, py - 11 * s, 6 * s, 1 * s);
+        // Tousled hair and cowlick.
         ctx.fillStyle = PLAYER_PALETTE.hair;
-        ctx.fillRect(px - 4 * s, py - 19 * s, 8 * s, 4 * s);
-        ctx.fillStyle = '#CC8844';
-        ctx.fillRect(px - 2 * s, py - 19 * s, 4 * s, 1 * s);
+        ctx.fillRect(px - 3 * s, py - 20 * s, 2 * s, 2 * s);
+        ctx.fillRect(px - 4 * s, py - 19 * s, 7 * s, 3 * s);
+        ctx.fillRect(px + 3 * s, py - 18 * s, 1 * s, 3 * s);
+        ctx.fillStyle = PLAYER_PALETTE.hairDark;
+        ctx.fillRect(px - 4 * s, py - 18 * s, 1 * s, 3 * s);
+        ctx.fillStyle = PLAYER_PALETTE.hairHighlight;
+        ctx.fillRect(px - 1 * s, py - 20 * s, 3 * s, 1 * s);
+        ctx.fillStyle = PLAYER_PALETTE.brow;
+        ctx.fillRect(px - 3 * s, py - 16 * s, 2 * s, 0.5 * s);
+        ctx.fillRect(px + 1 * s, py - 16 * s, 2 * s, 0.5 * s);
         // Eyes
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(px - 3 * s, py - 15 * s, 2.5 * s, 2 * s);
@@ -1922,6 +1977,11 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillStyle = PLAYER_PALETTE.iris;
         ctx.fillRect(px - 2.5 * s, py - 15 * s, 1.5 * s, 2 * s);
         ctx.fillRect(px + 1 * s, py - 15 * s, 1.5 * s, 2 * s);
+        ctx.fillStyle = PLAYER_PALETTE.skinShadow;
+        ctx.fillRect(px - 0.5 * s, py - 14 * s, 1 * s, 2 * s);
+        ctx.fillStyle = PLAYER_PALETTE.smile;
+        ctx.fillRect(px - 1.5 * s, py - 11.5 * s, 3 * s, 0.5 * s);
+        ctx.fillRect(px + 1 * s, py - 12 * s, 1 * s, 0.5 * s);
         // Arms pivot at the shoulder in three discrete poses (Sierra used cels,
         // not tweens) so the limb never slides up the torso past the shoulder.
         const armPose = armAngle < 0.25 ? 0 : (armAngle < 0.7 ? 1 : 2);
@@ -1931,18 +1991,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillRect(sx, py - 8 * s, 2 * s, 6 * s);
                 ctx.fillStyle = PLAYER_PALETTE.collar;
                 ctx.fillRect(sx, py - 2 * s, 2 * s, 1 * s);
-                ctx.fillStyle = PLAYER_PALETTE.skin;
+                ctx.fillStyle = PLAYER_PALETTE.gloves;
                 ctx.fillRect(sx, py - 1 * s, 2 * s, 2.5 * s);
             } else if (armPose === 1) {
                 // Slight outward bend at the elbow — not a full splay.
                 ctx.fillRect(sx, py - 8 * s, 2 * s, 4 * s);
                 ctx.fillRect(sx + out * 1 * s, py - 4.5 * s, 2 * s, 3 * s);
-                ctx.fillStyle = PLAYER_PALETTE.skin;
+                ctx.fillStyle = PLAYER_PALETTE.gloves;
                 ctx.fillRect(sx + out * 2 * s, py - 2 * s, 2 * s, 2.5 * s);
             } else {
                 ctx.fillRect(sx, py - 8 * s, 2 * s, 2 * s);
                 ctx.fillRect(out < 0 ? sx - 4 * s : sx + 2 * s, py - 8 * s, 4 * s, 2 * s);
-                ctx.fillStyle = PLAYER_PALETTE.skin;
+                ctx.fillStyle = PLAYER_PALETTE.gloves;
                 ctx.fillRect(out < 0 ? sx - 6 * s : sx + 6 * s, py - 8 * s, 2 * s, 2.5 * s);
             }
         };
@@ -3384,20 +3444,19 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.lineTo(150, sBot(150)); ctx.lineTo(36, sBot(36));
             ctx.closePath(); ctx.fill();
             if (lightOn) {
-                ctx.save();
-                ctx.beginPath();
-                ctx.moveTo(36, sTop(36)); ctx.lineTo(150, sTop(150));
-                ctx.lineTo(150, sBot(150)); ctx.lineTo(36, sBot(36));
-                ctx.closePath(); ctx.clip();
-                ctx.fillStyle = '#33AA55';
-                ctx.font = '8px "Courier New"';
-                ctx.fillText('SYSTEM CRITICAL', 44, 88);
-                ctx.fillText('HULL BREACH: DECK 3', 44, 100);
-                ctx.fillText('LIFE SUPPORT: 47%', 44, 112);
-                ctx.fillText('CREW STATUS: 1 ALIVE', 44, 124);
-                ctx.fillStyle = '#FFAA22';
-                ctx.fillText('> DATA PORT ACTIVE_', 44, 138);
-                ctx.restore();
+                drawPerspectiveSurface(ctx, 114, 70, {
+                    tl: { x: 36, y: sTop(36) }, tr: { x: 150, y: sTop(150) },
+                    br: { x: 150, y: sBot(150) }, bl: { x: 36, y: sBot(36) }
+                }, (screen) => {
+                    screen.fillStyle = '#33AA55';
+                    screen.font = '8px "Courier New"';
+                    screen.fillText('SYSTEM CRITICAL', 8, 15);
+                    screen.fillText('HULL BREACH: DECK 3', 8, 28);
+                    screen.fillText('LIFE SUPPORT: 47%', 8, 41);
+                    screen.fillText('CREW STATUS: 1 ALIVE', 8, 54);
+                    screen.fillStyle = '#FFAA22';
+                    screen.fillText('> DATA PORT ACTIVE_', 8, 68);
+                });
             }
             // Console shelf under the screen
             ctx.fillStyle = '#383848';
@@ -3408,10 +3467,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Data cartridge in the port
             if (!eng.getFlag('got_cartridge')) {
+                const cartridgeTop = (x) => sBot(x) + 11;
+                const cartridgeBottom = (x) => sBot(x) + 18;
                 ctx.fillStyle = '#CCAA33';
-                ctx.fillRect(120, 160, 14, 7);
+                ctx.beginPath();
+                ctx.moveTo(118, cartridgeTop(118)); ctx.lineTo(136, cartridgeTop(136));
+                ctx.lineTo(136, cartridgeBottom(136)); ctx.lineTo(118, cartridgeBottom(118));
+                ctx.closePath(); ctx.fill();
                 ctx.fillStyle = '#DDBB44';
-                ctx.fillRect(122, 161, 10, 5);
+                ctx.beginPath();
+                ctx.moveTo(121, cartridgeTop(121) + 1); ctx.lineTo(134, cartridgeTop(134) + 1);
+                ctx.lineTo(134, cartridgeBottom(134) - 1); ctx.lineTo(121, cartridgeBottom(121) - 1);
+                ctx.closePath(); ctx.fill();
             }
 
             // Specimen cases, mounted on the right wall
@@ -5153,7 +5220,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(368, 128, 2, 2);
             ctx.fillStyle = '#CCCC44';
             ctx.font = sceneFont(11, 'bold');
-            ctx.fillText("HONEST GLORP'S", 246, 139);
+            ctx.fillText("TINY'S TRADING", 246, 139);
             ctx.fillStyle = '#99AA55';
             ctx.font = sceneFont(8);
             ctx.fillText('TRADING POST', 258, 148);
@@ -5371,7 +5438,7 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Trading Post', x: 225, y: 115, w: 160, h: 180, isExit: true, walkToX: 305, walkToY: 285,
                 description: 'An alien trading post.',
-                look: (e) => e.showMessage('A general trading post. The display window shows various goods — weapons, ship parts, survival gear. The sign reads "HONEST GLORP\'S TRADING POST", which is exactly what a dishonest Glorp would call it. You might find something useful here.'),
+                look: (e) => e.showMessage('Tiny\'s Trading Post. The display window shows weapons, ship parts, survival gear, and several objects that may be illegal in civilized systems. You might find something useful here.'),
                 onExit: (e) => e.goToRoom('shop', 320, 310)
             },
             {
@@ -7345,7 +7412,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.addToInventory('cargo_manifest');
                     e.setFlag('got_manifest');
                     e.addScore(5);
-                    e.showMessage('You pick up the cargo manifest. The last entry lists two colonists aboard. Someone survived this wreck — or didn\'t make it out.');
+                    e.showMessage(e.hasItem('frequency_chip')
+                        ? 'You pick up the cargo manifest. The last entry lists two colonists aboard. Its ship IDs and Pipz\'s frequency chip might make a useful pair.'
+                        : 'You pick up the cargo manifest. The last entry lists two colonists aboard. Someone survived this wreck — or didn\'t make it out.');
                 }
             },
             {
@@ -7357,7 +7426,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!e.getFlag('met_pipz')) {
                         e.setFlag('met_pipz');
                         e.addScore(5);
-                        e.showMessage('It\'s a kid — maybe twelve years old. She\'s wearing a torn Constellation crew uniform several sizes too big. Her eyes are wide and red from crying.');
+                        e.showMessage('It\'s a kid — maybe twelve years old. She\'s wearing torn freighter coveralls several sizes too big. Her eyes are wide and red from crying.');
                     } else {
                         e.showMessage('The kid watches you warily with large, tired eyes.');
                     }
@@ -7578,11 +7647,11 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Left Cells',
                 x: 18, y: 154, w: 140, h: 198,
-                description: 'Magnetic-lock cells. Two Constellation crew members are imprisoned here.',
+                description: 'Magnetic-lock cells. Two civilian prisoners are held here.',
                 look: (e) => {
                     if (!e.getFlag('brig_cells_open')) {
                         if (!e.getFlag('looked_brig_cells')) { e.setFlag('looked_brig_cells'); e.addScore(5); }
-                        e.showMessage('"Hey! HEY! Over here!" A man in a torn Constellation uniform grabs the bars. "I\'m Jorv Vance — colonist registry. My daughter — is she safe? Her name\'s Pipz. Please get us out of here!"');
+                        e.showMessage('"Hey! HEY! Over here!" A man in torn freighter coveralls grabs the bars. "I\'m Jorv Vance. This is my wife, Mella. Our daughter Pipz escaped the boarding — have you seen her? Please get us out of here!"');
                     } else {
                         e.showMessage('The cells stand open and empty. The locks have been deactivated.');
                     }
@@ -7668,7 +7737,9 @@ document.addEventListener('DOMContentLoaded', () => {
         hint: (e) => {
             if (!e.getFlag('guard_defeated')) return 'Use the Pulsar Ray on the guard. Stand back. Way back.';
             if (!e.getFlag('guard_anim_done')) return 'Wait for the dust to settle. The guard is still arguing with physics.';
-            if (!e.getFlag('field_down')) return 'The console wants Quantum Drive specs. Use the data cartridge on it.';
+            if (!e.getFlag('field_down') && e.hasItem('cartridge')) return 'The console wants Quantum Drive specs. Use the data cartridge on it.';
+            if (!e.getFlag('field_down') && e.getFlag('rescued_prisoners') && e.hasItem('cargo_manifest') && e.hasItem('frequency_chip')) return 'No specs? Pair the freighter manifest and frequency chip with the prisoners\' knowledge at the console.';
+            if (!e.getFlag('field_down')) return 'Without the drive specs, the console needs ship records, a signal source, and knowledge of Draknoid detention traffic.';
             return 'Grab the Quantum Drive. Run.';
         },
         name: 'Draknoid Flagship',

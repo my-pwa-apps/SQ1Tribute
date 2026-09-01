@@ -3575,6 +3575,8 @@ class GameEngine {
             ctx.fillRect(x - 5 * s, y + 9 * s + leftBoot, 4 * s, 3 * s);
             ctx.fillStyle = '#111111';
             ctx.fillRect(x - 5 * s, y + 11 * s + leftBoot, 5 * s, 1 * s);
+            ctx.fillStyle = '#555555';
+            ctx.fillRect(x - 4 * s, y + 9 * s + leftBoot, 2 * s, 1 * s);
             // Right boot — heel fixed, toe rotates up for foot tap
             {
                 const heelX = x, heelY = y + 9 * s + rightLeg; // heel anchored to leg
@@ -3609,6 +3611,8 @@ class GameEngine {
             // right side, which gives the silhouette a readable slouch.
             ctx.fillStyle = '#EEEEEE';
             ctx.fillRect(x - 5 * s, y - 11 * s, 4 * s, 1 * s);
+            ctx.fillRect(x - 6 * s, y - 9 * s, 1 * s, 3 * s);
+            ctx.fillRect(x + 5 * s, y - 8 * s, 1 * s, 2 * s);
             ctx.fillStyle = '#3A3628';
             ctx.fillRect(x - 5 * s, y - 12 * s, 4 * s, 1 * s);
             ctx.fillRect(x + 1 * s, y - 10 * s, 4 * s, 1 * s);
@@ -3638,19 +3642,33 @@ class GameEngine {
             ctx.fillRect(x - 7 * s, y - 2 * s, 2 * s, 1 * s);
             ctx.fillRect(x + 5 * s, y - 2 * s, 2 * s, 1 * s);
             // Hands
-            ctx.fillStyle = '#FFCC88';
+            ctx.fillStyle = '#66CCCC';
             ctx.fillRect(x - 7 * s + as, y - 1 * s, 2 * s, 2.5 * s);
             ctx.fillRect(x + 5 * s - as, y - 1 * s, 2 * s, 2.5 * s);
-            // Head
+            ctx.fillStyle = '#227777';
+            ctx.fillRect(x - 7 * s + as, y + 0.5 * s, 2 * s, 1 * s);
+            ctx.fillRect(x + 5 * s - as, y + 0.5 * s, 2 * s, 1 * s);
+            // Head: stepped cheeks and jaw make a friendly face rather than a box.
             ctx.fillStyle = '#FFCC88';
-            ctx.fillRect(x - 4 * s, y - 18 * s, 8 * s, 8 * s);
+            ctx.fillRect(x - 3 * s, y - 18 * s, 6 * s, 1 * s);
+            ctx.fillRect(x - 4 * s, y - 17 * s, 8 * s, 5 * s);
+            ctx.fillRect(x - 3 * s, y - 12 * s, 6 * s, 2 * s);
             ctx.fillStyle = '#EEBB77';
-            ctx.fillRect(x - 4 * s, y - 11 * s, 8 * s, 1 * s);
-            // Hair
+            ctx.fillRect(x - 3 * s, y - 11 * s, 6 * s, 1 * s);
+            ctx.fillRect(x - 4 * s, y - 14 * s, 1 * s, 2 * s);
+            // Tousled hair and a stubborn cowlick form a memorable silhouette.
             ctx.fillStyle = '#BB7733';
-            ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 4 * s);
-            ctx.fillStyle = '#CC8844';
-            ctx.fillRect(x - 2 * s, y - 19 * s, 4 * s, 1 * s);
+            ctx.fillRect(x - 3 * s, y - 20 * s, 2 * s, 2 * s);
+            ctx.fillRect(x - 4 * s, y - 19 * s, 7 * s, 3 * s);
+            ctx.fillRect(x + 3 * s, y - 18 * s, 1 * s, 3 * s);
+            ctx.fillStyle = '#774411';
+            ctx.fillRect(x - 4 * s, y - 18 * s, 1 * s, 3 * s);
+            ctx.fillStyle = '#DD9944';
+            ctx.fillRect(x - 1 * s, y - 20 * s, 3 * s, 1 * s);
+            // Expressive brows tilt upward at the centre: worried but game.
+            ctx.fillStyle = '#774411';
+            ctx.fillRect(x - 3 * s, y - 16 * s, 2 * s, 0.5 * s);
+            ctx.fillRect(x + 1 * s, y - 16 * s, 2 * s, 0.5 * s);
             // Eyes (both visible!)
             // Left eye
             ctx.fillStyle = '#F2F0E2';
@@ -3662,6 +3680,15 @@ class GameEngine {
             ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
             ctx.fillStyle = '#4477CC';
             ctx.fillRect(x + 1 * s + idleHeadOfs, y - 15 * s, 1.5 * s, 2 * s);
+            // Nose, freckles and crooked half-smile add personality at rest.
+            ctx.fillStyle = '#EEBB77';
+            ctx.fillRect(x - 0.5 * s, y - 14 * s, 1 * s, 2 * s);
+            ctx.fillStyle = '#BB7733';
+            ctx.fillRect(x - 2.5 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
+            ctx.fillRect(x + 2 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
+            ctx.fillStyle = '#994422';
+            ctx.fillRect(x - 1.5 * s, y - 11.5 * s, 3 * s, 0.5 * s);
+            ctx.fillRect(x + 1 * s, y - 12 * s, 1 * s, 0.5 * s);
 
         } else if (facing === 'away') {
             // ---- BACK VIEW (facing away from camera) ----
@@ -3716,11 +3743,12 @@ class GameEngine {
             ctx.fillRect(x - 7 * s, y - 2 * s, 2 * s, 1 * s);
             ctx.fillRect(x + 5 * s, y - 2 * s, 2 * s, 1 * s);
             // Hands
-            ctx.fillStyle = '#FFCC88';
+            ctx.fillStyle = '#66CCCC';
             ctx.fillRect(x - 7 * s + as, y - 1 * s, 2 * s, 2.5 * s);
             ctx.fillRect(x + 5 * s - as, y - 1 * s, 2 * s, 2.5 * s);
             // Head (back of head, all hair)
             ctx.fillStyle = '#BB7733';
+            ctx.fillRect(x - 3 * s, y - 20 * s, 2 * s, 2 * s);
             ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 9 * s);
             // Hair texture lines
             ctx.fillStyle = '#AA6622';
@@ -3816,7 +3844,7 @@ class GameEngine {
             ctx.fillStyle = '#555555';
             ctx.fillRect(x + 2.5 * d + armPix * 0.4, py - 2 * s, 2 * d, 1 * s);
             // Hand
-            ctx.fillStyle = '#FFCC88';
+            ctx.fillStyle = '#66CCCC';
             ctx.fillRect(x + 2.5 * d + armPix, py - 1 * s, 2 * d, 2.5 * s);
 
             // Neck
@@ -3825,12 +3853,15 @@ class GameEngine {
             // Head — 7s in profile plus a 1s neck, so the silhouette reaches the
             // same height as the front view's 8s head
             ctx.fillStyle = '#FFCC88';
-            ctx.fillRect(x - 3 * d, py - 18 * s, 7 * d, 7 * s);
+            ctx.fillRect(x - 2 * d, py - 18 * s, 6 * d, 1 * s);
+            ctx.fillRect(x - 3 * d, py - 17 * s, 7 * d, 5 * s);
+            ctx.fillRect(x - 2 * d, py - 12 * s, 6 * d, 1 * s);
             // Subtle nose bump on the forward side
             ctx.fillStyle = '#FFCC88';
             ctx.fillRect(x + 4 * d, py - 15 * s, 1 * d, 2 * s);
             // Hair cap (matches front view's hair shape, just in profile)
             ctx.fillStyle = '#BB7733';
+            ctx.fillRect(x - 2 * d, py - 20 * s, 2 * d, 2 * s);
             ctx.fillRect(x - 3 * d, py - 19 * s, 7 * d, 4 * s);
             // Hair behind ear (longer at the back)
             ctx.fillRect(x - 4 * d, py - 17 * s, 1 * d, 4 * s);
@@ -3845,6 +3876,11 @@ class GameEngine {
             ctx.fillRect(x + 1.5 * d, py - 15 * s, 2 * d, 2 * s);
             ctx.fillStyle = '#4477CC';
             ctx.fillRect(x + 2 * d, py - 15 * s, 1.5 * d, 2 * s);
+            // Profile brow and crooked grin retain his expression while walking.
+            ctx.fillStyle = '#774411';
+            ctx.fillRect(x + 1.5 * d, py - 16 * s, 2 * d, 0.5 * s);
+            ctx.fillStyle = '#994422';
+            ctx.fillRect(x + 1.5 * d, py - 12 * s, 2 * d, 0.5 * s);
         }
 
         // Idle eye blink overlay — covers eyes with skin color

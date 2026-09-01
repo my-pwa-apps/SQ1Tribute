@@ -14,12 +14,9 @@
         copyright: '\u00A9 2025-2026',
         storagePrefix: 'starsweeper',
         // Highest score actually achievable in a single playthrough, verified by
-        // tests/full-game.spec.js. The distinct addScore() awards in js/game.js sum to
-        // 396, but 18 of those points cannot be collected in one run:
-        //   - 'pipz_thanked' (+15) needs a return trip to the Kerona docking bay after
-        //     the brig rescue, and the Draknoid flagship has no route back.
-        //   - the desert wreck medkit (+3) is gated on !korvak_freed, so it is mutually
-        //     exclusive with healing Korvak (+20).
+        // tests/full-game.spec.js. Pipz's reunion is a score-neutral epilogue beat.
+        // The desert wreck medkit (+3) is gated on !korvak_freed, so it is mutually
+        // exclusive with the more valuable Korvak rescue route.
         // Keep this in sync when scoring opportunities change, otherwise the game
         // advertises points a player can never earn.
         maxScore: 378,
