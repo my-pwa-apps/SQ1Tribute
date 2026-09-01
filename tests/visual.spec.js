@@ -95,6 +95,18 @@ test.describe('visual regression', () => {
             window.engine.render();
         });
         await expectCanvas(page, 'science-lab-monitor-on.png');
+
+        await setRoomState(page, 'outpost', {});
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.playerFacing = 'toward';
+            e.playerWalking = false;
+            e.idleActive = true;
+            e.idleType = 'shrug';
+            e.idleElapsed = 800;
+            e.render();
+        });
+        await expectCanvas(page, 'wilkins-shrug.png');
     });
 
     test('mobile scene detail and framing', async ({ page }, testInfo) => {

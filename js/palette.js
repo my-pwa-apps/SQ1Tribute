@@ -88,6 +88,7 @@
             iris: '#4477CC',
             eyeWhite: '#F2F0E2',
             gloves: '#66CCCC',
+            gloveFaded: '#55AAAA',
             glovesDark: '#227777',
             boots: '#222222',
             bootHighlight: '#555555',

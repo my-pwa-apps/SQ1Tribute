@@ -243,8 +243,8 @@ class GameEngine {
         this.idleType = null;        // 'blink' | 'feettap' | 'eyeroll'
         this.idleElapsed = 0;        // ms into the current idle animation
         this.idlePauseTimer = 0;     // ms remaining in pause between idles
-        this.idleTypes = ['blink', 'feettap', 'eyeroll'];
-        this.idleDurations = { blink: 250, feettap: 1800, eyeroll: 1400 };
+        this.idleTypes = ['blink', 'feettap', 'eyeroll', 'shrug'];
+        this.idleDurations = { blink: 250, feettap: 1800, eyeroll: 1400, shrug: 1600 };
 
         // Dialog tree system (AGS Dialog / DialogTopic / DialogOptions)
         this.dialogs = {};           // registered dialog trees { id: DialogTree }
@@ -3537,6 +3537,12 @@ class GameEngine {
             idleFootTap = tapFrame === 0 ? 2 * s : 0;
         }
 
+        // Every so often Wilkins checks whether anyone else has a plan. Nobody
+        // does. The held middle cel gives him a sheepish, palms-up shrug.
+        const shrugPhase = idleType === 'shrug'
+            ? Math.sin(Math.min(1, idleT / this.idleDurations.shrug) * Math.PI)
+            : 0;
+
         // Blink: eyes close for the duration (drawn later as overlay)
 
         const frameProgress = walking ? Math.min(this.playerFrameTimer / 110, 0.99) : 0;
@@ -3569,6 +3575,12 @@ class GameEngine {
             ctx.fillStyle = '#DDDDDD';
             ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + leftLeg);
             ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s + rightLeg);
+            // A badly matched knee patch: competent sewing was apparently not
+            // part of janitorial orientation.
+            ctx.fillStyle = '#77775f';
+            ctx.fillRect(x - 4 * s, y + 4 * s, 3 * s, 3 * s);
+            ctx.fillStyle = '#c6bf9f';
+            ctx.fillRect(x - 3.5 * s, y + 4.5 * s, 2 * s, 0.5 * s);
             // Boots
             ctx.fillStyle = '#222222';
             // Left boot (full, uses walk offset)
@@ -3619,6 +3631,12 @@ class GameEngine {
             // Gold collar
             ctx.fillStyle = '#555555';
             ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
+            // Crooked breast pocket and one escaped cleaning rag reinforce the
+            // rumpled, trying-his-best silhouette.
+            ctx.fillStyle = '#c6bf9f';
+            ctx.fillRect(x - 3.5 * s, y - 7.5 * s, 3 * s, 2.5 * s);
+            ctx.fillStyle = '#8c8568';
+            ctx.fillRect(x - 3 * s, y - 7 * s, 2 * s, 0.5 * s);
             // Belt
             ctx.fillStyle = '#333333';
             ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
@@ -3634,20 +3652,37 @@ class GameEngine {
             ctx.fillRect(x + 1.5 * s, y - 8 * s, 2.5 * s, 2 * s);
             ctx.fillStyle = '#007777';
             ctx.fillRect(x + 2.5 * s, y - 7.5 * s, 1 * s, 1 * s);
-            // Arms
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x - 7 * s, y - 8 * s, 2 * s, 7 * s);
-            ctx.fillRect(x + 5 * s, y - 8 * s, 2 * s, 7 * s);
-            ctx.fillStyle = '#555555';
-            ctx.fillRect(x - 7 * s, y - 2 * s, 2 * s, 1 * s);
-            ctx.fillRect(x + 5 * s, y - 2 * s, 2 * s, 1 * s);
-            // Hands
-            ctx.fillStyle = '#66CCCC';
-            ctx.fillRect(x - 7 * s + as, y - 1 * s, 2 * s, 2.5 * s);
-            ctx.fillRect(x + 5 * s - as, y - 1 * s, 2 * s, 2.5 * s);
-            ctx.fillStyle = '#227777';
-            ctx.fillRect(x - 7 * s + as, y + 0.5 * s, 2 * s, 1 * s);
-            ctx.fillRect(x + 5 * s - as, y + 0.5 * s, 2 * s, 1 * s);
+            // Arms. During his signature shrug they unfold in stepped cels,
+            // ending in mismatched palms-up work gloves.
+            if (shrugPhase > 0.35) {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(x - 7 * s, y - 8 * s, 2 * s, 4 * s);
+                ctx.fillRect(x - 10 * s, y - 5 * s, 4 * s, 2 * s);
+                ctx.fillRect(x + 5 * s, y - 8 * s, 2 * s, 4 * s);
+                ctx.fillRect(x + 6 * s, y - 5 * s, 4 * s, 2 * s);
+                ctx.fillStyle = '#66CCCC';
+                ctx.fillRect(x - 12 * s, y - 6 * s, 2.5 * s, 2 * s);
+                ctx.fillStyle = '#55aaaa';
+                ctx.fillRect(x + 9.5 * s, y - 6 * s, 2.5 * s, 2 * s);
+                ctx.fillStyle = '#227777';
+                ctx.fillRect(x - 12 * s, y - 4.5 * s, 2.5 * s, 0.5 * s);
+                ctx.fillRect(x + 9.5 * s, y - 4.5 * s, 2.5 * s, 0.5 * s);
+            } else {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(x - 7 * s, y - 8 * s, 2 * s, 7 * s);
+                ctx.fillRect(x + 5 * s, y - 8 * s, 2 * s, 7 * s);
+                ctx.fillStyle = '#555555';
+                ctx.fillRect(x - 7 * s, y - 2 * s, 2 * s, 1 * s);
+                ctx.fillRect(x + 5 * s, y - 2 * s, 2 * s, 1 * s);
+                ctx.fillStyle = '#66CCCC';
+                ctx.fillRect(x - 7 * s + as, y - 1 * s, 2 * s, 2.5 * s);
+                // His right glove has faded after too many industrial solvents.
+                ctx.fillStyle = '#55aaaa';
+                ctx.fillRect(x + 5 * s - as, y - 1 * s, 2 * s, 2.5 * s);
+                ctx.fillStyle = '#227777';
+                ctx.fillRect(x - 7 * s + as, y + 0.5 * s, 2 * s, 1 * s);
+                ctx.fillRect(x + 5 * s - as, y + 0.5 * s, 2 * s, 1 * s);
+            }
             // Head: stepped cheeks and jaw make a friendly face rather than a box.
             ctx.fillStyle = '#FFCC88';
             ctx.fillRect(x - 3 * s, y - 18 * s, 6 * s, 1 * s);
@@ -3689,6 +3724,13 @@ class GameEngine {
             ctx.fillStyle = '#994422';
             ctx.fillRect(x - 1.5 * s, y - 11.5 * s, 3 * s, 0.5 * s);
             ctx.fillRect(x + 1 * s, y - 12 * s, 1 * s, 0.5 * s);
+            if (shrugPhase > 0.35) {
+                // The smile collapses into a tiny "who, me?" mouth.
+                ctx.fillStyle = '#FFCC88';
+                ctx.fillRect(x - 2 * s, y - 12 * s, 4 * s, 1.5 * s);
+                ctx.fillStyle = '#994422';
+                ctx.fillRect(x - 0.5 * s, y - 11.5 * s, 1 * s, 1 * s);
+            }
 
         } else if (facing === 'away') {
             // ---- BACK VIEW (facing away from camera) ----
@@ -3706,6 +3748,8 @@ class GameEngine {
             ctx.fillStyle = '#111111';
             ctx.fillRect(x - 5 * s, y + 11 * s + leftLeg, 5 * s, 1 * s);
             ctx.fillRect(x, y + 11 * s + rightLeg, 5 * s, 1 * s);
+            ctx.fillStyle = '#555555';
+            ctx.fillRect(x + 1 * s, y + 9 * s + rightLeg, 2 * s, 1 * s);
             // Body (back of uniform, darker)
             ctx.fillStyle = '#EEEEEE';
             ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
@@ -3881,6 +3925,17 @@ class GameEngine {
             ctx.fillRect(x + 1.5 * d, py - 16 * s, 2 * d, 0.5 * s);
             ctx.fillStyle = '#994422';
             ctx.fillRect(x + 1.5 * d, py - 12 * s, 2 * d, 0.5 * s);
+
+            // A loose lace trails from the forward boot. It is tiny, harmless,
+            // and exactly the sort of thing Wilkins never gets around to fixing.
+            ctx.strokeStyle = '#111111';
+            ctx.lineWidth = Math.max(1, Math.round(0.45 * s));
+            ctx.beginPath();
+            ctx.moveTo(x + 3.5 * d + stridePix, y + 10 * s - liftPix);
+            ctx.lineTo(x + 5 * d + stridePix, y + 11.5 * s - liftPix);
+            ctx.lineTo(x + 6 * d + stridePix, y + 11 * s - liftPix);
+            ctx.stroke();
+            ctx.lineWidth = 1;
         }
 
         // Idle eye blink overlay — covers eyes with skin color
