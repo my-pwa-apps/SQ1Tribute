@@ -74,16 +74,18 @@ test.describe('visual regression', () => {
         await expectCanvas(page, 'title.png');
 
         await startEnhanced(page);
+    await page.evaluate(() => { window.engine.crtEffects = false; });
         for (const room of [
             'broom_closet', 'corridor', 'science_lab', 'pod_bay', 'engine_room',
             'desert', 'cave', 'outpost', 'cantina', 'shop', 'docking_bay',
             'draknoid_brig', 'draknoid_ship'
         ]) {
-            await loadRoom(page, room);
+            await setRoomState(page, room, {});
             await expectCanvas(page, `${room}.png`);
         }
 
-        await loadRoom(page, 'corridor', true);
+        await page.evaluate(() => { window.engine.crtEffects = true; });
+        await setRoomState(page, 'corridor', {});
         await expectCanvas(page, 'corridor-crt.png');
     });
 

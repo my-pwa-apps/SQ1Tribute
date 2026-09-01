@@ -44,6 +44,18 @@ class GameEngine {
         this.HEIGHT = 400;
         this.canvas.width = this.WIDTH;
         this.canvas.height = this.HEIGHT;
+
+        // Classic Sierra backgrounds were authored around 320x200 and then
+        // displayed with hard-edged pixels. Rooms remain convenient to author
+        // at 640x400, but this buffer gives the finished scenery that same
+        // deliberate two-pixel raster without soft CSS scaling. Actors and UI
+        // are drawn afterward so faces, status text and hotspots stay legible.
+        this.sceneRasterScale = 2;
+        this.sceneRasterCanvas = document.createElement('canvas');
+        this.sceneRasterCanvas.width = this.WIDTH / this.sceneRasterScale;
+        this.sceneRasterCanvas.height = this.HEIGHT / this.sceneRasterScale;
+        this.sceneRasterCtx = this.sceneRasterCanvas.getContext('2d');
+        this.sceneRasterCtx.imageSmoothingEnabled = false;
         this.dom = {
             messageText: document.getElementById('message-text'),
             inventoryItems: document.getElementById('inventory-items'),
@@ -2718,6 +2730,7 @@ class GameEngine {
         const cs = this.cutscene;
         const progress = Math.min(cs.elapsed / cs.duration, 1);
         cs.draw(ctx, this.WIDTH, this.HEIGHT, progress, cs.elapsed);
+        this.applyClassicSceneRaster(ctx);
         // Overlays sit on the screen, not in the scene, so they must not ride
         // the shake transform (and the fade must still cover every edge).
         ctx.save();
@@ -2754,6 +2767,7 @@ class GameEngine {
     /** Draw the room art and every Y-sorted actor / foreground layer in it. */
     drawScene(ctx, room) {
         if (room && room.draw) room.draw(ctx, this.WIDTH, this.HEIGHT, this);
+        this.applyClassicSceneRaster(ctx);
 
         // === AGI-INSPIRED: Y-SORTED RENDERING (OBJLIST priority system) ===
         // Collect all drawable entities with Y-positions, sort back-to-front
@@ -2791,6 +2805,30 @@ class GameEngine {
             }
             else d.ref.draw(ctx, this);
         }
+    }
+
+    /** Resolve room artwork through a hard-edged 320x200 raster. This is not a
+     * blur or CRT filter: it restores the chunky shape language of AGI/EGA art
+     * while allowing rooms to use modern Canvas drawing and expanded colour. */
+    applyClassicSceneRaster(ctx) {
+        const low = this.sceneRasterCtx;
+        const scale = this.sceneRasterScale;
+        low.save();
+        low.setTransform(1, 0, 0, 1, 0, 0);
+        low.clearRect(0, 0, this.sceneRasterCanvas.width, this.sceneRasterCanvas.height);
+        low.imageSmoothingEnabled = false;
+        low.drawImage(this.canvas, 0, 0, this.WIDTH, this.HEIGHT,
+            0, 0, this.sceneRasterCanvas.width, this.sceneRasterCanvas.height);
+        low.restore();
+
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+        ctx.clearRect(0, 0, this.WIDTH, this.HEIGHT);
+        ctx.drawImage(this.sceneRasterCanvas, 0, 0,
+            this.sceneRasterCanvas.width, this.sceneRasterCanvas.height,
+            0, 0, this.WIDTH, this.HEIGHT);
+        ctx.restore();
     }
 
     /** Draw status bars, text windows, dialog options and end-game overlays. */

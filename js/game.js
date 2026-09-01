@@ -4547,6 +4547,23 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath(); ctx.ellipse(452, 190, 62, 28, -0.15, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = 'rgba(122,74,38,0.22)';
             ctx.beginPath(); ctx.ellipse(330, 176, 88, 30, 0.05, 0, Math.PI * 2); ctx.fill();
+
+            // Mineral strata follow the cave's perspective instead of reading
+            // as decoration pasted onto a flat wall.
+            ctx.strokeStyle = 'rgba(154,92,48,0.34)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(70, 126); ctx.lineTo(188, 150); ctx.lineTo(276, 158);
+            ctx.moveTo(570, 116); ctx.lineTo(470, 146); ctx.lineTo(370, 158);
+            ctx.moveTo(82, 258); ctx.lineTo(198, 244); ctx.lineTo(278, 232);
+            ctx.moveTo(558, 250); ctx.lineTo(456, 238); ctx.lineTo(366, 230);
+            ctx.stroke();
+            ctx.lineWidth = 1;
+            ctx.fillStyle = 'rgba(214,145,74,0.42)';
+            [[116, 164], [137, 171], [222, 118], [484, 116], [515, 174], [438, 258]].forEach(([x, y]) => {
+                ctx.fillRect(x, y, 3, 2);
+                ctx.fillRect(x + 5, y + 2, 2, 2);
+            });
             ctx.fillStyle = '#100b08';
             ctx.beginPath();
             ctx.moveTo(0, 55); ctx.lineTo(90, 95); ctx.lineTo(125, 285); ctx.lineTo(0, 330);
@@ -4586,6 +4603,21 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.quadraticCurveTo(560, 330, 640, 315);
             ctx.lineTo(640, 400); ctx.lineTo(0, 400);
             ctx.closePath(); ctx.fill();
+
+            // Broad rock bands converge on the crystal chamber, giving the
+            // irregular floor the same clear depth cues as a Sierra interior.
+            ctx.strokeStyle = 'rgba(102,75,50,0.34)';
+            ctx.beginPath();
+            ctx.moveTo(320, 286); ctx.lineTo(230, 400);
+            ctx.moveTo(320, 286); ctx.lineTo(80, 400);
+            ctx.moveTo(320, 286); ctx.lineTo(410, 400);
+            ctx.moveTo(320, 286); ctx.lineTo(560, 400);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(117,82,50,0.3)';
+            ctx.fillRect(235, 352, 18, 3);
+            ctx.fillRect(416, 338, 23, 3);
+            ctx.fillRect(272, 382, 9, 2);
+            ctx.fillRect(494, 371, 14, 2);
 
             // Stalagmites
             ctx.fillStyle = '#3a2e22';
@@ -4695,6 +4727,12 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath();
             ctx.ellipse(580, 280, 35, 48, 0, 0, Math.PI * 2);
             ctx.fill();
+            ctx.strokeStyle = 'rgba(214,170,92,0.24)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.ellipse(580, 280, 42, 58, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.lineWidth = 1;
 
             // Cave entrance (back to desert - top left): an irregular daylight
             // opening, so the brightest shape in the cave still reads as rock.
@@ -5019,6 +5057,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(0, 340, w, 5);
 
             // Building 1: Cantina (left)
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(26, 96, 168, 198);
             ctx.fillStyle = '#554466';
             ctx.fillRect(30, 100, 160, 190);
             ctx.fillStyle = '#40334f';
@@ -5029,8 +5069,19 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath();
             ctx.moveTo(22, 100); ctx.lineTo(45, 88); ctx.lineTo(196, 88); ctx.lineTo(190, 100);
             ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            ctx.lineWidth = 1;
             ctx.fillStyle = '#665577';
             ctx.fillRect(35, 105, 150, 145);
+            // Bright panel piping gives the facade the graphic readability of
+            // classic Sierra space architecture.
+            ctx.fillStyle = '#aaaaff';
+            ctx.fillRect(35, 104, 150, 4);
+            ctx.fillRect(35, 104, 4, 48);
+            ctx.fillStyle = '#222244';
+            ctx.fillRect(39, 108, 146, 3);
             // Windows
             ctx.fillStyle = '#442244';
             ctx.fillRect(50, 120, 35, 30);
@@ -5068,6 +5119,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillText('CANTINA', 48, 187);
 
             // Building 2: Shop (center)
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(226, 116, 158, 178);
             ctx.fillStyle = '#556644';
             ctx.fillRect(230, 120, 150, 170);
             ctx.fillStyle = '#3d4b31';
@@ -5078,8 +5131,15 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath();
             ctx.moveTo(222, 120); ctx.lineTo(242, 108); ctx.lineTo(386, 108); ctx.lineTo(380, 120);
             ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            ctx.lineWidth = 1;
             ctx.fillStyle = '#667755';
             ctx.fillRect(235, 125, 140, 120);
+            ctx.fillStyle = '#ccdd55';
+            ctx.fillRect(235, 151, 140, 3);
+            ctx.fillRect(372, 151, 3, 92);
             // Storefront sign board mounted under the roofline
             ctx.fillStyle = '#2e2416';
             ctx.fillRect(236, 123, 138, 28);
@@ -5113,13 +5173,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Landing pad (right) — raised platform in perspective
             // Support base / shadow
-            ctx.fillStyle = '#2a2a33';
-            ctx.fillRect(438, 270, 190, 24);
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.moveTo(458, 196); ctx.lineTo(604, 196); ctx.lineTo(632, 280); ctx.lineTo(432, 280);
+            ctx.closePath(); ctx.fill();
             // Platform surface (trapezoid, wider at the front)
             ctx.fillStyle = '#4a4a58';
             ctx.beginPath();
             ctx.moveTo(462, 200); ctx.lineTo(600, 200); ctx.lineTo(626, 276); ctx.lineTo(436, 276);
             ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#aaaaff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.lineWidth = 1;
+            ctx.fillStyle = '#161629';
+            ctx.fillRect(438, 280, 190, 14);
             // Inner deck panel
             ctx.fillStyle = '#565667';
             ctx.beginPath();
@@ -5152,6 +5220,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             // Ship on pad (if nav chip used)
             if (!eng.getFlag('flew_away')) {
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.moveTo(484, 232); ctx.lineTo(506, 196); ctx.lineTo(564, 190);
+                ctx.lineTo(581, 212); ctx.lineTo(576, 256); ctx.lineTo(484, 256);
+                ctx.closePath(); ctx.fill();
                 ctx.fillStyle = '#667788';
                 ctx.beginPath();
                 ctx.moveTo(490, 230); ctx.lineTo(510, 200); ctx.lineTo(560, 195);
@@ -5160,8 +5233,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillStyle = '#778899';
                 ctx.fillRect(515, 210, 30, 15);
                 // Window
-                ctx.fillStyle = '#334466';
+                ctx.fillStyle = '#55ffff';
                 ctx.fillRect(525, 212, 15, 10);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(527, 213, 7, 2);
             }
             // Landing pad sign on a post
             ctx.fillStyle = '#556';
@@ -5470,6 +5545,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
             perspectiveFloor(ctx, 250, w, h, '#1e1018', '#3a1b2b');
 
+            // Recessed wall bays and converging trim keep the room legible as
+            // a deep tavern rather than a row of sprites on a flat backdrop.
+            ctx.strokeStyle = '#6b2940';
+            ctx.beginPath();
+            ctx.moveTo(92, 34); ctx.lineTo(150, 250);
+            ctx.moveTo(548, 34); ctx.lineTo(510, 250);
+            ctx.stroke();
+            ctx.fillStyle = '#31101f';
+            ctx.fillRect(350, 74, 72, 64);
+            ctx.fillStyle = '#180b15';
+            ctx.fillRect(356, 80, 60, 52);
+            ctx.fillStyle = '#7a2942';
+            ctx.fillRect(356, 80, 60, 3);
+            ctx.font = '7px "Courier New"';
+            ctx.fillStyle = '#a85973';
+            ctx.fillText('NO CREDIT', 365, 94);
+            ctx.fillText('NO OXYGEN', 362, 105);
+            ctx.fillText('NO PROBLEM', 362, 116);
+
+            // Low amber table light pools add the moody pools of colour common
+            // to VGA-era painted backgrounds without smoothing the pixel art.
+            ctx.fillStyle = 'rgba(220,110,45,0.06)';
+            ctx.beginPath(); ctx.ellipse(462, 276, 66, 24, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(145,70,210,0.05)';
+            ctx.beginPath(); ctx.ellipse(565, 300, 62, 28, 0, 0, Math.PI * 2); ctx.fill();
+
             // Bar counter (back)
             ctx.fillStyle = '#553322';
             ctx.fillRect(30, 130, 300, 15);
@@ -5492,6 +5593,15 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#443322';
             ctx.fillRect(30, 90, 300, 4);
             ctx.fillRect(30, 60, 300, 4);
+
+            // Irregular silhouettes stop the shelves looking like a colour
+            // swatch while keeping every prop chunky and readable.
+            ctx.fillStyle = '#99dd66';
+            ctx.fillRect(70, 75, 7, 15); ctx.fillRect(72, 71, 3, 4);
+            ctx.fillStyle = '#dd77aa';
+            ctx.fillRect(285, 68, 12, 22); ctx.fillRect(289, 64, 4, 4);
+            ctx.fillStyle = '#66aadd';
+            ctx.beginPath(); ctx.moveTo(115, 90); ctx.lineTo(119, 72); ctx.lineTo(127, 72); ctx.lineTo(131, 90); ctx.closePath(); ctx.fill();
 
             // Bar stools
             for (let i = 0; i < 4; i++) {
@@ -7023,6 +7133,19 @@ document.addEventListener('DOMContentLoaded', () => {
         draw: (ctx, w, h, eng) => {
             // Sky — Kerona harsh midday
             gradientRect(ctx, 0, 0, w, 260, '#882200', '#CC7733');
+
+            // Distant mesas frame the wreck and establish a hot, open-air bay.
+            ctx.fillStyle = '#98451f';
+            ctx.beginPath();
+            ctx.moveTo(0, 220); ctx.lineTo(70, 188); ctx.lineTo(132, 196); ctx.lineTo(190, 176);
+            ctx.lineTo(252, 199); ctx.lineTo(324, 184); ctx.lineTo(388, 204); ctx.lineTo(470, 174);
+            ctx.lineTo(548, 198); ctx.lineTo(640, 182); ctx.lineTo(640, 260); ctx.lineTo(0, 260);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#b15b2b';
+            ctx.beginPath();
+            ctx.moveTo(0, 238); ctx.lineTo(104, 213); ctx.lineTo(198, 226); ctx.lineTo(286, 210);
+            ctx.lineTo(382, 232); ctx.lineTo(488, 210); ctx.lineTo(640, 230); ctx.lineTo(640, 260); ctx.lineTo(0, 260);
+            ctx.closePath(); ctx.fill();
             // Ground — packed sand and tarmac converging under the wreck.
             perspectiveFloor(ctx, 260, w, h, '#8c6034', '#6d4828');
             // Dithered horizon
@@ -7056,6 +7179,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Wrecked freighter (Ironclad Star) — centre-back
+            ctx.fillStyle = 'rgba(35,22,22,0.34)';
+            ctx.beginPath(); ctx.ellipse(326, 270, 196, 25, 0, 0, Math.PI * 2); ctx.fill();
             // Main hull: a damaged wedge rather than a flat facade.
             ctx.fillStyle = '#465767';
             ctx.beginPath();
@@ -7074,6 +7199,22 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath();
             ctx.moveTo(112, 190); ctx.lineTo(162, 260); ctx.lineTo(220, 260); ctx.lineTo(176, 225);
             ctx.closePath(); ctx.fill();
+            // Hull plates, rivets and a faded cargo stripe suggest a once-busy
+            // working ship rather than a single unbroken polygon.
+            ctx.strokeStyle = '#7b8b98';
+            ctx.beginPath();
+            ctx.moveTo(170, 176); ctx.lineTo(470, 176);
+            ctx.moveTo(188, 218); ctx.lineTo(458, 218);
+            ctx.moveTo(270, 112); ctx.lineTo(270, 254);
+            ctx.moveTo(356, 112); ctx.lineTo(356, 254);
+            ctx.stroke();
+            ctx.fillStyle = '#9b6a35';
+            ctx.fillRect(252, 230, 142, 5);
+            ctx.fillStyle = '#2e3c49';
+            for (let rx = 182; rx <= 454; rx += 34) {
+                ctx.fillRect(rx, 173, 2, 2);
+                ctx.fillRect(rx + 10, 216, 2, 2);
+            }
             // Name plate
             ctx.font = sceneFont(11);
             ctx.fillStyle = '#889AAA';
@@ -7114,6 +7255,17 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(0, 0, 16, 25); ctx.restore(); // bent
             ctx.fillStyle = '#445566';
             ctx.fillRect(460, 258, 16, 30); // right standing
+
+            // Crash debris gives the foreground story detail and stronger scale.
+            ctx.fillStyle = '#394955';
+            ctx.beginPath(); ctx.moveTo(104, 326); ctx.lineTo(138, 314); ctx.lineTo(153, 325); ctx.lineTo(118, 333); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#6d7880';
+            ctx.fillRect(111, 319, 18, 3);
+            ctx.fillStyle = '#2b3540';
+            ctx.beginPath(); ctx.moveTo(500, 336); ctx.lineTo(526, 320); ctx.lineTo(540, 330); ctx.lineTo(518, 343); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#aa5522';
+            ctx.fillRect(535, 351, 4, 4);
+            ctx.fillRect(548, 360, 2, 2);
 
             // Nav console — accessible from breach (if breach is entered)
             if (eng.getFlag('entered_freighter')) {
@@ -7283,6 +7435,20 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#0a0a18';
             ctx.fillRect(0, 0, w, 80);
 
+            // Ribbed ceiling and a central light spine converge on the hatch.
+            ctx.fillStyle = '#17172d';
+            [[40, 188], [124, 228], [212, 274], [428, 366], [516, 412]].forEach(([outer, inner]) => {
+                ctx.beginPath();
+                ctx.moveTo(outer, 0); ctx.lineTo(inner, 80); ctx.lineTo(inner + 5, 80); ctx.lineTo(outer + 9, 0);
+                ctx.closePath(); ctx.fill();
+            });
+            ctx.fillStyle = '#243a58';
+            ctx.beginPath();
+            ctx.moveTo(276, 0); ctx.lineTo(364, 0); ctx.lineTo(344, 80); ctx.lineTo(296, 80);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = 'rgba(90,150,220,0.34)';
+            ctx.fillRect(302, 34, 36, 5);
+
             // Alarm flicker
             alarmGlow(ctx, w, h, eng);
 
@@ -7295,6 +7461,17 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.moveTo(620, 145); ctx.lineTo(470, 175); ctx.lineTo(470, 330); ctx.lineTo(620, 360);
             ctx.closePath(); ctx.fill();
 
+            // Cold cell-interior planes separate prisoners from the corridor.
+            ctx.fillStyle = '#090916';
+            ctx.beginPath(); ctx.moveTo(28, 169); ctx.lineTo(155, 184); ctx.lineTo(155, 326); ctx.lineTo(28, 348); ctx.closePath(); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(612, 169); ctx.lineTo(485, 184); ctx.lineTo(485, 326); ctx.lineTo(612, 348); ctx.closePath(); ctx.fill();
+            ctx.font = '7px "Courier New"';
+            ctx.fillStyle = '#596080';
+            ctx.fillText('7-A', 30, 178);
+            ctx.fillText('7-B', 112, 187);
+            ctx.fillText('7-C', 494, 187);
+            ctx.fillText('7-D', 574, 178);
+
             // Left cell bars (2 cells)
             const barsOpen = eng.getFlag('brig_cells_open');
             ctx.fillStyle = '#2a2a45'; ctx.fillRect(20, 156, 140, 10); // top beam
@@ -7304,6 +7481,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = '#2a2a45'; ctx.fillRect(480, 156, 140, 10);
             drawPrisonBars(ctx, 480, 156, 65, 194, 4);
             drawPrisonBars(ctx, 547, 156, 65, 194, 4);
+
+            // Cyan edge glints make the magnetic bars readable in the darkness.
+            ctx.fillStyle = 'rgba(100,180,220,0.22)';
+            [44, 65, 101, 122, 504, 525, 568, 589].forEach((x) => ctx.fillRect(x, 166, 2, 178));
 
             // Cell control panels (one each side)
             ctx.fillStyle = '#1e1e36';
@@ -7366,6 +7547,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillStyle = 'rgba(50,100,180,0.15)';
                 ctx.beginPath(); ctx.arc(clx + 25, 52, 28, 0, Math.PI * 2); ctx.fill();
             }
+
+            // Floor guide lamps recede toward the exit hatch.
+            [[208, 354, 8], [432, 354, 8], [250, 316, 6], [390, 316, 6], [284, 286, 4], [352, 286, 4]].forEach(([x, y, size]) => {
+                ctx.fillStyle = '#162e42';
+                ctx.fillRect(x - 2, y - 2, size + 4, 5);
+                ctx.fillStyle = '#55bbee';
+                ctx.fillRect(x, y, size, 2);
+            });
 
             // Corridor end — hatch back to draknoid ship main area
             drawDoorway(ctx, 280, 100, 80, 170, 'MAIN DECK', false, '#4a2a6a');
