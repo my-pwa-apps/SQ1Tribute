@@ -940,19 +940,34 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.translate(x, y);
         ctx.rotate(angle || 0);
         ctx.scale(scale, scale);
-        // Pod body
-        ctx.fillStyle = '#aaa';
+        // Heavy black silhouette and stepped capsule geometry keep the pod
+        // readable at the tiny scales used by Sierra-style cinematics.
+        ctx.fillStyle = '#050509';
         ctx.beginPath();
-        ctx.ellipse(0, 0, 12, 8, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // Window
-        ctx.fillStyle = '#5cf';
+        ctx.moveTo(-15, -4); ctx.lineTo(-10, -10); ctx.lineTo(7, -10);
+        ctx.lineTo(14, -5); ctx.lineTo(16, 0); ctx.lineTo(13, 6);
+        ctx.lineTo(6, 10); ctx.lineTo(-10, 9); ctx.lineTo(-15, 4);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#b9bac6';
         ctx.beginPath();
-        ctx.ellipse(4, -1, 4, 3, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // Heat shield
-        ctx.fillStyle = '#888';
-        ctx.fillRect(-13, -3, 3, 6);
+        ctx.moveTo(-11, -3); ctx.lineTo(-7, -7); ctx.lineTo(6, -7);
+        ctx.lineTo(12, -3); ctx.lineTo(13, 2); ctx.lineTo(8, 7);
+        ctx.lineTo(-7, 6); ctx.lineTo(-11, 3); ctx.closePath(); ctx.fill();
+        // Shadowed belly, heat shield and emergency-orange identification band.
+        ctx.fillStyle = '#666677';
+        ctx.beginPath(); ctx.moveTo(-10, 2); ctx.lineTo(12, 1); ctx.lineTo(8, 7); ctx.lineTo(-7, 6); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#333344'; ctx.fillRect(-14, -4, 4, 8);
+        ctx.fillStyle = '#ff8833'; ctx.fillRect(-8, -7, 3, 13);
+        // Cockpit: dark inset, saturated glass and one hard specular pixel.
+        ctx.fillStyle = '#050509';
+        ctx.beginPath(); ctx.moveTo(1, -7); ctx.lineTo(8, -6); ctx.lineTo(11, -2); ctx.lineTo(8, 2); ctx.lineTo(1, 2); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#33ccee';
+        ctx.beginPath(); ctx.moveTo(2, -6); ctx.lineTo(7, -5); ctx.lineTo(9, -2); ctx.lineTo(7, 0); ctx.lineTo(2, 0); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(3, -5, 3, 1);
+        // Thruster and tiny landing skids.
+        ctx.fillStyle = '#222233'; ctx.fillRect(-13, -6, 3, 3); ctx.fillRect(-13, 3, 3, 3);
+        ctx.fillStyle = '#050509'; ctx.fillRect(-5, 7, 2, 4); ctx.fillRect(7, 6, 2, 4);
+        ctx.fillRect(-8, 10, 6, 2); ctx.fillRect(6, 9, 6, 2);
         ctx.restore();
     }
 
@@ -961,28 +976,43 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.translate(x, y);
         ctx.rotate(angle || 0);
         ctx.scale(scale, scale);
+        // Black underdrawing binds fuselage and wings into one memorable shape.
+        ctx.fillStyle = '#050509';
+        ctx.beginPath();
+        ctx.moveTo(-25, 0); ctx.lineTo(-15, -11); ctx.lineTo(-5, -11);
+        ctx.lineTo(3, -21); ctx.lineTo(17, -21); ctx.lineTo(14, -10);
+        ctx.lineTo(22, -8); ctx.lineTo(29, -2); ctx.lineTo(29, 3);
+        ctx.lineTo(22, 9); ctx.lineTo(14, 10); ctx.lineTo(17, 21);
+        ctx.lineTo(3, 21); ctx.lineTo(-5, 11); ctx.lineTo(-15, 11);
+        ctx.closePath(); ctx.fill();
         // Fuselage
-        ctx.fillStyle = '#99a';
+        ctx.fillStyle = '#b9bac6';
         ctx.beginPath();
         ctx.moveTo(-20, 0); ctx.lineTo(-12, -8); ctx.lineTo(20, -6);
         ctx.lineTo(25, 0); ctx.lineTo(20, 6); ctx.lineTo(-12, 8);
         ctx.closePath(); ctx.fill();
         // Wings
-        ctx.fillStyle = '#778';
+        ctx.fillStyle = '#666688';
         ctx.beginPath();
         ctx.moveTo(-5, -8); ctx.lineTo(5, -18); ctx.lineTo(15, -18); ctx.lineTo(10, -6);
         ctx.closePath(); ctx.fill();
         ctx.beginPath();
         ctx.moveTo(-5, 8); ctx.lineTo(5, 18); ctx.lineTo(15, 18); ctx.lineTo(10, 6);
         ctx.closePath(); ctx.fill();
-        // Cockpit
-        ctx.fillStyle = '#5cf';
-        ctx.beginPath();
-        ctx.ellipse(15, 0, 5, 3, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // Engine glow
-        ctx.fillStyle = '#f84';
-        ctx.fillRect(-22, -3, 4, 6);
+        // Belly panels and high-contrast cockpit glass.
+        ctx.fillStyle = '#555566';
+        ctx.beginPath(); ctx.moveTo(-17, 2); ctx.lineTo(21, 1); ctx.lineTo(18, 6); ctx.lineTo(-11, 8); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#050509';
+        ctx.beginPath(); ctx.moveTo(11, -5); ctx.lineTo(21, -4); ctx.lineTo(25, 0); ctx.lineTo(20, 4); ctx.lineTo(11, 4); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#33ccee';
+        ctx.beginPath(); ctx.moveTo(13, -3); ctx.lineTo(20, -2); ctx.lineTo(22, 0); ctx.lineTo(19, 2); ctx.lineTo(13, 2); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(14, -2, 4, 1);
+        // Emergency stripe, panel seam and twin engine apertures.
+        ctx.fillStyle = '#ff8833'; ctx.fillRect(-6, -7, 3, 14);
+        ctx.strokeStyle = '#222233'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(9, 0); ctx.stroke();
+        ctx.fillStyle = '#222233'; ctx.fillRect(-23, -6, 5, 4); ctx.fillRect(-23, 2, 5, 4);
+        ctx.fillStyle = '#ff8844'; ctx.fillRect(-24, -5, 3, 2); ctx.fillRect(-24, 3, 3, 2);
         ctx.restore();
     }
 
@@ -3918,11 +3948,22 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.lineWidth = 1;
 
             if (!eng.getFlag('pod_launched')) {
-                // Pod body - detailed
+                // Pod silhouette follows the right-wall perspective instead of
+                // reading as a rectangle pasted inside the bay.
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.moveTo(px + 18, 58); ctx.lineTo(px + 92, 72); ctx.lineTo(px + 108, 94);
+                ctx.lineTo(px + 101, 219); ctx.lineTo(px + 24, 219); ctx.lineTo(px + 10, 194);
+                ctx.lineTo(px + 10, 82); ctx.closePath(); ctx.fill();
                 ctx.fillStyle = '#667788';
-                ctx.fillRect(px + 15, 60, 90, 160);
-                ctx.fillStyle = '#778899';
-                ctx.fillRect(px + 20, 65, 80, 70);
+                ctx.beginPath();
+                ctx.moveTo(px + 22, 64); ctx.lineTo(px + 88, 76); ctx.lineTo(px + 101, 96);
+                ctx.lineTo(px + 95, 213); ctx.lineTo(px + 29, 213); ctx.lineTo(px + 17, 191);
+                ctx.lineTo(px + 17, 85); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#8899aa';
+                ctx.beginPath(); ctx.moveTo(px + 25, 70); ctx.lineTo(px + 86, 80); ctx.lineTo(px + 96, 96); ctx.lineTo(px + 92, 132); ctx.lineTo(px + 24, 122); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#ff8833';
+                ctx.beginPath(); ctx.moveTo(px + 19, 126); ctx.lineTo(px + 94, 137); ctx.lineTo(px + 93, 145); ctx.lineTo(px + 19, 134); ctx.closePath(); ctx.fill();
                 // Hull seams
                 ctx.strokeStyle = '#556677';
                 ctx.lineWidth = 1;
@@ -3935,13 +3976,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.fillRect(px + 100, ry, 3, 3);
                 }
                 // Pod window - with reflection
-                ctx.fillStyle = '#223344';
-                ctx.fillRect(px + 35, 75, 50, 40);
-                ctx.fillStyle = '#334466';
-                ctx.fillRect(px + 38, 78, 44, 34);
+                ctx.fillStyle = '#000000';
+                ctx.beginPath(); ctx.moveTo(px + 35, 78); ctx.lineTo(px + 83, 86); ctx.lineTo(px + 88, 111); ctx.lineTo(px + 37, 104); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#116688';
+                ctx.beginPath(); ctx.moveTo(px + 39, 82); ctx.lineTo(px + 79, 89); ctx.lineTo(px + 83, 107); ctx.lineTo(px + 40, 101); ctx.closePath(); ctx.fill();
                 // Window frame
-                ctx.strokeStyle = '#556677';
-                ctx.strokeRect(px + 35, 75, 50, 40);
+                ctx.fillStyle = '#55ffff';
+                ctx.beginPath(); ctx.moveTo(px + 41, 84); ctx.lineTo(px + 62, 88); ctx.lineTo(px + 61, 91); ctx.lineTo(px + 42, 88); ctx.closePath(); ctx.fill();
                 // Stars through window
                 ctx.fillStyle = '#AAAACC';
                 ctx.fillRect(px + 48, 85, 2, 2);
@@ -3964,8 +4005,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillStyle = '#22FF44';
                 ctx.fillRect(px + 18, 142, 5, 5);
                 // Entry hatch
-                ctx.fillStyle = '#556677';
-                ctx.fillRect(px + 30, 155, 60, 55);
+                ctx.fillStyle = '#445566';
+                ctx.beginPath(); ctx.moveTo(px + 29, 151); ctx.lineTo(px + 91, 160); ctx.lineTo(px + 89, 207); ctx.lineTo(px + 32, 207); ctx.closePath(); ctx.fill();
                 // Hatch seam
                 ctx.strokeStyle = '#445566';
                 ctx.strokeRect(px + 30, 155, 60, 55);
@@ -4312,6 +4353,11 @@ document.addEventListener('DOMContentLoaded', () => {
             castShade(260, 342, 20, 4);
 
             // Crashed escape pod: chunky, half-buried, tonal shading (no hard outline).
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.moveTo(68, 291); ctx.lineTo(106, 247); ctx.lineTo(189, 241);
+            ctx.lineTo(220, 264); ctx.lineTo(209, 310); ctx.lineTo(83, 312);
+            ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#555566';
             ctx.beginPath();
             ctx.moveTo(76, 289); ctx.lineTo(110, 255); ctx.lineTo(186, 249);
@@ -4330,6 +4376,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(135, 262, 18, 14);
             ctx.fillStyle = '#55AAFF';
             ctx.fillRect(139, 265, 12, 8);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(140, 265, 7, 2);
             ctx.fillStyle = '#AA0000';
             ctx.fillRect(184, 270, 12, 5);
 
@@ -5239,6 +5287,17 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(280, 205, 50, 85);
 
             // Landing pad (right) — raised platform in perspective
+            // Open supports and cross-bracing make this a raised dock rather
+            // than a painted shape on the sand.
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(448, 276, 17, 72); ctx.fillRect(596, 276, 18, 72);
+            ctx.fillStyle = '#41415a';
+            ctx.fillRect(452, 280, 10, 64); ctx.fillRect(600, 280, 10, 64);
+            ctx.strokeStyle = '#000000'; ctx.lineWidth = 6;
+            ctx.beginPath(); ctx.moveTo(462, 286); ctx.lineTo(600, 338); ctx.moveTo(600, 286); ctx.lineTo(462, 338); ctx.stroke();
+            ctx.strokeStyle = '#6f6f91'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(462, 286); ctx.lineTo(600, 338); ctx.moveTo(600, 286); ctx.lineTo(462, 338); ctx.stroke();
+            ctx.lineWidth = 1;
             // Support base / shadow
             ctx.fillStyle = '#000000';
             ctx.beginPath();
@@ -7248,6 +7307,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Wrecked freighter (Ironclad Star) — centre-back
             ctx.fillStyle = 'rgba(35,22,22,0.34)';
             ctx.beginPath(); ctx.ellipse(326, 270, 196, 25, 0, 0, Math.PI * 2); ctx.fill();
+            // Black underdrawing gives the wreck the strong, asymmetric focal
+            // silhouette seen in classic Sierra landing and crash scenes.
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.moveTo(104, 191); ctx.lineTo(175, 102); ctx.lineTo(424, 102);
+            ctx.lineTo(519, 173); ctx.lineTo(479, 268); ctx.lineTo(157, 268);
+            ctx.closePath(); ctx.fill();
             // Main hull: a damaged wedge rather than a flat facade.
             ctx.fillStyle = '#465767';
             ctx.beginPath();
