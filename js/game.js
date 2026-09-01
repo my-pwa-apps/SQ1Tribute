@@ -915,59 +915,107 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========== CUTSCENE DRAWING FUNCTIONS ==========
 
+    // One hull palette for every craft in the game, so a pod seen in the bay,
+    // the launch cinematic and the desert wreck reads as the same machine.
+    const CRAFT = {
+        edge: '#050509',
+        hi: '#b9bac6',
+        mid: '#667788',
+        lo: '#3a4454',
+        glassLo: '#116688',
+        glass: '#33ccee',
+        spec: '#ffffff',
+        accent: '#ff8833',
+        dead: '#2a2f38'
+    };
+
     function drawShipSilhouette(ctx, x, y, scale) {
         ctx.save();
         ctx.translate(x, y);
         ctx.scale(scale, scale);
-        ctx.fillStyle = '#556';
+        ctx.fillStyle = CRAFT.edge;
+        ctx.beginPath();
+        ctx.moveTo(-64, 0); ctx.lineTo(-43, -15); ctx.lineTo(52, -13);
+        ctx.lineTo(69, -6); ctx.lineTo(69, 6); ctx.lineTo(52, 13);
+        ctx.lineTo(-43, 15); ctx.lineTo(-64, 0);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = CRAFT.mid;
         // Main hull
         ctx.beginPath();
         ctx.moveTo(-60, 0); ctx.lineTo(-40, -12); ctx.lineTo(50, -10);
         ctx.lineTo(65, -4); ctx.lineTo(65, 4); ctx.lineTo(50, 10);
         ctx.lineTo(-40, 12); ctx.lineTo(-60, 0);
         ctx.closePath(); ctx.fill();
+        ctx.fillStyle = CRAFT.hi;
+        ctx.beginPath();
+        ctx.moveTo(-40, -12); ctx.lineTo(50, -10); ctx.lineTo(63, -3); ctx.lineTo(-48, -4);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = CRAFT.accent;
+        ctx.fillRect(-16, -11, 4, 22);
         // Bridge
-        ctx.fillStyle = '#668';
+        ctx.fillStyle = CRAFT.lo;
         ctx.fillRect(30, -6, 18, 12);
+        ctx.fillStyle = CRAFT.glass;
+        ctx.fillRect(33, -4, 12, 3);
         // Engine glow
         ctx.fillStyle = '#4af';
         ctx.fillRect(-62, -3, 4, 6);
         ctx.restore();
     }
 
-    function drawEscapePod(ctx, x, y, scale, angle) {
+    // Canonical escape pod. The bay, the launch cinematic and the desert wreck
+    // all render this one craft so the silhouette never changes between scenes.
+    function drawEscapePod(ctx, x, y, scale, angle, damaged) {
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(angle || 0);
         ctx.scale(scale, scale);
         // Heavy black silhouette and stepped capsule geometry keep the pod
         // readable at the tiny scales used by Sierra-style cinematics.
-        ctx.fillStyle = '#050509';
+        ctx.fillStyle = CRAFT.edge;
         ctx.beginPath();
         ctx.moveTo(-15, -4); ctx.lineTo(-10, -10); ctx.lineTo(7, -10);
         ctx.lineTo(14, -5); ctx.lineTo(16, 0); ctx.lineTo(13, 6);
         ctx.lineTo(6, 10); ctx.lineTo(-10, 9); ctx.lineTo(-15, 4);
         ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#b9bac6';
+        ctx.fillStyle = CRAFT.hi;
         ctx.beginPath();
         ctx.moveTo(-11, -3); ctx.lineTo(-7, -7); ctx.lineTo(6, -7);
         ctx.lineTo(12, -3); ctx.lineTo(13, 2); ctx.lineTo(8, 7);
         ctx.lineTo(-7, 6); ctx.lineTo(-11, 3); ctx.closePath(); ctx.fill();
         // Shadowed belly, heat shield and emergency-orange identification band.
-        ctx.fillStyle = '#666677';
+        ctx.fillStyle = CRAFT.mid;
         ctx.beginPath(); ctx.moveTo(-10, 2); ctx.lineTo(12, 1); ctx.lineTo(8, 7); ctx.lineTo(-7, 6); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#333344'; ctx.fillRect(-14, -4, 4, 8);
-        ctx.fillStyle = '#ff8833'; ctx.fillRect(-8, -7, 3, 13);
+        ctx.fillStyle = CRAFT.lo; ctx.fillRect(-14, -4, 4, 8);
+        ctx.fillStyle = CRAFT.accent; ctx.fillRect(-8, -7, 3, 13);
+        // Side hatch: the same door in the bay, the cinematic and the wreck.
+        ctx.fillStyle = CRAFT.edge; ctx.fillRect(-4, -5, 7, 11);
+        ctx.fillStyle = damaged ? CRAFT.dead : CRAFT.mid; ctx.fillRect(-3, -4, 5, 9);
+        ctx.fillStyle = CRAFT.hi; ctx.fillRect(-3, -4, 5, 1);
+        ctx.fillStyle = '#ccaa22'; ctx.fillRect(1, -1, 2, 3);
         // Cockpit: dark inset, saturated glass and one hard specular pixel.
-        ctx.fillStyle = '#050509';
-        ctx.beginPath(); ctx.moveTo(1, -7); ctx.lineTo(8, -6); ctx.lineTo(11, -2); ctx.lineTo(8, 2); ctx.lineTo(1, 2); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#33ccee';
-        ctx.beginPath(); ctx.moveTo(2, -6); ctx.lineTo(7, -5); ctx.lineTo(9, -2); ctx.lineTo(7, 0); ctx.lineTo(2, 0); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(3, -5, 3, 1);
-        // Thruster and tiny landing skids.
-        ctx.fillStyle = '#222233'; ctx.fillRect(-13, -6, 3, 3); ctx.fillRect(-13, 3, 3, 3);
-        ctx.fillStyle = '#050509'; ctx.fillRect(-5, 7, 2, 4); ctx.fillRect(7, 6, 2, 4);
-        ctx.fillRect(-8, 10, 6, 2); ctx.fillRect(6, 9, 6, 2);
+        ctx.fillStyle = CRAFT.edge;
+        ctx.beginPath(); ctx.moveTo(3, -7); ctx.lineTo(9, -6); ctx.lineTo(12, -2); ctx.lineTo(9, 2); ctx.lineTo(3, 2); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = damaged ? CRAFT.glassLo : CRAFT.glass;
+        ctx.beginPath(); ctx.moveTo(4, -6); ctx.lineTo(8, -5); ctx.lineTo(10, -2); ctx.lineTo(8, 0); ctx.lineTo(4, 0); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = damaged ? CRAFT.edge : CRAFT.spec; ctx.fillRect(5, -5, 3, 1);
+        // Thruster cluster.
+        ctx.fillStyle = CRAFT.lo; ctx.fillRect(-13, -6, 3, 3); ctx.fillRect(-13, 3, 3, 3);
+        if (damaged) {
+            ctx.fillStyle = 'rgba(16,10,8,0.4)';
+            ctx.fillRect(-12, -9, 4, 18); ctx.fillRect(5, 4, 6, 4);
+            ctx.fillStyle = CRAFT.edge;
+            ctx.fillRect(5, -8, 4, 3); ctx.fillRect(-1, 7, 5, 3);
+            ctx.strokeStyle = CRAFT.spec; ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(4, -4); ctx.lineTo(9, -1); ctx.moveTo(7, -5); ctx.lineTo(6, 0);
+            ctx.stroke();
+        } else {
+            // Landing skids only deploy on an intact pod.
+            ctx.fillStyle = CRAFT.edge;
+            ctx.fillRect(-5, 7, 2, 4); ctx.fillRect(7, 6, 2, 4);
+            ctx.fillRect(-8, 10, 6, 2); ctx.fillRect(6, 9, 6, 2);
+        }
         ctx.restore();
     }
 
@@ -977,7 +1025,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.rotate(angle || 0);
         ctx.scale(scale, scale);
         // Black underdrawing binds fuselage and wings into one memorable shape.
-        ctx.fillStyle = '#050509';
+        ctx.fillStyle = CRAFT.edge;
         ctx.beginPath();
         ctx.moveTo(-25, 0); ctx.lineTo(-15, -11); ctx.lineTo(-5, -11);
         ctx.lineTo(3, -21); ctx.lineTo(17, -21); ctx.lineTo(14, -10);
@@ -986,13 +1034,13 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.lineTo(3, 21); ctx.lineTo(-5, 11); ctx.lineTo(-15, 11);
         ctx.closePath(); ctx.fill();
         // Fuselage
-        ctx.fillStyle = '#b9bac6';
+        ctx.fillStyle = CRAFT.hi;
         ctx.beginPath();
         ctx.moveTo(-20, 0); ctx.lineTo(-12, -8); ctx.lineTo(20, -6);
         ctx.lineTo(25, 0); ctx.lineTo(20, 6); ctx.lineTo(-12, 8);
         ctx.closePath(); ctx.fill();
         // Wings
-        ctx.fillStyle = '#666688';
+        ctx.fillStyle = CRAFT.lo;
         ctx.beginPath();
         ctx.moveTo(-5, -8); ctx.lineTo(5, -18); ctx.lineTo(15, -18); ctx.lineTo(10, -6);
         ctx.closePath(); ctx.fill();
@@ -1000,19 +1048,169 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.moveTo(-5, 8); ctx.lineTo(5, 18); ctx.lineTo(15, 18); ctx.lineTo(10, 6);
         ctx.closePath(); ctx.fill();
         // Belly panels and high-contrast cockpit glass.
-        ctx.fillStyle = '#555566';
+        ctx.fillStyle = CRAFT.mid;
         ctx.beginPath(); ctx.moveTo(-17, 2); ctx.lineTo(21, 1); ctx.lineTo(18, 6); ctx.lineTo(-11, 8); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#050509';
+        ctx.fillStyle = CRAFT.edge;
         ctx.beginPath(); ctx.moveTo(11, -5); ctx.lineTo(21, -4); ctx.lineTo(25, 0); ctx.lineTo(20, 4); ctx.lineTo(11, 4); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#33ccee';
+        ctx.fillStyle = CRAFT.glass;
         ctx.beginPath(); ctx.moveTo(13, -3); ctx.lineTo(20, -2); ctx.lineTo(22, 0); ctx.lineTo(19, 2); ctx.lineTo(13, 2); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(14, -2, 4, 1);
+        ctx.fillStyle = CRAFT.spec; ctx.fillRect(14, -2, 4, 1);
         // Emergency stripe, panel seam and twin engine apertures.
-        ctx.fillStyle = '#ff8833'; ctx.fillRect(-6, -7, 3, 14);
-        ctx.strokeStyle = '#222233'; ctx.lineWidth = 1;
+        ctx.fillStyle = CRAFT.accent; ctx.fillRect(-6, -7, 3, 14);
+        ctx.strokeStyle = CRAFT.lo; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(9, 0); ctx.stroke();
-        ctx.fillStyle = '#222233'; ctx.fillRect(-23, -6, 5, 4); ctx.fillRect(-23, 2, 5, 4);
-        ctx.fillStyle = '#ff8844'; ctx.fillRect(-24, -5, 3, 2); ctx.fillRect(-24, 3, 3, 2);
+        ctx.fillStyle = CRAFT.lo; ctx.fillRect(-23, -6, 5, 4); ctx.fillRect(-23, 2, 5, 4);
+        ctx.fillStyle = CRAFT.accent; ctx.fillRect(-24, -5, 3, 2); ctx.fillRect(-24, 3, 3, 2);
+        ctx.restore();
+    }
+
+    // Port-side hull breach in freighter-local coordinates, shared so the
+    // docking bay can light the same opening from the inside.
+    const FREIGHTER_BREACH = [[-56, -18], [-44, -24], [-30, -14], [-26, 2], [-38, 8], [-52, 2]];
+
+    // Kepler-class cargo hauler: blunt bow, exposed container spine, twin bells.
+    // The Ironclad Star flies in the distress cinematic and lies broken-backed at
+    // the docking bay, so both must read as the same vessel.
+    function drawFreighter(ctx, x, y, scale, wrecked) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+        const poly = (color, pts) => {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+            ctx.closePath();
+            ctx.fill();
+        };
+        // A wrecked hauler breaks its back: the bow digs in nose-first while the
+        // engine block rides up behind the snapped spine.
+        const dNose = wrecked ? 16 : 0;
+        const dRear = wrecked ? 4 : 0;
+        const dMid = wrecked ? 13 : 0;
+        const dAft = wrecked ? -8 : 0;
+        const bow = (px, py) => [px, py + dNose + (dRear - dNose) * ((px + 96) / 72)];
+
+        // Engine block and twin bells, aft. Kept darker than the bow so the
+        // bridge stays the focal point of the wreck.
+        poly(CRAFT.edge, [[42, -34 + dAft], [92, -24 + dAft], [98, 22 + dAft], [42, 28 + dAft]]);
+        poly(CRAFT.lo, [[46, -30 + dAft], [88, -21 + dAft], [93, 18 + dAft], [46, 24 + dAft]]);
+        poly(CRAFT.mid, [[46, -30 + dAft], [88, -21 + dAft], [88, -10 + dAft], [46, -16 + dAft]]);
+        poly('#242c38', [[46, 6 + dAft], [90, 3 + dAft], [93, 18 + dAft], [46, 24 + dAft]]);
+        ctx.fillStyle = CRAFT.accent;
+        ctx.fillRect(52, -14 + dAft, 30, 4);
+        for (const by of [-16, 12]) {
+            poly(CRAFT.edge, [[90, by - 9 + dAft], [104, by - 14 + dAft], [104, by + 14 + dAft], [90, by + 9 + dAft]]);
+            poly(wrecked ? '#241a16' : CRAFT.lo, [[93, by - 7 + dAft], [101, by - 11 + dAft], [101, by + 11 + dAft], [93, by + 7 + dAft]]);
+            // Nozzle throat rings read as an engine bell rather than a hole.
+            ctx.strokeStyle = wrecked ? '#4a3b30' : CRAFT.mid; ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(96, by - 9 + dAft); ctx.lineTo(96, by + 9 + dAft);
+            ctx.moveTo(99, by - 10 + dAft); ctx.lineTo(99, by + 10 + dAft);
+            ctx.stroke();
+            if (!wrecked) {
+                ctx.fillStyle = '#66ddff'; ctx.fillRect(101, by - 9, 5, 18);
+                ctx.fillStyle = CRAFT.spec; ctx.fillRect(101, by - 4, 3, 8);
+            }
+        }
+
+        // Open girder spine carrying the cargo racks.
+        const seg = (x1, o1, x2, o2) => {
+            poly(CRAFT.edge, [[x1, o1 - 14], [x2, o2 - 14], [x2, o2 + 14], [x1, o1 + 14]]);
+            poly(CRAFT.lo, [[x1, o1 - 11], [x2, o2 - 11], [x2, o2 + 11], [x1, o1 + 11]]);
+            poly(CRAFT.mid, [[x1, o1 - 11], [x2, o2 - 11], [x2, o2 - 4], [x1, o1 - 4]]);
+        };
+        if (wrecked) { seg(-26, dRear, 10, dMid); seg(15, dMid, 48, dAft); }
+        else { seg(-26, 0, 48, 0); }
+        ctx.strokeStyle = CRAFT.edge; ctx.lineWidth = 2;
+        for (let i = 0; i < 8; i++) {
+            const sx = -26 + (i / 7) * 74;
+            const so = sx < 12 ? dRear + (dMid - dRear) * ((sx + 26) / 38) : dMid + (dAft - dMid) * ((sx - 12) / 36);
+            ctx.beginPath(); ctx.moveTo(sx, so - 11); ctx.lineTo(sx, so + 11); ctx.stroke();
+        }
+        ctx.lineWidth = 1;
+
+        const container = (cx, co, tilt, body) => {
+            ctx.save(); ctx.translate(cx, co); ctx.rotate(tilt);
+            poly(CRAFT.edge, [[-17, -32], [17, -32], [17, -2], [-17, -2]]);
+            ctx.fillStyle = body; ctx.fillRect(-15, -30, 30, 26);
+            ctx.fillStyle = CRAFT.edge;
+            for (let rx = -11; rx < 15; rx += 6) ctx.fillRect(rx, -30, 2, 26);
+            ctx.fillStyle = CRAFT.accent; ctx.fillRect(-15, -22, 30, 4);
+            ctx.restore();
+        };
+        if (wrecked) {
+            // Empty clamps where a container tore free, one still riding aft.
+            ctx.fillStyle = CRAFT.lo;
+            ctx.fillRect(-22, dRear - 18, 5, 13); ctx.fillRect(2, dMid - 18, 5, 13);
+            container(32, dAft + 2, -0.14, '#3c5a68');
+            ctx.strokeStyle = CRAFT.hi; ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(10, dMid - 11); ctx.lineTo(17, dMid - 19); ctx.lineTo(23, dMid - 10);
+            ctx.moveTo(9, dMid + 11); ctx.lineTo(16, dMid + 18);
+            ctx.stroke(); ctx.lineWidth = 1;
+            // A container shaken loose by the break, spilled under the spine.
+            container(18, 48, 0.16, '#7a6a4a');
+        } else {
+            container(-8, 0, 0, '#7a6a4a');
+            container(28, 0, 0, '#4a6a7a');
+        }
+
+        // Bow hull, bridge and cockpit.
+        poly(CRAFT.edge, [bow(-104, -8), bow(-94, -34), bow(-24, -30), bow(-18, 20), bow(-98, 24)]);
+        poly(CRAFT.mid, [bow(-100, -8), bow(-91, -30), bow(-26, -26), bow(-21, 16), bow(-95, 20)]);
+        poly(CRAFT.hi, [bow(-100, -8), bow(-91, -30), bow(-26, -26), bow(-28, -12), bow(-99, -13)]);
+        poly(CRAFT.lo, [bow(-97, 8), bow(-24, 4), bow(-21, 16), bow(-95, 20)]);
+        poly(CRAFT.accent, [bow(-99, -12), bow(-28, -11), bow(-28, -6), bow(-99, -7)]);
+        ctx.strokeStyle = CRAFT.lo;
+        ctx.beginPath();
+        ctx.moveTo(bow(-84, -29)[0], bow(-84, -29)[1]); ctx.lineTo(bow(-83, 19)[0], bow(-83, 19)[1]);
+        ctx.moveTo(bow(-62, -28)[0], bow(-62, -28)[1]); ctx.lineTo(bow(-61, 18)[0], bow(-61, 18)[1]);
+        ctx.stroke();
+        poly(CRAFT.edge, [bow(-90, -32), bow(-84, -48), bow(-58, -48), bow(-54, -32)]);
+        poly(CRAFT.mid, [bow(-87, -32), bow(-82, -45), bow(-60, -45), bow(-57, -32)]);
+        poly(CRAFT.hi, [bow(-87, -34), bow(-82, -45), bow(-60, -45), bow(-58, -34)]);
+        poly(CRAFT.glassLo, [bow(-83, -43), bow(-62, -43), bow(-61, -36), bow(-84, -36)]);
+        poly(wrecked ? '#16323d' : CRAFT.glass, [bow(-82, -42), bow(-63, -42), bow(-62, -37), bow(-83, -37)]);
+        if (!wrecked) poly(CRAFT.spec, [bow(-81, -41), bow(-72, -41), bow(-72, -40), bow(-81, -40)]);
+
+        if (wrecked) {
+            poly('rgba(14,9,14,0.6)', [bow(-74, -30), bow(-67, -30), bow(-70, 20), bow(-77, 20)]);
+            ctx.fillStyle = 'rgba(14,9,14,0.6)';
+            ctx.fillRect(50, -20 + dAft, 6, 28);
+            poly(CRAFT.edge, [[56, 14], [70, 14], [77, 42], [63, 42]]);
+            poly(CRAFT.mid, [[59, 16], [68, 16], [74, 40], [65, 40]]);
+            poly('#0a0a14', FREIGHTER_BREACH);
+            // Cargo deck seen through the tear, so the hole reads as a way in.
+            poly('#1d2733', [[-52, -13], [-32, -10], [-30, 1], [-48, 3]]);
+            poly('#35424f', [[-52, -13], [-32, -10], [-32, -7], [-52, -10]]);
+            ctx.fillStyle = '#0a0a14';
+            ctx.fillRect(-47, -6, 7, 7);
+            ctx.fillStyle = '#6a5a3a';
+            ctx.fillRect(-38, -6, 6, 6);
+            // Peeled plating around the rim
+            ctx.strokeStyle = CRAFT.hi; ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-56, -18); ctx.lineTo(-63, -25);
+            ctx.moveTo(-30, -14); ctx.lineTo(-23, -21);
+            ctx.moveTo(-38, 8); ctx.lineTo(-36, 15);
+            ctx.stroke(); ctx.lineWidth = 1;
+            ctx.fillStyle = CRAFT.hi;
+            ctx.beginPath();
+            ctx.moveTo(-44, -24); ctx.lineTo(-40, -19); ctx.lineTo(-36, -24); ctx.closePath(); ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(-52, 2); ctx.lineTo(-48, -2); ctx.lineTo(-46, 4); ctx.closePath(); ctx.fill();
+        }
+
+        if (scale >= 1.5) {
+            const plate = bow(-94, 6);
+            ctx.fillStyle = wrecked ? '#8fa2b3' : '#cfe0ee';
+            ctx.font = '5px "Courier New"';
+            ctx.fillText('IRONCLAD STAR', plate[0], plate[1]);
+            ctx.fillStyle = wrecked ? '#5f7280' : '#9fb2c0';
+            ctx.font = '4px "Courier New"';
+            ctx.fillText('REG: ISS-4471', plate[0], plate[1] + 7);
+        }
         ctx.restore();
     }
 
@@ -1787,12 +1985,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.save();
             ctx.translate(fx, fy);
             ctx.rotate(0.15 + p * 0.2);
-            ctx.fillStyle = '#667788';
-            ctx.fillRect(-45, -12, 90, 24);
-            ctx.fillStyle = '#778899';
-            ctx.fillRect(-30, -18, 50, 12);
-            ctx.fillStyle = '#445566';
-            ctx.fillRect(-48, -8, 6, 16);
+            drawFreighter(ctx, 0, 0, 0.5, false);
             ctx.restore();
             drawFireEffect(ctx, fx - 40, fy + 5, 14, 0.7, elapsed);
             drawSmokeWisp(ctx, fx - 35, fy, 50, elapsed);
@@ -1810,7 +2003,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(0, 0, w, h);
             const fx = w * 0.5 + p * 60, fy = h * 0.25 + p * h * 0.35;
             ctx.save(); ctx.translate(fx, fy); ctx.rotate(0.35 + p * 0.5);
-            ctx.fillStyle = '#556677'; ctx.fillRect(-40, -10, 80, 20); ctx.restore();
+            drawFreighter(ctx, 0, 0, 0.45, true); ctx.restore();
             for (let i = 0; i < 4; i++) {
                 const dx = fx - 20 + i * 15 + Math.sin(elapsed * 0.003 + i) * p * 25;
                 const dy = fy + p * (20 + i * 15);
@@ -3948,84 +4141,32 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.lineWidth = 1;
 
             if (!eng.getFlag('pod_launched')) {
-                // Pod silhouette follows the right-wall perspective instead of
-                // reading as a rectangle pasted inside the bay.
-                ctx.fillStyle = '#000000';
-                ctx.beginPath();
-                ctx.moveTo(px + 18, 58); ctx.lineTo(px + 92, 72); ctx.lineTo(px + 108, 94);
-                ctx.lineTo(px + 101, 219); ctx.lineTo(px + 24, 219); ctx.lineTo(px + 10, 194);
-                ctx.lineTo(px + 10, 82); ctx.closePath(); ctx.fill();
-                ctx.fillStyle = '#667788';
-                ctx.beginPath();
-                ctx.moveTo(px + 22, 64); ctx.lineTo(px + 88, 76); ctx.lineTo(px + 101, 96);
-                ctx.lineTo(px + 95, 213); ctx.lineTo(px + 29, 213); ctx.lineTo(px + 17, 191);
-                ctx.lineTo(px + 17, 85); ctx.closePath(); ctx.fill();
-                ctx.fillStyle = '#8899aa';
-                ctx.beginPath(); ctx.moveTo(px + 25, 70); ctx.lineTo(px + 86, 80); ctx.lineTo(px + 96, 96); ctx.lineTo(px + 92, 132); ctx.lineTo(px + 24, 122); ctx.closePath(); ctx.fill();
-                ctx.fillStyle = '#ff8833';
-                ctx.beginPath(); ctx.moveTo(px + 19, 126); ctx.lineTo(px + 94, 137); ctx.lineTo(px + 93, 145); ctx.lineTo(px + 19, 134); ctx.closePath(); ctx.fill();
-                // Hull seams
-                ctx.strokeStyle = '#556677';
-                ctx.lineWidth = 1;
-                ctx.beginPath(); ctx.moveTo(px + 20, 100); ctx.lineTo(px + 100, 100); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(px + 20, 130); ctx.lineTo(px + 100, 130); ctx.stroke();
-                // Rivets
-                ctx.fillStyle = '#8899AA';
-                for (let ry = 65; ry < 220; ry += 25) {
-                    ctx.fillRect(px + 17, ry, 3, 3);
-                    ctx.fillRect(px + 100, ry, 3, 3);
-                }
-                // Pod window - with reflection
-                ctx.fillStyle = '#000000';
-                ctx.beginPath(); ctx.moveTo(px + 35, 78); ctx.lineTo(px + 83, 86); ctx.lineTo(px + 88, 111); ctx.lineTo(px + 37, 104); ctx.closePath(); ctx.fill();
-                ctx.fillStyle = '#116688';
-                ctx.beginPath(); ctx.moveTo(px + 39, 82); ctx.lineTo(px + 79, 89); ctx.lineTo(px + 83, 107); ctx.lineTo(px + 40, 101); ctx.closePath(); ctx.fill();
-                // Window frame
-                ctx.fillStyle = '#55ffff';
-                ctx.beginPath(); ctx.moveTo(px + 41, 84); ctx.lineTo(px + 62, 88); ctx.lineTo(px + 61, 91); ctx.lineTo(px + 42, 88); ctx.closePath(); ctx.fill();
-                // Stars through window
-                ctx.fillStyle = '#AAAACC';
-                ctx.fillRect(px + 48, 85, 2, 2);
-                ctx.fillRect(px + 62, 92, 1, 1);
-                ctx.fillRect(px + 55, 100, 2, 1);
-                ctx.fillRect(px + 70, 88, 1, 1);
-                ctx.fillRect(px + 44, 95, 1, 2);
-                // Window reflection highlight
-                ctx.fillStyle = 'rgba(150,180,220,0.15)';
-                ctx.fillRect(px + 38, 78, 10, 34);
-                // Pod number
+                // Launch tube guide rails behind the capsule.
+                ctx.fillStyle = '#1b1b2e';
+                ctx.fillRect(500, 56, 10, 182);
+                ctx.fillRect(618, 40, 10, 216);
+                ctx.fillStyle = '#4a4a68';
+                ctx.fillRect(500, 56, 3, 182);
+                ctx.fillRect(618, 40, 3, 216);
+                // Same capsule as the launch cinematic, stood on its tail.
+                drawEscapePod(ctx, 558, 132, 5, -Math.PI / 2);
+                // Base clamp gripping the heat shield
+                ctx.fillStyle = '#1b1b2e';
+                ctx.fillRect(502, 190, 124, 14);
+                ctx.fillStyle = '#4a4a68';
+                ctx.fillRect(502, 190, 124, 3);
+                ctx.fillStyle = '#CCAA22';
+                ctx.fillRect(512, 194, 6, 6);
+                ctx.fillRect(610, 194, 6, 6);
+                // Bay decals
                 ctx.fillStyle = '#AABBCC';
                 ctx.font = 'bold 10px "Courier New"';
-                ctx.fillText('POD 4', px + 38, 72);
-                // Pod status indicator
+                ctx.fillText('POD 4', 524, 220);
+                ctx.fillStyle = '#22FF44';
+                ctx.fillRect(506, 229, 5, 5);
                 ctx.fillStyle = '#22CC44';
                 ctx.font = '8px "Courier New"';
-                ctx.fillText('STATUS: READY', px + 25, 148);
-                // Status LED
-                ctx.fillStyle = '#22FF44';
-                ctx.fillRect(px + 18, 142, 5, 5);
-                // Entry hatch
-                ctx.fillStyle = '#445566';
-                ctx.beginPath(); ctx.moveTo(px + 29, 151); ctx.lineTo(px + 91, 160); ctx.lineTo(px + 89, 207); ctx.lineTo(px + 32, 207); ctx.closePath(); ctx.fill();
-                // Hatch seam
-                ctx.strokeStyle = '#445566';
-                ctx.strokeRect(px + 30, 155, 60, 55);
-                // Handle
-                ctx.fillStyle = '#CCAA22';
-                ctx.fillRect(px + 80, 175, 8, 10);
-                ctx.fillStyle = '#DDBB33';
-                ctx.fillRect(px + 81, 176, 6, 8);
-                // "OPEN" label near handle
-                ctx.fillStyle = '#88AA88';
-                ctx.font = '5px "Courier New"';
-                ctx.fillText('OPEN', px + 70, 190);
-                // Warning stripes on hatch
-                ctx.fillStyle = '#CCAA22';
-                ctx.fillRect(px + 30, 155, 60, 3);
-                ctx.fillStyle = '#222222';
-                for (let sx = 0; sx < 60; sx += 8) {
-                    ctx.fillRect(px + 30 + sx, 155, 4, 3);
-                }
+                ctx.fillText('STATUS: READY', 516, 234);
             } else {
                 ctx.fillStyle = '#886622';
                 ctx.font = '10px "Courier New"';
@@ -4352,42 +4493,29 @@ document.addEventListener('DOMContentLoaded', () => {
             castShade(521, 332, 12, 4);
             castShade(260, 342, 20, 4);
 
-            // Crashed escape pod: chunky, half-buried, tonal shading (no hard outline).
-            ctx.fillStyle = '#000000';
+            // Crashed escape pod: the same capsule as the bay, nose-up in the sand.
+            drawEscapePod(ctx, 146, 272, 3.9, -0.30, true);
+            // Sand drifted over the buried lower hull.
+            ctx.fillStyle = '#FFAA00';
             ctx.beginPath();
-            ctx.moveTo(68, 291); ctx.lineTo(106, 247); ctx.lineTo(189, 241);
-            ctx.lineTo(220, 264); ctx.lineTo(209, 310); ctx.lineTo(83, 312);
+            ctx.moveTo(64, 334); ctx.lineTo(92, 298); ctx.lineTo(138, 304);
+            ctx.lineTo(180, 296); ctx.lineTo(216, 308); ctx.lineTo(244, 334);
             ctx.closePath(); ctx.fill();
-            ctx.fillStyle = '#555566';
+            ctx.fillStyle = '#FFEE88';
             ctx.beginPath();
-            ctx.moveTo(76, 289); ctx.lineTo(110, 255); ctx.lineTo(186, 249);
-            ctx.lineTo(212, 266); ctx.lineTo(202, 303); ctx.lineTo(88, 305);
+            ctx.moveTo(92, 298); ctx.lineTo(138, 304); ctx.lineTo(180, 296); ctx.lineTo(216, 308);
+            ctx.lineTo(214, 313); ctx.lineTo(180, 301); ctx.lineTo(138, 309); ctx.lineTo(94, 303);
             ctx.closePath(); ctx.fill();
-            ctx.fillStyle = '#AAAAAA';
-            ctx.beginPath();
-            ctx.moveTo(84, 288); ctx.lineTo(114, 262); ctx.lineTo(181, 257);
-            ctx.lineTo(203, 270); ctx.lineTo(195, 295); ctx.lineTo(92, 298);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(116, 263, 52, 12);
-            ctx.fillStyle = '#555555';
-            ctx.fillRect(96, 286, 104, 10);
-            ctx.fillStyle = '#222233';
-            ctx.fillRect(135, 262, 18, 14);
-            ctx.fillStyle = '#55AAFF';
-            ctx.fillRect(139, 265, 12, 8);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(140, 265, 7, 2);
-            ctx.fillStyle = '#AA0000';
-            ctx.fillRect(184, 270, 12, 5);
-
             ctx.fillStyle = '#AA5500';
-            ctx.fillRect(132, 300, 92, 5);
-            ctx.fillRect(110, 306, 118, 3);
+            ctx.fillRect(110, 316, 118, 3);
+            // Torn hull plates thrown clear of the impact
             ctx.fillStyle = '#555555';
             ctx.fillRect(208, 294, 10, 5);
             ctx.fillRect(230, 300, 6, 4);
             ctx.fillRect(252, 296, 5, 4);
+            // Emergency beacon, still blinking
+            ctx.fillStyle = Math.floor(eng.animTimer / 500) % 2 ? '#FF3322' : '#661410';
+            ctx.fillRect(194, 244, 5, 5);
 
             const smokeFrame = Math.floor(eng.animTimer / 320) % 3;
             ctx.fillStyle = '#555555';
@@ -4504,7 +4632,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             },
             {
-                name: 'Crashed Pod', x: 75, y: 250, w: 145, h: 60,
+                name: 'Crashed Pod', x: 86, y: 232, w: 130, h: 80,
                 description: 'The wreckage of your escape pod.',
                 // Deliberate consolation award: the wreck medkit (+3) only exists for players
                 // who never healed Korvak (+20), so the two are mutually exclusive by design
@@ -5346,23 +5474,77 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             // Ship on pad (if nav chip used)
             if (!eng.getFlag('flew_away')) {
-                ctx.fillStyle = '#000000';
+                // Same cargo shuttle as the flight cinematic, parked nose-right
+                // on its gear: swept fin, orange stripe, cyan canopy, twin bells.
+                ctx.fillStyle = CRAFT.edge;
                 ctx.beginPath();
-                ctx.moveTo(484, 232); ctx.lineTo(506, 196); ctx.lineTo(564, 190);
-                ctx.lineTo(581, 212); ctx.lineTo(576, 256); ctx.lineTo(484, 256);
+                ctx.moveTo(480, 210); ctx.lineTo(500, 192); ctx.lineTo(560, 190);
+                ctx.lineTo(582, 202); ctx.lineTo(590, 214); ctx.lineTo(578, 230);
+                ctx.lineTo(500, 236); ctx.lineTo(480, 226);
                 ctx.closePath(); ctx.fill();
-                ctx.fillStyle = '#667788';
+                ctx.fillStyle = CRAFT.hi;
                 ctx.beginPath();
-                ctx.moveTo(490, 230); ctx.lineTo(510, 200); ctx.lineTo(560, 195);
-                ctx.lineTo(575, 215); ctx.lineTo(570, 250); ctx.lineTo(490, 250);
+                ctx.moveTo(485, 211); ctx.lineTo(502, 196); ctx.lineTo(558, 194);
+                ctx.lineTo(578, 204); ctx.lineTo(585, 214); ctx.lineTo(504, 216);
                 ctx.closePath(); ctx.fill();
-                ctx.fillStyle = '#778899';
-                ctx.fillRect(515, 210, 30, 15);
-                // Window
-                ctx.fillStyle = '#55ffff';
-                ctx.fillRect(525, 212, 15, 10);
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(527, 213, 7, 2);
+                ctx.fillStyle = CRAFT.mid;
+                ctx.beginPath();
+                ctx.moveTo(485, 213); ctx.lineTo(585, 215); ctx.lineTo(574, 227);
+                ctx.lineTo(502, 232);
+                ctx.closePath(); ctx.fill();
+                // Dorsal fin
+                ctx.fillStyle = CRAFT.edge;
+                ctx.beginPath();
+                ctx.moveTo(508, 194); ctx.lineTo(524, 174); ctx.lineTo(546, 174);
+                ctx.lineTo(540, 194);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = CRAFT.lo;
+                ctx.beginPath();
+                ctx.moveTo(512, 193); ctx.lineTo(526, 177); ctx.lineTo(542, 177);
+                ctx.lineTo(537, 193);
+                ctx.closePath(); ctx.fill();
+                // Near wing sweeping down toward the deck
+                ctx.fillStyle = CRAFT.edge;
+                ctx.beginPath();
+                ctx.moveTo(504, 224); ctx.lineTo(482, 246); ctx.lineTo(522, 248);
+                ctx.lineTo(538, 228);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = CRAFT.lo;
+                ctx.beginPath();
+                ctx.moveTo(506, 226); ctx.lineTo(489, 243); ctx.lineTo(519, 245);
+                ctx.lineTo(532, 229);
+                ctx.closePath(); ctx.fill();
+                // Emergency stripe and hull seam
+                ctx.fillStyle = CRAFT.accent;
+                ctx.fillRect(524, 205, 4, 22);
+                ctx.strokeStyle = CRAFT.lo;
+                ctx.beginPath(); ctx.moveTo(492, 214); ctx.lineTo(578, 216); ctx.stroke();
+                // Canopy
+                ctx.fillStyle = CRAFT.edge;
+                ctx.beginPath();
+                ctx.moveTo(552, 198); ctx.lineTo(574, 202); ctx.lineTo(582, 212);
+                ctx.lineTo(552, 212);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = CRAFT.glass;
+                ctx.beginPath();
+                ctx.moveTo(555, 201); ctx.lineTo(571, 204); ctx.lineTo(577, 210);
+                ctx.lineTo(555, 210);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = CRAFT.spec;
+                ctx.fillRect(557, 203, 8, 2);
+                // Twin engine bells, aft
+                ctx.fillStyle = CRAFT.edge;
+                ctx.fillRect(474, 204, 10, 12);
+                ctx.fillRect(474, 218, 10, 12);
+                ctx.fillStyle = CRAFT.lo;
+                ctx.fillRect(477, 206, 6, 8);
+                ctx.fillRect(477, 220, 6, 8);
+                // Landing gear
+                ctx.fillStyle = CRAFT.edge;
+                ctx.fillRect(500, 232, 4, 16);
+                ctx.fillRect(494, 246, 16, 4);
+                ctx.fillRect(566, 228, 4, 20);
+                ctx.fillRect(560, 246, 16, 4);
             }
             // Landing pad sign on a post
             ctx.fillStyle = '#556';
@@ -7307,87 +7489,24 @@ document.addEventListener('DOMContentLoaded', () => {
             // Wrecked freighter (Ironclad Star) — centre-back
             ctx.fillStyle = 'rgba(35,22,22,0.34)';
             ctx.beginPath(); ctx.ellipse(326, 270, 196, 25, 0, 0, Math.PI * 2); ctx.fill();
-            // Black underdrawing gives the wreck the strong, asymmetric focal
-            // silhouette seen in classic Sierra landing and crash scenes.
-            ctx.fillStyle = '#000000';
+            // Same Kepler-class hauler seen intact in the distress cinematic,
+            // here broken-backed with her cargo spine snapped.
+            drawFreighter(ctx, 307, 182, 2, true);
+            // Sand drifted against the settled hull so she sits in the ground.
+            ctx.fillStyle = '#7d5530';
             ctx.beginPath();
-            ctx.moveTo(104, 191); ctx.lineTo(175, 102); ctx.lineTo(424, 102);
-            ctx.lineTo(519, 173); ctx.lineTo(479, 268); ctx.lineTo(157, 268);
+            ctx.moveTo(96, 276); ctx.lineTo(140, 256); ctx.lineTo(214, 262);
+            ctx.lineTo(300, 252); ctx.lineTo(392, 264); ctx.lineTo(470, 256);
+            ctx.lineTo(524, 274); ctx.lineTo(524, 288); ctx.lineTo(96, 288);
             ctx.closePath(); ctx.fill();
-            // Main hull: a damaged wedge rather than a flat facade.
-            ctx.fillStyle = '#465767';
+            ctx.fillStyle = '#9c6c3c';
             ctx.beginPath();
-            ctx.moveTo(145, 150); ctx.lineTo(180, 110); ctx.lineTo(420, 110);
-            ctx.lineTo(510, 176); ctx.lineTo(472, 260); ctx.lineTo(162, 260);
+            ctx.moveTo(96, 276); ctx.lineTo(140, 256); ctx.lineTo(214, 262);
+            ctx.lineTo(300, 252); ctx.lineTo(392, 264); ctx.lineTo(470, 256);
+            ctx.lineTo(524, 274); ctx.lineTo(520, 279); ctx.lineTo(468, 262);
+            ctx.lineTo(392, 270); ctx.lineTo(300, 258); ctx.lineTo(214, 268);
+            ctx.lineTo(140, 262); ctx.lineTo(100, 280);
             ctx.closePath(); ctx.fill();
-            ctx.fillStyle = '#667788';
-            ctx.beginPath();
-            ctx.moveTo(180, 110); ctx.lineTo(420, 110); ctx.lineTo(476, 150); ctx.lineTo(146, 150);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = '#344554';
-            ctx.beginPath();
-            ctx.moveTo(476, 150); ctx.lineTo(510, 176); ctx.lineTo(472, 260); ctx.lineTo(452, 248);
-            ctx.closePath(); ctx.fill();
-            ctx.fillStyle = '#344554';
-            ctx.beginPath();
-            ctx.moveTo(112, 190); ctx.lineTo(162, 260); ctx.lineTo(220, 260); ctx.lineTo(176, 225);
-            ctx.closePath(); ctx.fill();
-            // Hull plates, rivets and a faded cargo stripe suggest a once-busy
-            // working ship rather than a single unbroken polygon.
-            ctx.strokeStyle = '#7b8b98';
-            ctx.beginPath();
-            ctx.moveTo(170, 176); ctx.lineTo(470, 176);
-            ctx.moveTo(188, 218); ctx.lineTo(458, 218);
-            ctx.moveTo(270, 112); ctx.lineTo(270, 254);
-            ctx.moveTo(356, 112); ctx.lineTo(356, 254);
-            ctx.stroke();
-            ctx.fillStyle = '#9b6a35';
-            ctx.fillRect(252, 230, 142, 5);
-            ctx.fillStyle = '#2e3c49';
-            for (let rx = 182; rx <= 454; rx += 34) {
-                ctx.fillRect(rx, 173, 2, 2);
-                ctx.fillRect(rx + 10, 216, 2, 2);
-            }
-            // Name plate
-            ctx.font = sceneFont(11);
-            ctx.fillStyle = '#889AAA';
-            ctx.fillText('IRONCLAD STAR', 256, 158);
-            ctx.font = '8px "Courier New"';
-            ctx.fillStyle = '#667788';
-            ctx.fillText('REG: ISS-4471', 276, 168);
-            // Hull damage — gouges and char
-            ctx.fillStyle = '#2a3040';
-            ctx.fillRect(200, 138, 30, 60);
-            ctx.fillRect(280, 125, 20, 40);
-            ctx.fillRect(390, 140, 40, 55);
-            // Scorch streaks
-            ctx.fillStyle = '#1a1520';
-            ctx.fillRect(205, 135, 8, 80);
-            ctx.fillRect(393, 137, 6, 60);
-            // Hull breach — dark gaping hole left side
-            ctx.fillStyle = '#0a0a14';
-            ctx.beginPath();
-            ctx.moveTo(218, 145);
-            ctx.lineTo(240, 138);
-            ctx.lineTo(248, 155);
-            ctx.lineTo(242, 185);
-            ctx.lineTo(215, 192);
-            ctx.lineTo(202, 168);
-            ctx.closePath();
-            ctx.fill();
-            // Twisted metal around breach
-            ctx.strokeStyle = '#667788';
-            ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(218, 145); ctx.lineTo(210, 135); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(248, 155); ctx.lineTo(256, 148); ctx.stroke();
-            ctx.lineWidth = 1;
-            // Landing struts — partially snapped
-            ctx.fillStyle = '#445566';
-            ctx.fillRect(170, 258, 16, 30); // left snapped
-            ctx.save(); ctx.translate(186, 258); ctx.rotate(0.4);
-            ctx.fillRect(0, 0, 16, 25); ctx.restore(); // bent
-            ctx.fillStyle = '#445566';
-            ctx.fillRect(460, 258, 16, 30); // right standing
 
             // Crash debris gives the foreground story detail and stronger scale.
             ctx.fillStyle = '#394955';
@@ -7405,7 +7524,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Dim interior glow from breach
                 ctx.fillStyle = 'rgba(0,100,200,0.12)';
                 ctx.beginPath();
-                ctx.moveTo(218, 145); ctx.lineTo(248, 155); ctx.lineTo(242, 185); ctx.lineTo(215, 192); ctx.lineTo(202, 168);
+                ctx.moveTo(195, 146); ctx.lineTo(219, 134); ctx.lineTo(247, 154);
+                ctx.lineTo(255, 186); ctx.lineTo(231, 198); ctx.lineTo(203, 186);
                 ctx.closePath(); ctx.fill();
             }
 
