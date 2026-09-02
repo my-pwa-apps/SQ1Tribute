@@ -1148,7 +1148,8 @@ class GameEngine {
             }
             return;
         }
-        const handler = hotspot[action];
+        const handler = hotspot[action] ||
+            (action === 'use' && hotspot.isExit ? hotspot.onExit : null);
         if (handler) {
             handler(scope);
         } else {
@@ -2774,7 +2775,8 @@ class GameEngine {
         const cs = this.cutscene;
         const progress = Math.min(cs.elapsed / cs.duration, 1);
         cs.draw(ctx, this.WIDTH, this.HEIGHT, progress, cs.elapsed);
-        this.applyClassicSceneRaster(ctx);
+        // Cutscenes combine scenery with story-critical captions in one draw
+        // callback. Keep them at native resolution so small text remains legible.
         // Overlays sit on the screen, not in the scene, so they must not ride
         // the shake transform (and the fade must still cover every edge).
         ctx.save();

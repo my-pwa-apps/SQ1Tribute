@@ -157,6 +157,22 @@ test('walking out of the closet does not bounce the player straight back in', as
     expect(await room()).toBe('corridor');
 });
 
+test('using the science lab exit returns to the corridor', async ({ page }) => {
+    await clearState(page);
+    await finishIntro(page);
+    const result = await page.evaluate(() => {
+        const e = window.engine;
+        e.goToRoom('science_lab', 320, 330);
+        e.roomTransition = 0;
+        e.currentAction = 'use';
+        const exit = e.rooms.science_lab.hotspots.find((hotspot) => hotspot.name === 'Exit');
+        e.performAction(exit);
+        return e.currentRoomId;
+    });
+
+    expect(result).toBe('corridor');
+});
+
 test('enhanced Look actions display a response and chain on the next click', async ({ page }) => {
     await clearState(page);
     await finishIntro(page);

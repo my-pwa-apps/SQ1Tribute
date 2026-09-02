@@ -1057,52 +1057,55 @@ StarSweeper.defineRooms((engine) => {
             // the head nearest the camera, so she reads as a person rather than
             // another piece of floor debris. Kept clear of the closet-door walk
             // path so the ego never stands on top of her.
-            eng.drawContactShadow(ctx, 394, 344, 1, { rx: 44, ry: 8, alpha: 0.34, light: null });
+            const chenX = 394, chenGroundY = 344;
+            ctx.save();
+            ctx.translate(chenX, chenGroundY);
+            eng.drawContactShadow(ctx, -6, 0, 1, { rx: 44, ry: 8, alpha: 0.34, light: null });
             // Boots and legs, foreshortened away from the viewer. Kept warm
             // (brown/rose) rather than grey so she reads against the cool
             // blue-grey corridor floor instead of blending into it.
             ctx.fillStyle = '#241c18';
-            ctx.fillRect(430, 316, 12, 7);
+            ctx.fillRect(36, -28, 12, 7);
             ctx.fillStyle = '#6e5850';
-            ctx.fillRect(406, 318, 26, 10);
+            ctx.fillRect(12, -26, 26, 10);
             ctx.fillStyle = '#82695f';
-            ctx.fillRect(406, 318, 26, 2);
+            ctx.fillRect(12, -26, 26, 2);
             // Hips
             ctx.fillStyle = '#5c473f';
-            ctx.fillRect(394, 320, 14, 14);
+            ctx.fillRect(0, -24, 14, 14);
             // Torso in a lab coat — largest mass because it is nearest
             ctx.fillStyle = '#ab9490';
-            ctx.fillRect(370, 321, 26, 19);
+            ctx.fillRect(-24, -23, 26, 19);
             ctx.fillStyle = '#c4ada8';
-            ctx.fillRect(370, 321, 26, 3);
+            ctx.fillRect(-24, -23, 26, 3);
             ctx.fillStyle = '#8a726d';
-            ctx.fillRect(370, 337, 26, 3);
+            ctx.fillRect(-24, -7, 26, 3);
             // Coat lapel
             ctx.fillStyle = '#7a3a3a';
-            ctx.fillRect(382, 324, 4, 13);
+            ctx.fillRect(-12, -20, 4, 13);
             // Shoulder rolled toward the floor
             ctx.fillStyle = '#b8a19c';
-            ctx.fillRect(368, 324, 6, 12);
+            ctx.fillRect(-26, -20, 6, 12);
             // Outstretched arm and hand reaching toward the player
             ctx.fillStyle = '#ab9490';
-            ctx.fillRect(356, 336, 16, 6);
+            ctx.fillRect(-38, -8, 16, 6);
             ctx.fillStyle = '#CC9977';
-            ctx.fillRect(348, 337, 9, 6);
+            ctx.fillRect(-46, -7, 9, 6);
             // Head, turned to one side
             ctx.fillStyle = '#CC9977';
-            ctx.fillRect(354, 324, 17, 16);
+            ctx.fillRect(-40, -20, 17, 16);
             ctx.fillStyle = '#B98868';
-            ctx.fillRect(354, 336, 17, 4);
+            ctx.fillRect(-40, -8, 17, 4);
             // Dark hair spilling onto the deck
             ctx.fillStyle = '#222233';
-            ctx.fillRect(352, 322, 19, 7);
-            ctx.fillRect(348, 326, 6, 12);
+            ctx.fillRect(-42, -22, 19, 7);
+            ctx.fillRect(-46, -18, 6, 12);
             ctx.fillStyle = '#33334a';
-            ctx.fillRect(354, 322, 10, 2);
+            ctx.fillRect(-40, -22, 10, 2);
 
             // KEYCARD on body — only visible before pickup
             if (!eng.getFlag('got_keycard_corridor')) {
-                const kcx = 375, kcy = 325;
+                const kcx = -19, kcy = -19;
                 // Card body (small badge clipped to coat)
                 ctx.fillStyle = '#DDDDCC';
                 ctx.fillRect(kcx, kcy, 20, 12);
@@ -1141,8 +1144,9 @@ StarSweeper.defineRooms((engine) => {
 
             // Closed eyes (she's gone)
             ctx.fillStyle = '#222233';
-            ctx.fillRect(360, 331, 3, 1);
-            ctx.fillRect(366, 331, 3, 1);
+            ctx.fillRect(-34, -13, 3, 1);
+            ctx.fillRect(-28, -13, 3, 1);
+            ctx.restore();
 
             // Emergency lights
             alarmLight(ctx, 140, 6, eng);

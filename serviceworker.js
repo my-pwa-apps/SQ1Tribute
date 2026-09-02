@@ -1,6 +1,6 @@
 // Star Sweeper: A Space Adventure - Service Worker
 // BUMP VERSION on every code change to invalidate the cache.
-const VERSION = 'v1.0.89';
+const VERSION = 'v1.0.90';
 const CACHE_NAME = `starsweeper-${VERSION}`;
 
 const ASSETS = [
