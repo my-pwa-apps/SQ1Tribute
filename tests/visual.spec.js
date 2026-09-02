@@ -80,7 +80,9 @@ test.describe('visual regression', () => {
             'desert', 'cave', 'outpost', 'cantina', 'shop', 'docking_bay',
             'draknoid_brig', 'draknoid_ship'
         ]) {
-            await setRoomState(page, room, {});
+            // The docking bay plays its arrival cinematic once; this matrix
+            // captures room art, so mark it as already seen.
+            await setRoomState(page, room, room === 'docking_bay' ? { saw_freighter_crash: true } : {});
             await expectCanvas(page, `${room}.png`);
         }
 

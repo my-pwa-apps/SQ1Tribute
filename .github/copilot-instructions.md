@@ -2,14 +2,31 @@
 
 ## Architecture Overview
 
-A Sierra-style point-and-click adventure game (Space Quest 1 tribute) built with **pure JavaScript and HTML5 Canvas** (640×400, `image-rendering: pixelated`). No frameworks, no build system, no dependencies.
+A Sierra-style point-and-click adventure game (Space Quest 1 tribute) built with **pure JavaScript and HTML5 Canvas** (640×400, `image-rendering: pixelated`). No frameworks, no build system, no runtime dependencies.
 
 - [index.html](../index.html) — UI shell: canvas, action buttons (Walk/Look/Get/Use/Talk), inventory bar, save/load modal, message area
 - [js/engine.js](../js/engine.js) — reusable `GameEngine` class: rendering loop, input handling, player sprite, click-to-walk + arrow key movement, cutscene system, save/load (localStorage, 5 slots), room transitions, title/victory overlays driven by a game definition object
-- [js/game.js](../js/game.js) — Star Sweeper game definition plus all game content: procedural pixel art, items, puzzles, hotspots, cutscene animations, drawing helpers. Wrapped in a single `DOMContentLoaded` listener using `engine` as a closure variable.
+- [js/registry.js](../js/registry.js) — room-module registry. Rooms are parsed before the engine exists, so each room file queues a factory via `StarSweeper.defineRooms(fn)` and the bootstrap drains the queue.
+- [js/art.js](../js/art.js) — procedural drawing helpers shared by every room and cutscene, declared at script scope so rooms call them unqualified
+- [js/game.js](../js/game.js) — bootstrap only: items, dialog trees, the intro cutscene, `installRooms`, `start`
+- [js/rooms/*.js](../js/rooms) — the rooms themselves, grouped by act
+
+### Where does new code go?
+
+| Kind of change | File |
+|---|---|
+| Reusable system (input, parser, inventory, save/load, cutscene machinery, NPCs, depth scaling, overlays) | `js/engine.js` |
+| Drawing helper used by more than one room | `js/art.js` |
+| A room's art, hotspots and puzzle logic | the matching `js/rooms/*.js` |
+| Items, dialog trees, the intro | `js/game.js` |
+| Score contract, item metadata, victory ranks | `js/content.js` |
+
+Adding a room file requires three registrations — `index.html`, the
+`ASSETS` list in `serviceworker.js`, and `CONTENT_FILES` in
+`tools/validate_content.js`. The static gate fails if any is missed.
 
 ### Reusable Engine Boundary
-Create tribute-game variants by supplying `new GameEngine({ id, title, shortTitle, subtitle, storagePrefix, maxScore, startRoom, startX, startY, victory, drawTitleBackdrop? })` from the content script. Keep storyline, puzzle flags, item IDs, room art, custom cutscenes, score values, and victory rank copy in the game content file. Keep reusable systems (input, parser, inventory, save/load, cutscenes, dialogs, NPCs, depth scaling, overlays) in [js/engine.js](../js/engine.js).
+Create tribute-game variants by supplying `new GameEngine({ id, title, shortTitle, subtitle, storagePrefix, maxScore, startRoom, startX, startY, victory, drawTitleBackdrop? })` from the content script. Keep storyline, puzzle flags, item IDs, room art, custom cutscenes, score values, and victory rank copy in the content files. Call `engine.destroy()` before replacing an instance.
 
 ## Key Patterns
 
@@ -63,8 +80,9 @@ Items registered via `engine.registerItem({ id, name, description })`. Acquired 
 1. **Broom Closet** → 2. **Corridor** (get keycard from Dr. Chen) → 3. **Science Lab** (get data cartridge) → 4. **Pod Bay** (get survival kit, launch pod → cutscene) → 5. **Desert** (crashed on planet) → 6. **Cave** (get xenon crystal) → 7. **Outpost** (sell crystal for credits) → 8. **Cantina** (buy ale, trade for nav chip) → 9. **Shop** (buy pulsar ray) → 10. **Draknoid Ship** (use pulsar ray on guard → cutscene, use cartridge on console, grab quantum drive → victory cutscene)
 
 ## Development Workflow
-- **Run**: Serve with any HTTP server (e.g., `python -m http.server 8080`) and open in browser
-- **Validate**: `node -c js/engine.js ; node -c js/game.js` for syntax checking (no build step)
+- **Run**: `npm run serve`, then open http://127.0.0.1:8080
+- **Validate**: `npm run check:static` (lint + parse + content cross-references) or `npm run check` for the full gate
+- **Art changes**: `npm run test:visual:update`, then *look at the PNGs* before accepting them
 - **Shortcuts**: F5 save, F7 load, L/G/U/T/W for actions, arrow keys to walk, R to restart on death
 
 ## Common Pitfalls

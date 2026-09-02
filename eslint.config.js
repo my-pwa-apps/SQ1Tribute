@@ -1,4 +1,21 @@
+const fs = require('fs');
+const path = require('path');
 const globals = require('globals');
+
+// js/art.js exposes its helpers as script-scope declarations rather than an
+// object, so room modules can call them unqualified. Derive the list from the
+// file itself instead of hand-maintaining a copy that will silently drift.
+function scriptScopeDeclarations(file) {
+    const source = fs.readFileSync(path.join(__dirname, file), 'utf8');
+    const names = {};
+    const pattern = /^(?:function\s+([A-Za-z_$][\w$]*)|(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=)/gm;
+    for (const match of source.matchAll(pattern)) {
+        names[match[1] || match[2]] = 'readonly';
+    }
+    return names;
+}
+
+const artGlobals = scriptScopeDeclarations('js/art.js');
 
 // The game ships as plain <script> tags with no bundler, so cross-file symbols
 // are genuine browser globals rather than imports. They are declared here so
@@ -8,6 +25,7 @@ const gameGlobals = {
     SoundEngine: 'readonly',
     AnimatedObject: 'readonly',
     VRSystem: 'readonly',
+    StarSweeper: 'readonly',
     StarSweeperContent: 'readonly',
     SS_PALETTE: 'readonly',
     StarSweeperVR: 'readonly',
@@ -60,6 +78,16 @@ module.exports = [
                 ...globals.serviceworker,
                 ...gameGlobals
             }
+        },
+        rules: sharedRules
+    },
+    {
+        // Consumers of the shared art module.
+        files: ['js/game.js', 'js/rooms/**/*.js'],
+        languageOptions: {
+            ecmaVersion: 2022,
+            sourceType: 'script',
+            globals: { ...globals.browser, ...gameGlobals, ...artGlobals }
         },
         rules: sharedRules
     },

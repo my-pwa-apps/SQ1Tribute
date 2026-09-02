@@ -9,6 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # check:sw diffs against the base branch to prove the offline cache
+          # version was bumped whenever a cached asset changed.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -37,6 +41,10 @@ jobs:
       # platform-independent functional suite. Run `npm run test:visual`
       # locally before release.
       - run: npm run check:ci
+
+      - name: Service worker cache version
+        if: github.event_name == 'pull_request'
+        run: npm run check:sw -- origin/${{ github.base_ref }}
 
       - uses: actions/upload-artifact@v4
         if: failure()

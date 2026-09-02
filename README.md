@@ -70,14 +70,38 @@ From your broom closet you'll sneak through a burning ship, launch the last esca
 index.html          UI shell, styles, bootstrap
 manifest.json       PWA manifest
 serviceworker.js    Offline cache — bump VERSION on every code change
+eslint.config.js    Lint rules; art-module globals are derived from js/art.js
 js/
+    palette.js      Shared EGA and semantic colour vocabulary
     engine.js       GameEngine class: loop, input, rendering, save/load
-    content.js      Structured game metadata and item definitions
-    game.js         All game content: rooms, items, puzzles, cutscenes
     sound.js        Web Audio synthesis
     vr.js           Optional WebXR integration
+    content.js      Structured game metadata and item definitions
+    registry.js     Room-module registry (no bundler, so rooms queue themselves)
+    art.js          Procedural drawing helpers shared by rooms and cutscenes
+    game.js         Bootstrap: items, dialog trees, intro cutscene, start
+    rooms/
+        ship.js         Broom closet, corridor, science lab, pod bay
+        engine-room.js  Engine room
+        kerona.js       Desert, cave, outpost, cantina, shop
+        endgame.js      Docking bay, Draknoid brig, Draknoid flagship
 tools/              Dev-only helper scripts (not shipped)
 ```
+
+### Adding a room
+
+Rooms never import the engine — they are parsed before it exists. Each room file
+queues a factory that the bootstrap drains once the engine is constructed:
+
+```js
+StarSweeper.defineRooms((engine) => {
+    engine.registerRoom({ id: 'my_room', /* ... */ });
+});
+```
+
+Add the new file to `index.html` (before `js/game.js`), to the `ASSETS` list in
+`serviceworker.js`, and to `CONTENT_FILES` in `tools/validate_content.js`.
+`npm run check:static` fails if any of the three is missed.
 
 ## Development
 
@@ -87,6 +111,25 @@ Install the development dependencies and run the complete release gate:
 npm install
 npm run check
 ```
+
+| Script | Purpose |
+|---|---|
+| `npm run lint` | ESLint over every source and test file |
+| `npm run check:static` | Lint, parse every module, and validate content cross-references |
+| `npm run test:functional` | Playwright gameplay and PWA tests (platform-independent) |
+| `npm run test:visual` | Visual regression against committed baselines |
+| `npm run test:visual:update` | Re-record visual baselines after an intentional art change |
+| `npm run check` | Full local gate: static checks plus every Playwright test |
+| `npm run check:ci` | What CI runs: static checks plus the functional suite |
+| `npm run check:sw` | Fails if a cached asset changed without a service worker version bump |
+
+Visual baselines are platform-specific and are currently recorded on Windows, so
+CI runs `check:ci` and the visual suite is a local pre-release step.
+
+`tools/validate_content.js` enforces the content contract: unknown room and item
+references, flags that are read but never set (or set but never read), a
+`maxScore` larger than the sum of the awards, missing service-worker assets, and
+any content module that is not loaded by the page or cached offline.
 `npm run check` performs JavaScript syntax checks, structured room/item/asset validation, and Playwright tests in desktop Chrome and Pixel 5 emulation. The browser suite covers mode selection, the touch parser, save/load, accessibility mirrors, both final-console puzzle routes, offline reload, update UI, and the absence of full-canvas pixel readbacks. It also compares reviewed visual baselines for the title, representative rooms, CRT output, and mobile framing. Update those baselines deliberately with `npx playwright test tests/visual.spec.js --update-snapshots` only after reviewing the rendered changes.
 
 Content metadata and items live in [js/content.js](js/content.js) so the validator can consume exact IDs without booting the UI. Room groups remain in [js/game.js](js/game.js); keep production content files below 400 KB and extract the next stable room group before crossing that threshold.

@@ -198,6 +198,7 @@ class GameEngine {
         this.visualTestMode = typeof window !== 'undefined' &&
             new URLSearchParams(window.location.search).has('visual-test');
         this._loopRunning = false;
+        this._listeners = [];
         this._lightPoolCache = new Map();
         this._vignetteCache = new Map();
         // Text measurement happens outside the render pass (word wrap, dialog
@@ -317,8 +318,30 @@ class GameEngine {
         };
     }
 
+    /** Attach a listener and remember it so destroy() can detach it again.
+     *  Listeners on elements the engine itself creates are not tracked: they
+     *  are discarded together with their element. */
+    _on(target, type, handler, options) {
+        if (!target) return;
+        target.addEventListener(type, handler, options);
+        this._listeners.push({ target, type, handler, options });
+    }
+
+    /** Detach every tracked listener and stop the render loop. Required before
+     *  replacing one engine instance with another on the same page. */
+    destroy() {
+        this._loopRunning = false;
+        for (const { target, type, handler, options } of this._listeners) {
+            target.removeEventListener(type, handler, options);
+        }
+        this._listeners.length = 0;
+        if (this.sound && this.sound.stopAmbient) this.sound.stopAmbient();
+        this.cutscene = null;
+        if (typeof window !== 'undefined' && window.engine === this) delete window.engine;
+    }
+
     setupInput() {
-        this.canvas.addEventListener('click', (e) => {
+        this._on(this.canvas, 'click', (e) => {
             this.sound.init();
             if (this.cutscene) {
                 this.skipCutscene();
@@ -358,17 +381,17 @@ class GameEngine {
             this.handleClick(coords.x, coords.y);
         });
 
-        this.canvas.addEventListener('mousemove', (e) => {
+        this._on(this.canvas, 'mousemove', (e) => {
             const coords = this.getCanvasCoords(e);
             this.mouseX = coords.x;
             this.mouseY = coords.y;
         });
 
         this.actionButtons.forEach(btn => {
-            btn.addEventListener('click', () => this.setAction(btn.dataset.action));
+            this._on(btn, 'click', () => this.setAction(btn.dataset.action));
         });
 
-        document.addEventListener('keydown', (e) => {
+        this._on(document, 'keydown', (e) => {
             this.keysDown[e.key] = true;
             this.sound.init().finally(() => this.updateSoundUI());
 
@@ -488,42 +511,42 @@ class GameEngine {
             }
         });
 
-        document.addEventListener('keyup', (e) => {
+        this._on(document, 'keyup', (e) => {
             delete this.keysDown[e.key];
         });
 
         // Clear stuck keys when window loses focus
-        window.addEventListener('blur', () => {
+        this._on(window, 'blur', () => {
             this.keysDown = {};
         });
 
-        window.addEventListener('resize', () => this.updateLayoutScale());
-        window.addEventListener('orientationchange', () => this.updateLayoutScale());
+        this._on(window, 'resize', () => this.updateLayoutScale());
+        this._on(window, 'orientationchange', () => this.updateLayoutScale());
 
-        if (this.dom.btnSave) this.dom.btnSave.addEventListener('click', () => this.openSaveModal('save'));
-        if (this.dom.btnLoad) this.dom.btnLoad.addEventListener('click', () => this.openSaveModal('load'));
-        if (this.dom.btnHint) this.dom.btnHint.addEventListener('click', () => this.showHint());
-        if (this.dom.btnScan) this.dom.btnScan.addEventListener('click', () => this.toggleHotspotReveal());
+        if (this.dom.btnSave) this._on(this.dom.btnSave, 'click', () => this.openSaveModal('save'));
+        if (this.dom.btnLoad) this._on(this.dom.btnLoad, 'click', () => this.openSaveModal('load'));
+        if (this.dom.btnHint) this._on(this.dom.btnHint, 'click', () => this.showHint());
+        if (this.dom.btnScan) this._on(this.dom.btnScan, 'click', () => this.toggleHotspotReveal());
         if (this.dom.btnTools) {
-            this.dom.btnTools.addEventListener('click', () => {
+            this._on(this.dom.btnTools, 'click', () => {
                 const bar = this.dom.btnTools.parentElement;
                 const expanded = bar.classList.toggle('tools-open');
                 this.dom.btnTools.setAttribute('aria-expanded', String(expanded));
             });
         }
         if (this.dom.btnMute) {
-            this.dom.btnMute.addEventListener('click', () => {
+            this._on(this.dom.btnMute, 'click', () => {
                 this.sound.init().finally(() => this.updateSoundUI());
                 this.sound.toggleMute();
                 this.updateSoundUI();
             });
         }
-        this.dom.saveModalClose.addEventListener('click', () => this.closeSaveModal());
-        this.dom.saveModal.addEventListener('click', (e) => {
+        this._on(this.dom.saveModalClose, 'click', () => this.closeSaveModal());
+        this._on(this.dom.saveModal, 'click', (e) => {
             if (e.target === this.dom.saveModal) this.closeSaveModal();
         });
         if (this.dom.touchParser) {
-            this.dom.touchParser.addEventListener('submit', (e) => {
+            this._on(this.dom.touchParser, 'submit', (e) => {
                 e.preventDefault();
                 if (this.titleScreen || this.dead || this.won) return;
                 const command = this.dom.touchParserInput.value.trim();
@@ -536,11 +559,11 @@ class GameEngine {
             });
         }
         if (this.dom.btnEnhanced) {
-            this.dom.btnEnhanced.addEventListener('click', () => this.setInterfaceMode('enhanced', true));
+            this._on(this.dom.btnEnhanced, 'click', () => this.setInterfaceMode('enhanced', true));
         }
 
         // Touch support for canvas
-        this.canvas.addEventListener('touchstart', (e) => {
+        this._on(this.canvas, 'touchstart', (e) => {
             e.preventDefault();
             this.sound.init();
             const touch = e.touches[0];
@@ -576,7 +599,7 @@ class GameEngine {
             this.handleClick(coords.x, coords.y);
         }, { passive: false });
 
-        this.canvas.addEventListener('touchmove', (e) => {
+        this._on(this.canvas, 'touchmove', (e) => {
             e.preventDefault();
             const touch = e.touches[0];
             const coords = this.getCanvasCoords(touch);
@@ -594,12 +617,12 @@ class GameEngine {
             if (!btn) continue;
             const press = (ev) => { ev.preventDefault(); this.keysDown[key] = true; };
             const release = (ev) => { ev.preventDefault(); delete this.keysDown[key]; };
-            btn.addEventListener('touchstart', press, { passive: false });
-            btn.addEventListener('touchend', release, { passive: false });
-            btn.addEventListener('touchcancel', release, { passive: false });
-            btn.addEventListener('mousedown', press);
-            btn.addEventListener('mouseup', release);
-            btn.addEventListener('mouseleave', release);
+            this._on(btn, 'touchstart', press, { passive: false });
+            this._on(btn, 'touchend', release, { passive: false });
+            this._on(btn, 'touchcancel', release, { passive: false });
+            this._on(btn, 'mousedown', press);
+            this._on(btn, 'mouseup', release);
+            this._on(btn, 'mouseleave', release);
         }
     }
 
@@ -4375,6 +4398,7 @@ class GameEngine {
         this.updateLayoutScale();
 
         const loop = (timestamp) => {
+            if (!this._loopRunning) return;
             // When VR is active, the XR frame loop handles update+render
             if (!this.vrActive) {
                 const dt = Math.min(timestamp - this.lastTime, 100);
