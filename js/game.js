@@ -625,77 +625,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         const eyeOpen = standProg > 0.2 ? (standProg - 0.2) / 0.2 : 0;
                         drawPlayerSleeping(ctx, 258, 322 + breathe, eyeOpen);
                     } else if (standProg < 0.7) {
-                        // Sit-up phase: matches the shared ego scale
+                        // Sit-up: the shared ego cel, drawn low and rising, so
+                        // the intro cannot use a different character again.
                         const s = engine.playerSpriteScale(310);
                         const sitP = (standProg - 0.4) / 0.3;
-                        const cpx = 300;                          // horizontal centre
-                        const tY = 310 + 6 * s - sitP * 18 * s;  // torso bottom (belt level), rising
-                        const hY = tY - 18 * s;                   // head top
-                        // Boots
-                        ctx.fillStyle = PLAYER_PALETTE.boots;
-                        ctx.fillRect(cpx - 5 * s, tY + 9 * s, 4 * s, 3 * s);
-                        ctx.fillRect(cpx + 0 * s, tY + 9 * s, 4 * s, 3 * s);
-                        ctx.fillStyle = '#111111';
-                        ctx.fillRect(cpx - 5 * s, tY + 11 * s, 5 * s, 1 * s);
-                        ctx.fillRect(cpx + 0 * s, tY + 11 * s, 5 * s, 1 * s);
-                        // Legs
-                        ctx.fillStyle = PLAYER_PALETTE.legs;
-                        ctx.fillRect(cpx - 4 * s, tY + 1 * s, 3 * s, 8 * s);
-                        ctx.fillRect(cpx + 1 * s, tY + 1 * s, 3 * s, 8 * s);
-                        ctx.fillStyle = PLAYER_PALETTE.legHighlight;
-                        ctx.fillRect(cpx - 3 * s, tY + 2 * s, 1 * s, 6 * s);
-                        ctx.fillRect(cpx + 2 * s, tY + 2 * s, 1 * s, 6 * s);
-                        ctx.fillStyle = PLAYER_PALETTE.kneePatch;
-                        ctx.fillRect(cpx - 4 * s, tY + 4 * s, 3 * s, 3 * s);
-                        // Body
-                        ctx.fillStyle = PLAYER_PALETTE.suit;
-                        ctx.fillRect(cpx - 5 * s, tY - 10 * s, 10 * s, 11 * s);
-                        ctx.fillStyle = PLAYER_PALETTE.suitOutline;
-                        ctx.fillRect(cpx - 5 * s, tY - 10 * s, 1 * s, 11 * s);
-                        ctx.fillRect(cpx + 4 * s, tY - 10 * s, 1 * s, 11 * s);
-                        ctx.fillStyle = PLAYER_PALETTE.legHighlight;
-                        ctx.fillRect(cpx - 1 * s, tY - 6 * s, 2 * s, 4 * s);
-                        // Collar
-                        ctx.fillStyle = PLAYER_PALETTE.collar;
-                        ctx.fillRect(cpx - 4 * s, tY - 10 * s, 8 * s, 1 * s);
-                        // Belt
-                        ctx.fillStyle = PLAYER_PALETTE.belt;
-                        ctx.fillRect(cpx - 5 * s, tY, 10 * s, 2 * s);
-                        // Belt buckle
-                        ctx.fillStyle = PLAYER_PALETTE.buckle;
-                        ctx.fillRect(cpx - 1.5 * s, tY - 0.5 * s, 3 * s, 2.5 * s);
-                        // Arms braced at the shoulder; the elbow angles out while he pushes up.
-                        const brace = Math.round((1 - sitP) * 2 * s);
-                        ctx.fillStyle = PLAYER_PALETTE.suit;
-                        ctx.fillRect(cpx - 7 * s, tY - 8 * s, 2 * s, 4 * s);
-                        ctx.fillRect(cpx + 5 * s, tY - 8 * s, 2 * s, 4 * s);
-                        ctx.fillRect(cpx - 7 * s - brace, tY - 4.5 * s, 2 * s, 3 * s);
-                        ctx.fillRect(cpx + 5 * s + brace, tY - 4.5 * s, 2 * s, 3 * s);
-                        ctx.fillStyle = PLAYER_PALETTE.collar;
-                        ctx.fillRect(cpx - 7 * s - brace, tY - 2 * s, 2 * s, 1 * s);
-                        ctx.fillRect(cpx + 5 * s + brace, tY - 2 * s, 2 * s, 1 * s);
-                        // Hands
-                        ctx.fillStyle = PLAYER_PALETTE.gloves;
-                        ctx.fillRect(cpx - 7 * s - brace, tY - 1 * s, 2 * s, 2.5 * s);
-                        ctx.fillStyle = PLAYER_PALETTE.gloveFaded;
-                        ctx.fillRect(cpx + 5 * s + brace, tY - 1 * s, 2 * s, 2.5 * s);
-                        // Hair
-                        ctx.fillStyle = PLAYER_PALETTE.hair;
-                        ctx.fillRect(cpx - 4 * s, hY - 1 * s, 8 * s, 4 * s);
-                        ctx.fillStyle = PLAYER_PALETTE.hairHighlight;
-                        ctx.fillRect(cpx - 2 * s, hY - 1 * s, 4 * s, 1 * s);
-                        // Head
-                        ctx.fillStyle = PLAYER_PALETTE.skin;
-                        ctx.fillRect(cpx - 4 * s, hY, 8 * s, 8 * s);
-                        ctx.fillStyle = PLAYER_PALETTE.skinShadow;
-                        ctx.fillRect(cpx - 4 * s, hY + 7 * s, 8 * s, 1 * s);
-                        // Eyes
-                        ctx.fillStyle = PLAYER_PALETTE.eyeWhite;
-                        ctx.fillRect(cpx - 3 * s, hY + 3 * s, 2.5 * s, 2 * s);
-                        ctx.fillRect(cpx + 0.5 * s, hY + 3 * s, 2.5 * s, 2 * s);
-                        ctx.fillStyle = PLAYER_PALETTE.iris;
-                        ctx.fillRect(cpx - 2.5 * s, hY + 3 * s, 1.5 * s, 2 * s);
-                        ctx.fillRect(cpx + 1 * s, hY + 3 * s, 1.5 * s, 2 * s);
+                        const riseY = 310 + (1 - sitP) * 13 * s;
+                        ctx.save();
+                        // Crouched: squash vertically and lean back as he pushes up.
+                        ctx.translate(px, riseY);
+                        ctx.scale(1, 0.62 + sitP * 0.38);
+                        ctx.rotate((1 - sitP) * -0.12);
+                        drawPlayerBody(ctx, 0, 0, s, 0.5);
+                        ctx.restore();
                     } else {
                         drawPlayerBody(ctx, px, baseY, engine.playerSpriteScale(baseY), wakeProg > 0.85 ? 0 : 0.5);
                     }

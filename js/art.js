@@ -1417,229 +1417,105 @@ function miniAnimRedrawRoom(ctx, w, h) {
 const PLAYER_PALETTE = PAL.PLAYER;
 
 function drawPlayerBody(ctx, px, py, s, armAngle) {
-    // Front-facing player for mini-anims. Shading mirrors the in-room sprite
-    // in engine.drawPlayer so the character does not change between them.
+    // One character definition: the cutscene cel is literally the in-room
+    // front-facing sprite, so the ego can never drift between them.
     engine.drawContactShadow(ctx, px, py + 12 * s, s);
-    // Legs
-    ctx.fillStyle = PLAYER_PALETTE.legs;
-    ctx.fillRect(px - 4 * s, py + 1 * s, 3 * s, 8 * s);
-    ctx.fillRect(px + 1 * s, py + 1 * s, 3 * s, 8 * s);
-    ctx.fillStyle = PLAYER_PALETTE.legHighlight;
-    ctx.fillRect(px - 3 * s, py + 2 * s, 1 * s, 6 * s);
-    ctx.fillRect(px + 2 * s, py + 2 * s, 1 * s, 6 * s);
-    // Badly matched knee patch, as on the in-room ego.
-    ctx.fillStyle = PLAYER_PALETTE.kneePatch;
-    ctx.fillRect(px - 4 * s, py + 4 * s, 3 * s, 3 * s);
-    ctx.fillStyle = PLAYER_PALETTE.suitShadow;
-    ctx.fillRect(px - 3.5 * s, py + 4.5 * s, 2 * s, 0.5 * s);
-    // Boots
-    ctx.fillStyle = PLAYER_PALETTE.boots;
-    ctx.fillRect(px - 5 * s, py + 9 * s, 4 * s, 3 * s);
-    ctx.fillRect(px + 0 * s, py + 9 * s, 4 * s, 3 * s);
-    ctx.fillStyle = '#111111';
-    ctx.fillRect(px - 5 * s, py + 11 * s, 5 * s, 1 * s);
-    ctx.fillRect(px + 0 * s, py + 11 * s, 5 * s, 1 * s);
-    ctx.fillStyle = PLAYER_PALETTE.bootHighlight;
-    ctx.fillRect(px - 4 * s, py + 9 * s, 2 * s, 1 * s);
-    ctx.fillRect(px + 1 * s, py + 9 * s, 2 * s, 1 * s);
-    // Body
-    ctx.fillStyle = PLAYER_PALETTE.suit;
-    ctx.fillRect(px - 5 * s, py - 10 * s, 10 * s, 11 * s);
-    ctx.fillStyle = PLAYER_PALETTE.suitOutline;
-    ctx.fillRect(px - 5 * s, py - 10 * s, 1 * s, 11 * s);
-    ctx.fillRect(px + 4 * s, py - 10 * s, 1 * s, 11 * s);
-    ctx.fillStyle = PLAYER_PALETTE.legHighlight;
-    ctx.fillRect(px - 1 * s, py - 6 * s, 2 * s, 4 * s);
-    // Asymmetric slouched shoulders
-    ctx.fillStyle = PLAYER_PALETTE.suitShadow;
-    ctx.fillRect(px - 5 * s, py - 11 * s, 4 * s, 1 * s);
-    ctx.fillRect(px - 6 * s, py - 9 * s, 1 * s, 3 * s);
-    ctx.fillRect(px + 5 * s, py - 8 * s, 1 * s, 2 * s);
-    ctx.fillStyle = PLAYER_PALETTE.suitOutline;
-    ctx.fillRect(px - 5 * s, py - 12 * s, 4 * s, 1 * s);
-    ctx.fillRect(px + 1 * s, py - 10 * s, 4 * s, 1 * s);
-    // Collar
-    ctx.fillStyle = PLAYER_PALETTE.collar;
-    ctx.fillRect(px - 4 * s, py - 10 * s, 8 * s, 1 * s);
-    // Crooked breast pocket
-    ctx.fillStyle = PLAYER_PALETTE.suitShadow;
-    ctx.fillRect(px - 3.5 * s, py - 7.5 * s, 3 * s, 2.5 * s);
-    ctx.fillStyle = PLAYER_PALETTE.pocketShadow;
-    ctx.fillRect(px - 3 * s, py - 7 * s, 2 * s, 0.5 * s);
-    // Belt
-    ctx.fillStyle = PLAYER_PALETTE.belt;
-    ctx.fillRect(px - 5 * s, py, 10 * s, 2 * s);
-    ctx.fillStyle = PLAYER_PALETTE.buckle;
-    ctx.fillRect(px - 1.5 * s, py - 0.5 * s, 3 * s, 2.5 * s);
-    // Janitorial identity details shared with the in-room ego sprite.
-    ctx.fillStyle = PLAYER_PALETTE.toolPouch;
-    ctx.fillRect(px - 6 * s, py - 0.5 * s, 2 * s, 3 * s);
-    ctx.fillStyle = PLAYER_PALETTE.cleaningRag;
-    ctx.fillRect(px + 4 * s, py, 2 * s, 2.5 * s);
-    ctx.fillStyle = PLAYER_PALETTE.workPatch;
-    ctx.fillRect(px + 1.5 * s, py - 8 * s, 2.5 * s, 2 * s);
-    ctx.fillStyle = PLAYER_PALETTE.workPatchDark;
-    ctx.fillRect(px + 2.5 * s, py - 7.5 * s, 1 * s, 1 * s);
-    // Friendly stepped face and jaw, matching the gameplay sprite.
-    ctx.fillStyle = PLAYER_PALETTE.skin;
-    ctx.fillRect(px - 3 * s, py - 18 * s, 6 * s, 1 * s);
-    ctx.fillRect(px - 4 * s, py - 17 * s, 8 * s, 5 * s);
-    ctx.fillRect(px - 3 * s, py - 12 * s, 6 * s, 2 * s);
-    ctx.fillStyle = PLAYER_PALETTE.skinShadow;
-    ctx.fillRect(px - 3 * s, py - 11 * s, 6 * s, 1 * s);
-    ctx.fillRect(px - 4 * s, py - 14 * s, 1 * s, 2 * s);
-    // Tousled hair and cowlick.
-    ctx.fillStyle = PLAYER_PALETTE.hair;
-    ctx.fillRect(px - 3 * s, py - 20 * s, 2 * s, 2 * s);
-    ctx.fillRect(px - 4 * s, py - 19 * s, 7 * s, 3 * s);
-    ctx.fillRect(px + 3 * s, py - 18 * s, 1 * s, 3 * s);
-    ctx.fillStyle = PLAYER_PALETTE.hairDark;
-    ctx.fillRect(px - 4 * s, py - 18 * s, 1 * s, 3 * s);
-    ctx.fillStyle = PLAYER_PALETTE.hairHighlight;
-    ctx.fillRect(px - 1 * s, py - 20 * s, 3 * s, 1 * s);
-    ctx.fillStyle = PLAYER_PALETTE.brow;
-    ctx.fillRect(px - 3 * s, py - 16 * s, 2 * s, 0.5 * s);
-    ctx.fillRect(px + 1 * s, py - 16 * s, 2 * s, 0.5 * s);
-    // Eyes
-    ctx.fillStyle = PLAYER_PALETTE.eyeWhite;
-    ctx.fillRect(px - 3 * s, py - 15 * s, 2.5 * s, 2 * s);
-    ctx.fillRect(px + 0.5 * s, py - 15 * s, 2.5 * s, 2 * s);
-    ctx.fillStyle = PLAYER_PALETTE.iris;
-    ctx.fillRect(px - 2.5 * s, py - 15 * s, 1.5 * s, 2 * s);
-    ctx.fillRect(px + 1 * s, py - 15 * s, 1.5 * s, 2 * s);
-    ctx.fillStyle = PLAYER_PALETTE.skinShadow;
-    ctx.fillRect(px - 0.5 * s, py - 14 * s, 1 * s, 2 * s);
-    ctx.fillStyle = PLAYER_PALETTE.hair;
-    ctx.fillRect(px - 2.5 * s, py - 12.5 * s, 0.5 * s, 0.5 * s);
-    ctx.fillRect(px + 2 * s, py - 12.5 * s, 0.5 * s, 0.5 * s);
-    ctx.fillStyle = PLAYER_PALETTE.smile;
-    ctx.fillRect(px - 1.5 * s, py - 11.5 * s, 3 * s, 0.5 * s);
-    ctx.fillRect(px + 1 * s, py - 12 * s, 1 * s, 0.5 * s);
-    // Arms pivot at the shoulder in three discrete poses (Sierra used cels,
-    // not tweens) so the limb never slides up the torso past the shoulder.
-    const armPose = armAngle < 0.25 ? 0 : (armAngle < 0.7 ? 1 : 2);
-    const drawArm = (sx, out, glove) => {
-        ctx.fillStyle = PLAYER_PALETTE.suit;
-        if (armPose === 0) {
-            ctx.fillRect(sx, py - 8 * s, 2 * s, 7 * s);
-            ctx.fillStyle = PLAYER_PALETTE.collar;
-            ctx.fillRect(sx, py - 2 * s, 2 * s, 1 * s);
-            ctx.fillStyle = glove;
-            ctx.fillRect(sx, py - 1 * s, 2 * s, 2.5 * s);
-            ctx.fillStyle = PLAYER_PALETTE.glovesDark;
-            ctx.fillRect(sx, py + 0.5 * s, 2 * s, 1 * s);
-        } else if (armPose === 1) {
-            // Slight outward bend at the elbow — not a full splay.
-            ctx.fillRect(sx, py - 8 * s, 2 * s, 4 * s);
-            ctx.fillRect(sx + out * 1 * s, py - 4.5 * s, 2 * s, 3 * s);
-            ctx.fillStyle = glove;
-            ctx.fillRect(sx + out * 2 * s, py - 2 * s, 2 * s, 2.5 * s);
-            ctx.fillStyle = PLAYER_PALETTE.glovesDark;
-            ctx.fillRect(sx + out * 2 * s, py - 0.5 * s, 2 * s, 1 * s);
-        } else {
-            ctx.fillRect(sx, py - 8 * s, 2 * s, 2 * s);
-            ctx.fillRect(out < 0 ? sx - 4 * s : sx + 2 * s, py - 8 * s, 4 * s, 2 * s);
-            ctx.fillStyle = glove;
-            ctx.fillRect(out < 0 ? sx - 6 * s : sx + 6 * s, py - 8 * s, 2 * s, 2.5 * s);
-        }
-    };
-    // His right glove has faded after too many industrial solvents.
-    drawArm(px - 7 * s, -1, PLAYER_PALETTE.gloves);
-    drawArm(px + 5 * s, 1, PLAYER_PALETTE.gloveFaded);
+    engine.drawEgoFront(ctx, px, py, s, { armAngle: armAngle || 0 });
 }
 
 /**
  * Draw the player lying down (sleeping / waking).
  * bx = left edge of head, cy = vertical CENTRE of the lying body.
- * All sizes derived from drawPlayerBody at the shared ego scale (body rotated 90°).
+ * Derived from the same VGA proportions as drawEgoFront, rotated 90 degrees.
  * eyeOpen: 0 = closed, 1 = fully open.
  */
 function drawPlayerSleeping(ctx, bx, cy, eyeOpen) {
     const s = engine.playerSpriteScale(310);
-    // Horizontal reference points (head left → feet right)
-    const bodyX = bx + 8 * s;          // torso starts just right of head
-    const beltX = bodyX + 11 * s;      // belt column
-    const legX  = beltX + 2 * s;       // legs start right of belt
-    const bootX = legX  + 8 * s;       // boots start right of legs
+    const P = PAL.PLAYER;
+    // Horizontal reference points, head at the left, boots at the right.
+    const headX = bx;            // back of the skull
+    const faceX = bx + 3.4 * s;  // front of the face
+    const bodyX = bx + 6.4 * s;  // shoulders
+    const beltX = bodyX + 12 * s;
+    const legX  = beltX + 1.8 * s;
+    const bootX = legX + 12 * s;
 
-    // ---- BACK ARM (rendered first so it sits behind the body) ----
-    ctx.fillStyle = PLAYER_PALETTE.suitShadow;
-    ctx.fillRect(bodyX + 1 * s, cy + 3.5 * s, 8 * s, 2 * s);
-    ctx.fillStyle = PLAYER_PALETTE.gloveFaded;
-    ctx.fillRect(bodyX + 8.5 * s, cy + 3.5 * s, 2.5 * s, 2 * s);
+    engine.drawContactShadow(ctx, bodyX + 6 * s, cy + 5 * s, s, { rx: 20 * s, ry: 2.4 * s, alpha: 0.22 });
 
-    // ---- BOOTS ----
-    ctx.fillStyle = PLAYER_PALETTE.boots;
-    ctx.fillRect(bootX, cy - 2 * s, 4 * s, 2 * s);   // near boot
-    ctx.fillRect(bootX, cy + 1 * s, 4 * s, 2 * s);   // far boot (offset)
+    // Far arm and leg first so the body overlaps them.
+    ctx.fillStyle = P.suitShadow;
+    ctx.fillRect(bodyX + 1 * s, cy + 2.6 * s, 9 * s, 1.9 * s);
+    ctx.fillStyle = P.gloveFaded;
+    ctx.fillRect(bodyX + 9.6 * s, cy + 2.6 * s, 2.2 * s, 1.9 * s);
+    ctx.fillStyle = P.legs;
+    ctx.fillRect(legX, cy + 0.6 * s, 12 * s, 2.8 * s);
 
-    // ---- LEGS ----
-    ctx.fillStyle = PLAYER_PALETTE.legs;
-    ctx.fillRect(legX, cy - 4 * s, 8 * s, 3 * s);    // near leg
-    ctx.fillRect(legX, cy + 1 * s, 8 * s, 3 * s);    // far leg
+    // Near leg, then boots.
+    ctx.fillStyle = P.legs;
+    ctx.fillRect(legX, cy - 3.2 * s, 12 * s, 2.8 * s);
+    ctx.fillStyle = P.legHighlight;
+    ctx.fillRect(legX + 1 * s, cy - 2.8 * s, 9 * s, 0.9 * s);
+    ctx.fillStyle = P.kneePatch;
+    ctx.fillRect(legX + 4 * s, cy - 3.2 * s, 2.6 * s, 2.8 * s);
+    ctx.fillStyle = P.boots;
+    ctx.fillRect(bootX, cy - 3.6 * s, 3 * s, 3.2 * s);
+    ctx.fillRect(bootX, cy + 0.4 * s, 3 * s, 3.2 * s);
+    ctx.fillStyle = P.bootHighlight;
+    ctx.fillRect(bootX + 0.4 * s, cy - 3.2 * s, 0.8 * s, 2.4 * s);
 
-    // ---- BODY ----
-    ctx.fillStyle = PLAYER_PALETTE.suit;
-    ctx.fillRect(bodyX, cy - 5 * s, 11 * s, 10 * s);
-    ctx.fillStyle = PLAYER_PALETTE.suitOutline;
-    ctx.fillRect(bodyX, cy - 5 * s, 11 * s, 1 * s);
-    ctx.fillRect(bodyX, cy + 4 * s, 11 * s, 1 * s);
+    // Torso
+    ctx.fillStyle = P.suit;
+    ctx.fillRect(bodyX, cy - 4 * s, 12 * s, 8 * s);
+    ctx.fillStyle = P.suitOutline;
+    ctx.fillRect(bodyX, cy - 4 * s, 12 * s, 0.8 * s);
+    ctx.fillRect(bodyX, cy + 3.2 * s, 12 * s, 0.8 * s);
+    ctx.fillStyle = P.suitShadow;
+    ctx.fillRect(bodyX, cy + 1.4 * s, 12 * s, 1.8 * s);
+    // Collar at the neck end, belt at the waist end.
+    ctx.fillStyle = P.collar;
+    ctx.fillRect(bodyX, cy - 3.2 * s, 1.2 * s, 6.4 * s);
+    ctx.fillStyle = P.belt;
+    ctx.fillRect(beltX - 1.6 * s, cy - 4 * s, 1.8 * s, 8 * s);
+    ctx.fillStyle = P.buckle;
+    ctx.fillRect(beltX - 1.4 * s, cy - 1.2 * s, 1.4 * s, 2.4 * s);
+    ctx.fillStyle = P.toolPouch;
+    ctx.fillRect(beltX - 1.2 * s, cy - 5.6 * s, 2.6 * s, 1.7 * s);
+    ctx.fillStyle = P.cleaningRag;
+    ctx.fillRect(beltX - 0.6 * s, cy + 3.4 * s, 2 * s, 1.7 * s);
+    ctx.fillStyle = P.workPatch;
+    ctx.fillRect(bodyX + 3 * s, cy - 3.6 * s, 1.8 * s, 2.2 * s);
+    ctx.fillStyle = P.workPatchDark;
+    ctx.fillRect(bodyX + 3.5 * s, cy - 2.8 * s, 0.9 * s, 0.9 * s);
 
-    // Collar strip at neck end of body
-    ctx.fillStyle = PLAYER_PALETTE.collar;
-    ctx.fillRect(bodyX, cy - 4 * s, 2 * s, 8 * s);
+    // Near arm resting on top of the body.
+    ctx.fillStyle = P.suit;
+    ctx.fillRect(bodyX + 1 * s, cy - 6.2 * s, 9 * s, 1.9 * s);
+    ctx.fillStyle = P.gloves;
+    ctx.fillRect(bodyX + 9.6 * s, cy - 6.2 * s, 2.2 * s, 1.9 * s);
 
-    // Belt (runs vertically across body when lying)
-    ctx.fillStyle = PLAYER_PALETTE.belt;
-    ctx.fillRect(beltX - 1 * s, cy - 5 * s, 2 * s, 10 * s);
-    // Belt buckle
-    ctx.fillStyle = PLAYER_PALETTE.buckle;
-    ctx.fillRect(beltX - 1.5 * s, cy - 1.5 * s, 3 * s, 3 * s);
-    ctx.fillStyle = PLAYER_PALETTE.toolPouch;
-    ctx.fillRect(beltX - 1 * s, cy - 6 * s, 3 * s, 2 * s);
-    ctx.fillStyle = PLAYER_PALETTE.cleaningRag;
-    ctx.fillRect(beltX, cy + 4 * s, 2.5 * s, 2 * s);
-
-    // Cyan maintenance patch on the sleeping uniform.
-    ctx.fillStyle = PLAYER_PALETTE.workPatch;
-    ctx.fillRect(bodyX + 3 * s, cy - 5 * s, 2 * s, 2.5 * s);
-    ctx.fillStyle = PLAYER_PALETTE.workPatchDark;
-    ctx.fillRect(bodyX + 3.5 * s, cy - 4 * s, 1 * s, 1 * s);
-
-    // ---- FRONT ARM (resting above body surface) ----
-    ctx.fillStyle = PLAYER_PALETTE.suit;
-    ctx.fillRect(bodyX + 1 * s, cy - 7.5 * s, 8 * s, 2 * s);
-    // Hand
-    ctx.fillStyle = PLAYER_PALETTE.gloves;
-    ctx.fillRect(bodyX + 8.5 * s, cy - 7.5 * s, 2.5 * s, 2 * s);
-
-    // ---- HAIR ----
-    ctx.fillStyle = PLAYER_PALETTE.hair;
-    ctx.fillRect(bx - 1 * s, cy - 4 * s, 3 * s, 8 * s);  // hair behind head
-    ctx.fillRect(bx, cy - 5 * s, 8 * s, 2 * s);           // hair across top of head
-
-    // ---- HEAD ----
-    ctx.fillStyle = PLAYER_PALETTE.skin;
-    ctx.fillRect(bx, cy - 4 * s, 8 * s, 8 * s);
-
-    // ---- EYES (face up — two eyes stacked vertically on screen) ----
-    if (eyeOpen < 0.15) {
-        // Closed eyelash lines
-        ctx.fillStyle = '#443322';
-        ctx.fillRect(bx + 3 * s, cy - 1.2 * s, 2.5 * s, 1);
-        ctx.fillRect(bx + 3 * s, cy + 0.7 * s, 2.5 * s, 1);
-    } else {
-        const eyeW = Math.max(2, Math.round(eyeOpen * 2.5 * s));
-        const eyeH = Math.max(1, Math.round(eyeOpen * 2 * s));
-        const iW   = Math.max(1, Math.round(eyeOpen * 1.5 * s));
-        // White sclera
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(bx + 3 * s, cy - 1.5 * s - eyeH, eyeW, eyeH);
-        ctx.fillRect(bx + 3 * s, cy + 1.5 * s,        eyeW, eyeH);
-        // Iris
-        ctx.fillStyle = PLAYER_PALETTE.iris;
-        ctx.fillRect(bx + 3.5 * s, cy - 1.5 * s - eyeH, iW, eyeH);
-        ctx.fillRect(bx + 3.5 * s, cy + 1.5 * s,        iW, eyeH);
+    // Hair wraps the back of the skull; the face points up-screen.
+    ctx.fillStyle = P.hair;
+    ctx.fillRect(headX, cy - 3.4 * s, 2.6 * s, 6.8 * s);
+    ctx.fillRect(headX + 2 * s, cy - 4.2 * s, 3.4 * s, 2 * s);
+    ctx.fillStyle = P.hairHighlight;
+    ctx.fillRect(headX + 2.4 * s, cy - 4 * s, 2.2 * s, 0.7 * s);
+    ctx.fillStyle = P.skin;
+    ctx.fillRect(headX + 2.2 * s, cy - 2.4 * s, 4.4 * s, 5 * s);
+    ctx.fillStyle = P.skinShadow;
+    ctx.fillRect(headX + 2.2 * s, cy + 1.6 * s, 4.4 * s, 1 * s);
+    // Nose points away from the pillow.
+    ctx.fillRect(faceX + 1.4 * s, cy - 0.6 * s, 1.3 * s, 1.2 * s);
+    // Closed lids read as two dark lines; open eyes reveal the iris.
+    const eyeH = Math.max(0.4 * s, 1.3 * s * (eyeOpen || 0));
+    ctx.fillStyle = (eyeOpen || 0) > 0.15 ? P.eyeWhite : P.hairDark;
+    ctx.fillRect(faceX + 0.2 * s, cy - 2 * s, 1.4 * s, eyeH);
+    ctx.fillRect(faceX + 0.2 * s, cy + 0.9 * s, 1.4 * s, eyeH);
+    if ((eyeOpen || 0) > 0.15) {
+        ctx.fillStyle = P.iris;
+        ctx.fillRect(faceX + 0.5 * s, cy - 2 * s, 0.9 * s, eyeH);
+        ctx.fillRect(faceX + 0.5 * s, cy + 0.9 * s, 0.9 * s, eyeH);
     }
+    ctx.fillStyle = P.smile;
+    ctx.fillRect(faceX + 2.6 * s, cy - 0.4 * s, 0.5 * s, 1.4 * s);
 }
 
