@@ -411,20 +411,19 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeStyle = '#AA0000';
             ctx.lineWidth = 2;
             ctx.strokeRect(bx + 9, by + 14, boxW - 18, boxH - 24);
+            ctx.fillStyle = 'rgba(0,0,0,0.16)';
+            for (let sy = by + 14; sy < by + boxH - 10; sy += 4) ctx.fillRect(bx + 9, sy, boxW - 18, 1);
             // Corner rivets
             ctx.fillStyle = '#8a7c92';
             [[bx + 4, by + 4], [bx + boxW - 7, by + 4], [bx + 4, by + boxH - 7], [bx + boxW - 7, by + boxH - 7]]
                 .forEach(([rx, ry]) => ctx.fillRect(rx, ry, 3, 3));
             ctx.textAlign = 'center';
-            ctx.font = 'bold 14px "Courier New"';
+            ctx.font = 'bold 16px "Courier New"';
             ctx.fillStyle = headlineBright ? '#FF5555' : '#CC3333';
             ctx.fillText(headline, w / 2, by + 31);
-            ctx.font = '10px "Courier New"';
+            ctx.font = '14px "Courier New"';
             ctx.fillStyle = '#FFFF55';
             lines.forEach((line, i) => ctx.fillText(line, w / 2, by + 48 + i * lineH));
-            // Phosphor scanlines over the readout
-            ctx.fillStyle = 'rgba(0,0,0,0.22)';
-            for (let sy = by + 14; sy < by + boxH - 10; sy += 3) ctx.fillRect(bx + 9, sy, boxW - 18, 1);
             ctx.textAlign = 'left';
             ctx.restore();
         }
@@ -436,8 +435,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.save();
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             const lines = narrationBox.lines;
-            const lh = 16;
-            const padY = 10;
+            const lh = 21;
+            const padY = 12;
             const boxH = lines.length * lh + padY * 2 + 14;
             const boxW = Math.min(w - 40, 560);
             const boxX = Math.round((w - boxW) / 2);
@@ -454,10 +453,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeRect(boxX + 1, boxY + 1, boxW - 2, boxH - 2);
             // Text lines
             ctx.fillStyle = '#000000';
-            ctx.font = 'bold 11px "Courier New"';
+            ctx.font = 'bold 16px "Courier New"';
             ctx.textAlign = 'center';
             lines.forEach((line, i) => {
-                ctx.fillText(line, w / 2, boxY + padY + 11 + i * lh);
+                ctx.fillText(line, w / 2, boxY + padY + 15 + i * lh);
             });
             // Blinking continue indicator
             const blink = Math.floor(Date.now() / 500) % 2;
@@ -556,14 +555,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.fillStyle = '#8a9aa6';
                     [[rx + 4, ry + 4], [rx + rw - 7, ry + 4], [rx + 4, ry + rh - 7], [rx + rw - 7, ry + rh - 7]]
                         .forEach(([cx, cy]) => ctx.fillRect(cx, cy, 3, 3));
-                    ctx.font = '12px "Courier New"';
+                    ctx.font = '16px "Courier New"';
                     ctx.textAlign = 'center';
                     ctx.fillStyle = `rgba(85,255,85,${fade})`;
                     ctx.fillText('ISS CONSTELLATION', w / 2, 62);
                     ctx.fillText('DEEP SPACE SURVEY VESSEL', w / 2, 80);
                     ctx.fillStyle = `rgba(85,255,85,${fade * 0.9})`;
                     ctx.fillRect(rx + 30, 88, rw - 60, 1);
-                    ctx.font = '10px "Courier New"';
+                    ctx.font = '14px "Courier New"';
                     ctx.fillText('CREW: 147  |  MISSION DAY: 2,847', w / 2, 104);
                     ctx.fillText('SECTOR: GAMMA QUADRANT, UNCHARTED ZONE', w / 2, 120);
                     if (t > 1800) {
@@ -577,8 +576,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.fillStyle = `rgba(210,210,210,${f3})`;
                         ctx.fillText('LOCATION: SUPPLY CLOSET J-6', w / 2, 174);
                     }
-                    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-                    for (let sy = ry + 9; sy < ry + rh - 9; sy += 3) ctx.fillRect(rx + 10, sy, rw - 20, 1);
                     ctx.textAlign = 'left';
                     if (t > 4200) showNarration('p0_end', [
                         'Another quiet night on the Constellation...',
