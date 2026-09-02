@@ -14,9 +14,15 @@ const securityHeaders = Object.fromEntries(
 const mimeTypes = {
     '.css': 'text/css; charset=utf-8',
     '.html': 'text/html; charset=utf-8',
+    '.ico': 'image/x-icon',
     '.js': 'text/javascript; charset=utf-8',
     '.json': 'application/json; charset=utf-8',
-    '.svg': 'image/svg+xml'
+    '.png': 'image/png',
+    '.svg': 'image/svg+xml',
+    '.txt': 'text/plain; charset=utf-8',
+    '.webmanifest': 'application/manifest+json',
+    // Firefox refuses @font-face resources served as octet-stream.
+    '.woff2': 'font/woff2'
 };
 
 http.createServer((request, response) => {

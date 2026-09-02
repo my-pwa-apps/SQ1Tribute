@@ -372,12 +372,15 @@ document.addEventListener('DOMContentLoaded', () => {
             engine.goToRoom('broom_closet', 320, 310);
         }
 
-        // Draw the real broom closet room
-        function drawRoom(ctx, w, h, alpha) {
-            if (alpha !== undefined && alpha < 1) ctx.globalAlpha = alpha;
+        // Draw the real broom closet room. Dimming is a tinted scrim rather
+        // than globalAlpha, which would fade the art toward flat grey.
+        function drawRoom(ctx, w, h, dim) {
             const room = engine.rooms['broom_closet'];
             if (room && room.draw) room.draw(ctx, w, h, engine);
-            ctx.globalAlpha = 1;
+            if (dim > 0) {
+                ctx.fillStyle = `rgba(4,6,26,${Math.min(dim, 1)})`;
+                ctx.fillRect(0, 0, w, h);
+            }
         }
 
         // Ship alert readouts are screen overlays: they get their own backing
@@ -387,20 +390,42 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             const lineH = 15;
             const boxW = 380;
-            const boxH = 30 + lines.length * lineH + 10;
+            const boxH = 40 + lines.length * lineH + 10;
             const bx = Math.round((w - boxW) / 2), by = 24;
-            ctx.fillStyle = 'rgba(0,0,0,0.85)';
+            // Bezel: black shadow, brushed housing, inset screen.
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(bx - 4, by - 4, boxW + 8, boxH + 8);
+            ctx.fillStyle = '#3a3140';
             ctx.fillRect(bx, by, boxW, boxH);
+            ctx.fillStyle = '#544857';
+            ctx.fillRect(bx, by, boxW, 2);
+            ctx.fillStyle = '#241d29';
+            ctx.fillRect(bx, by + boxH - 3, boxW, 3);
+            // Hazard header strip
+            for (let i = 0; i * 10 < boxW - 12; i++) {
+                ctx.fillStyle = i % 2 ? '#c8a416' : '#1b1b28';
+                ctx.fillRect(bx + 6 + i * 10, by + 5, 10, 4);
+            }
+            // Inset screen
+            ctx.fillStyle = '#0b0508';
+            ctx.fillRect(bx + 8, by + 13, boxW - 16, boxH - 22);
             ctx.strokeStyle = '#AA0000';
             ctx.lineWidth = 2;
-            ctx.strokeRect(bx + 2, by + 2, boxW - 4, boxH - 4);
+            ctx.strokeRect(bx + 9, by + 14, boxW - 18, boxH - 24);
+            // Corner rivets
+            ctx.fillStyle = '#8a7c92';
+            [[bx + 4, by + 4], [bx + boxW - 7, by + 4], [bx + 4, by + boxH - 7], [bx + boxW - 7, by + boxH - 7]]
+                .forEach(([rx, ry]) => ctx.fillRect(rx, ry, 3, 3));
             ctx.textAlign = 'center';
             ctx.font = 'bold 14px "Courier New"';
             ctx.fillStyle = headlineBright ? '#FF5555' : '#CC3333';
-            ctx.fillText(headline, w / 2, by + 21);
+            ctx.fillText(headline, w / 2, by + 31);
             ctx.font = '10px "Courier New"';
             ctx.fillStyle = '#FFFF55';
-            lines.forEach((line, i) => ctx.fillText(line, w / 2, by + 38 + i * lineH));
+            lines.forEach((line, i) => ctx.fillText(line, w / 2, by + 48 + i * lineH));
+            // Phosphor scanlines over the readout
+            ctx.fillStyle = 'rgba(0,0,0,0.22)';
+            for (let sy = by + 14; sy < by + boxH - 10; sy += 3) ctx.fillRect(bx + 9, sy, boxW - 18, 1);
             ctx.textAlign = 'left';
             ctx.restore();
         }
@@ -485,26 +510,76 @@ document.addEventListener('DOMContentLoaded', () => {
                 // ===== PHASE 0: Ship status terminal =====
                 if (introPhase === 0) {
                     const fade = Math.min(t / 1500, 1);
+                    // Establishing shot: the Constellation adrift off a gas giant.
+                    ctx.fillStyle = '#000008';
+                    ctx.fillRect(0, 0, w, h);
+                    stars(ctx, w, h, 20240, 170);
+                    // Gas giant limb, upper left, lit from the right.
+                    ctx.save();
+                    ctx.beginPath(); ctx.arc(24, 34, 132, 0, Math.PI * 2); ctx.clip();
+                    ctx.fillStyle = '#3a2a55';
+                    ctx.fillRect(-120, -100, 300, 300);
+                    ['#4a3568', '#2f2246', '#55407a', '#392a55', '#4a3568'].forEach((c, i) => {
+                        ctx.fillStyle = c;
+                        ctx.fillRect(-120, -90 + i * 34, 300, 20);
+                    });
+                    ctx.fillStyle = 'rgba(0,0,12,0.6)';
+                    ctx.beginPath(); ctx.arc(-40, 34, 132, 0, Math.PI * 2); ctx.fill();
+                    ctx.restore();
+                    ctx.strokeStyle = 'rgba(190,170,240,0.5)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.arc(24, 34, 131, -0.5, 1.1); ctx.stroke();
+                    ctx.lineWidth = 1;
+                    // The survey vessel, drifting slowly to port.
+                    const shipX = 366 - Math.min(t, 6000) / 1000 * 7;
+                    drawShipSilhouette(ctx, shipX, 262, 2.2);
+                    // Lit habitat windows and a blinking beacon.
+                    ctx.fillStyle = '#FFEE99';
+                    for (let i = 0; i < 9; i++) ctx.fillRect(shipX - 70 + i * 16, 256, 4, 3);
+                    ctx.fillStyle = Math.floor(t / 600) % 2 ? '#FF5544' : '#5a1c16';
+                    ctx.fillRect(shipX + 104, 254, 4, 4);
+                    ctx.fillStyle = 'rgba(90,190,255,0.35)';
+                    ctx.fillRect(shipX - 146, 256, 16, 12);
+                    // Console readout plate
+                    const rx = 150, ry = 38, rw = 340, rh = 150;
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(rx - 4, ry - 4, rw + 8, rh + 8);
+                    ctx.fillStyle = '#26313a';
+                    ctx.fillRect(rx, ry, rw, rh);
+                    ctx.fillStyle = '#3b4a56';
+                    ctx.fillRect(rx, ry, rw, 2);
+                    ctx.fillStyle = '#08120c';
+                    ctx.fillRect(rx + 8, ry + 8, rw - 16, rh - 16);
+                    ctx.strokeStyle = '#2f6b3f';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(rx + 9, ry + 9, rw - 18, rh - 18);
+                    ctx.lineWidth = 1;
+                    ctx.fillStyle = '#8a9aa6';
+                    [[rx + 4, ry + 4], [rx + rw - 7, ry + 4], [rx + 4, ry + rh - 7], [rx + rw - 7, ry + rh - 7]]
+                        .forEach(([cx, cy]) => ctx.fillRect(cx, cy, 3, 3));
                     ctx.font = '12px "Courier New"';
                     ctx.textAlign = 'center';
                     ctx.fillStyle = `rgba(85,255,85,${fade})`;
-                    ctx.fillText('ISS CONSTELLATION', w / 2, 70);
-                    ctx.fillText('DEEP SPACE SURVEY VESSEL', w / 2, 88);
-                    ctx.font = '10px "Courier New"';
+                    ctx.fillText('ISS CONSTELLATION', w / 2, 62);
+                    ctx.fillText('DEEP SPACE SURVEY VESSEL', w / 2, 80);
                     ctx.fillStyle = `rgba(85,255,85,${fade * 0.9})`;
-                    ctx.fillText('CREW: 147  |  MISSION DAY: 2,847', w / 2, 120);
-                    ctx.fillText('SECTOR: GAMMA QUADRANT, UNCHARTED ZONE', w / 2, 140);
+                    ctx.fillRect(rx + 30, 88, rw - 60, 1);
+                    ctx.font = '10px "Courier New"';
+                    ctx.fillText('CREW: 147  |  MISSION DAY: 2,847', w / 2, 104);
+                    ctx.fillText('SECTOR: GAMMA QUADRANT, UNCHARTED ZONE', w / 2, 120);
                     if (t > 1800) {
                         const f2 = Math.min((t - 1800) / 1200, 1);
                         ctx.fillStyle = `rgba(210,210,210,${f2})`;
-                        ctx.fillText('SHIP STATUS: ALL SYSTEMS NOMINAL', w / 2, 180);
-                        ctx.fillText('TIME: 03:47 SHIP STANDARD', w / 2, 200);
+                        ctx.fillText('SHIP STATUS: ALL SYSTEMS NOMINAL', w / 2, 142);
+                        ctx.fillText('TIME: 03:47 SHIP STANDARD', w / 2, 158);
                     }
                     if (t > 3200) {
                         const f3 = Math.min((t - 3200) / 800, 1);
                         ctx.fillStyle = `rgba(210,210,210,${f3})`;
-                        ctx.fillText('LOCATION: SUPPLY CLOSET J-6', w / 2, 240);
+                        ctx.fillText('LOCATION: SUPPLY CLOSET J-6', w / 2, 174);
                     }
+                    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+                    for (let sy = ry + 9; sy < ry + rh - 9; sy += 3) ctx.fillRect(rx + 10, sy, rw - 20, 1);
                     ctx.textAlign = 'left';
                     if (t > 4200) showNarration('p0_end', [
                         'Another quiet night on the Constellation...',
@@ -515,9 +590,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // ===== PHASE 1: Broom closet, sleeping =====
                 else if (introPhase === 1) {
-                    const roomFade = Math.min(t / 2500, 0.45);
-                    drawRoom(ctx, w, h, roomFade);
+                    const roomDim = Math.max(0.5, 1 - t / 2500);
+                    drawRoom(ctx, w, h, roomDim);
                     const breathe = Math.sin(elapsed / 400) * 1.5;
+                    // Night-light pool so the sleeping ego reads in the dark.
+                    ctx.fillStyle = 'rgba(255,225,160,0.07)';
+                    ctx.beginPath(); ctx.ellipse(268, 322, 80, 26, 0, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = 'rgba(255,225,160,0.09)';
+                    ctx.beginPath(); ctx.ellipse(268, 322, 52, 18, 0, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = 'rgba(255,235,190,0.10)';
+                    ctx.beginPath(); ctx.ellipse(268, 322, 30, 11, 0, 0, Math.PI * 2); ctx.fill();
                     drawPlayerSleeping(ctx, 258, 322 + breathe, 0);
                     const zzz = Math.floor(elapsed / 700) % 3;
                     ctx.fillStyle = 'rgba(255,255,255,0.5)';
@@ -535,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // ===== PHASE 2: Character wakes up =====
                 else if (introPhase === 2) {
                     const wakeProg = Math.min(t / 2200, 1);
-                    drawRoom(ctx, w, h, 0.45 + wakeProg * 0.35);
+                    drawRoom(ctx, w, h, 0.5 - wakeProg * 0.3);
                     const standProg = Math.min(wakeProg * 1.5, 1);
                     const px = 300, baseY = 310;
                     if (standProg < 0.4) {
@@ -564,10 +646,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.fillStyle = PLAYER_PALETTE.legHighlight;
                         ctx.fillRect(cpx - 3 * s, tY + 2 * s, 1 * s, 6 * s);
                         ctx.fillRect(cpx + 2 * s, tY + 2 * s, 1 * s, 6 * s);
+                        ctx.fillStyle = PLAYER_PALETTE.kneePatch;
+                        ctx.fillRect(cpx - 4 * s, tY + 4 * s, 3 * s, 3 * s);
                         // Body
                         ctx.fillStyle = PLAYER_PALETTE.suit;
                         ctx.fillRect(cpx - 5 * s, tY - 10 * s, 10 * s, 11 * s);
-                        ctx.fillStyle = PLAYER_PALETTE.suitShadow;
+                        ctx.fillStyle = PLAYER_PALETTE.suitOutline;
                         ctx.fillRect(cpx - 5 * s, tY - 10 * s, 1 * s, 11 * s);
                         ctx.fillRect(cpx + 4 * s, tY - 10 * s, 1 * s, 11 * s);
                         ctx.fillStyle = PLAYER_PALETTE.legHighlight;
@@ -592,13 +676,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.fillRect(cpx - 7 * s - brace, tY - 2 * s, 2 * s, 1 * s);
                         ctx.fillRect(cpx + 5 * s + brace, tY - 2 * s, 2 * s, 1 * s);
                         // Hands
-                        ctx.fillStyle = PLAYER_PALETTE.skin;
+                        ctx.fillStyle = PLAYER_PALETTE.gloves;
                         ctx.fillRect(cpx - 7 * s - brace, tY - 1 * s, 2 * s, 2.5 * s);
+                        ctx.fillStyle = PLAYER_PALETTE.gloveFaded;
                         ctx.fillRect(cpx + 5 * s + brace, tY - 1 * s, 2 * s, 2.5 * s);
                         // Hair
                         ctx.fillStyle = PLAYER_PALETTE.hair;
                         ctx.fillRect(cpx - 4 * s, hY - 1 * s, 8 * s, 4 * s);
-                        ctx.fillStyle = '#CC8844';
+                        ctx.fillStyle = PLAYER_PALETTE.hairHighlight;
                         ctx.fillRect(cpx - 2 * s, hY - 1 * s, 4 * s, 1 * s);
                         // Head
                         ctx.fillStyle = PLAYER_PALETTE.skin;
@@ -606,7 +691,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.fillStyle = PLAYER_PALETTE.skinShadow;
                         ctx.fillRect(cpx - 4 * s, hY + 7 * s, 8 * s, 1 * s);
                         // Eyes
-                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillStyle = PLAYER_PALETTE.eyeWhite;
                         ctx.fillRect(cpx - 3 * s, hY + 3 * s, 2.5 * s, 2 * s);
                         ctx.fillRect(cpx + 0.5 * s, hY + 3 * s, 2.5 * s, 2 * s);
                         ctx.fillStyle = PLAYER_PALETTE.iris;
@@ -628,7 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // ===== PHASE 3: Warning alert =====
                 else if (introPhase === 3) {
                     if (!engine.getFlag('alarm_active')) engine.setFlag('alarm_active');
-                    drawRoom(ctx, w, h, 0.8);
+                    drawRoom(ctx, w, h, 0.2);
                     drawPlayerBody(ctx, 300, 310, engine.playerSpriteScale(310), 0);
                     const warn = Math.floor(elapsed / 250) % 2;
                     drawAlertPanel(ctx, w, '!! WARNING - PROXIMITY ALERT !!', warn, [
@@ -650,7 +735,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const flash1 = t < 400 ? (1 - t / 400) : 0;
                     const flash2 = (t > 1400 && t < 1800) ? (1 - (t - 1400) / 400) : 0;
                     const totalFlash = Math.max(flash1, flash2);
-                    drawRoom(ctx, w, h, 0.8);
+                    drawRoom(ctx, w, h, 0.2);
                     if (totalFlash > 0) {
                         ctx.fillStyle = `rgba(255,50,0,${totalFlash * 0.5})`;
                         ctx.fillRect(0, 0, w, h);
@@ -659,15 +744,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     const stumble = Math.sin(elapsed / 120) * 10;
                     const stumbleY = Math.sin(elapsed / 90) * 3;
                     drawPlayerBody(ctx, 300 + stumble, 310 + stumbleY, engine.playerSpriteScale(310 + stumbleY), Math.sin(elapsed / 200) * 0.5 + 0.5);
-                    for (let i = 0; i < 8; i++) {
-                        const sx = 80 + ((elapsed * (i + 1) * 7) % 480);
-                        const sy = 20 + ((elapsed * (i + 2) * 3) % 220);
-                        const sparkLife = (elapsed + i * 200) % 700 / 700;
-                        if (sparkLife < 0.5) {
-                            ctx.fillStyle = `rgba(255,200,50,${0.9 - sparkLife * 1.5})`;
-                            ctx.fillRect(sx, sy, 2, 2);
+                    for (let i = 0; i < 16; i++) {
+                        // Debris and dust shaken loose from the ceiling.
+                        const seed = i * 137;
+                        const dx = 60 + ((seed * 7) % 520);
+                        const dy = 16 + ((elapsed * (0.16 + (i % 5) * 0.06) + seed) % 300);
+                        if (i % 3 === 0) {
+                            ctx.fillStyle = 'rgba(255,200,80,0.9)';
+                            ctx.fillRect(dx, dy, 2, 5);
+                        } else {
+                            ctx.fillStyle = 'rgba(150,140,120,0.55)';
+                            ctx.fillRect(dx, dy, 2, 2);
                         }
                     }
+                    ctx.fillStyle = 'rgba(120,100,80,0.12)';
+                    ctx.fillRect(0, 16, w, 60);
                     if (t > 800) fireOnce('p4_alarm1', () => engine.sound.alarm());
                     if (t > 600) showNarration('p4_shudder', [
                         '** BOOM!! **',
@@ -681,7 +772,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // ===== PHASE 5: Emergency =====
                 else if (introPhase === 5) {
-                    drawRoom(ctx, w, h, 0.8);
+                    drawRoom(ctx, w, h, 0.2);
                     alarmGlow(ctx, w, h, engine);
                     drawPlayerBody(ctx, 300, 310, engine.playerSpriteScale(310), 0);
                     drawAlertPanel(ctx, w, '!! EMERGENCY - ALL HANDS !!', Math.floor(elapsed / 300) % 2, [
@@ -699,7 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // ===== PHASE 6: Fade to black, then start =====
                 else if (introPhase === 6) {
-                    drawRoom(ctx, w, h, 0.8);
+                    drawRoom(ctx, w, h, 0.2);
                     alarmGlow(ctx, w, h, engine);
                     const fadeOut = Math.min(t / 1200, 1);
                     ctx.fillStyle = `rgba(0,0,0,${fadeOut})`;
@@ -2132,6 +2223,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawPlayerBody(ctx, px, py, s, armAngle) {
         // Front-facing player for mini-anims. Shading mirrors the in-room sprite
         // in engine.drawPlayer so the character does not change between them.
+        engine.drawContactShadow(ctx, px, py + 12 * s, s);
         // Legs
         ctx.fillStyle = PLAYER_PALETTE.legs;
         ctx.fillRect(px - 4 * s, py + 1 * s, 3 * s, 8 * s);
@@ -2139,6 +2231,11 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillStyle = PLAYER_PALETTE.legHighlight;
         ctx.fillRect(px - 3 * s, py + 2 * s, 1 * s, 6 * s);
         ctx.fillRect(px + 2 * s, py + 2 * s, 1 * s, 6 * s);
+        // Badly matched knee patch, as on the in-room ego.
+        ctx.fillStyle = PLAYER_PALETTE.kneePatch;
+        ctx.fillRect(px - 4 * s, py + 4 * s, 3 * s, 3 * s);
+        ctx.fillStyle = PLAYER_PALETTE.suitShadow;
+        ctx.fillRect(px - 3.5 * s, py + 4.5 * s, 2 * s, 0.5 * s);
         // Boots
         ctx.fillStyle = PLAYER_PALETTE.boots;
         ctx.fillRect(px - 5 * s, py + 9 * s, 4 * s, 3 * s);
@@ -2152,14 +2249,27 @@ document.addEventListener('DOMContentLoaded', () => {
         // Body
         ctx.fillStyle = PLAYER_PALETTE.suit;
         ctx.fillRect(px - 5 * s, py - 10 * s, 10 * s, 11 * s);
-        ctx.fillStyle = PLAYER_PALETTE.suitShadow;
+        ctx.fillStyle = PLAYER_PALETTE.suitOutline;
         ctx.fillRect(px - 5 * s, py - 10 * s, 1 * s, 11 * s);
         ctx.fillRect(px + 4 * s, py - 10 * s, 1 * s, 11 * s);
         ctx.fillStyle = PLAYER_PALETTE.legHighlight;
         ctx.fillRect(px - 1 * s, py - 6 * s, 2 * s, 4 * s);
+        // Asymmetric slouched shoulders
+        ctx.fillStyle = PLAYER_PALETTE.suitShadow;
+        ctx.fillRect(px - 5 * s, py - 11 * s, 4 * s, 1 * s);
+        ctx.fillRect(px - 6 * s, py - 9 * s, 1 * s, 3 * s);
+        ctx.fillRect(px + 5 * s, py - 8 * s, 1 * s, 2 * s);
+        ctx.fillStyle = PLAYER_PALETTE.suitOutline;
+        ctx.fillRect(px - 5 * s, py - 12 * s, 4 * s, 1 * s);
+        ctx.fillRect(px + 1 * s, py - 10 * s, 4 * s, 1 * s);
         // Collar
         ctx.fillStyle = PLAYER_PALETTE.collar;
         ctx.fillRect(px - 4 * s, py - 10 * s, 8 * s, 1 * s);
+        // Crooked breast pocket
+        ctx.fillStyle = PLAYER_PALETTE.suitShadow;
+        ctx.fillRect(px - 3.5 * s, py - 7.5 * s, 3 * s, 2.5 * s);
+        ctx.fillStyle = PLAYER_PALETTE.pocketShadow;
+        ctx.fillRect(px - 3 * s, py - 7 * s, 2 * s, 0.5 * s);
         // Belt
         ctx.fillStyle = PLAYER_PALETTE.belt;
         ctx.fillRect(px - 5 * s, py, 10 * s, 2 * s);
@@ -2181,6 +2291,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillRect(px - 3 * s, py - 12 * s, 6 * s, 2 * s);
         ctx.fillStyle = PLAYER_PALETTE.skinShadow;
         ctx.fillRect(px - 3 * s, py - 11 * s, 6 * s, 1 * s);
+        ctx.fillRect(px - 4 * s, py - 14 * s, 1 * s, 2 * s);
         // Tousled hair and cowlick.
         ctx.fillStyle = PLAYER_PALETTE.hair;
         ctx.fillRect(px - 3 * s, py - 20 * s, 2 * s, 2 * s);
@@ -2194,7 +2305,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillRect(px - 3 * s, py - 16 * s, 2 * s, 0.5 * s);
         ctx.fillRect(px + 1 * s, py - 16 * s, 2 * s, 0.5 * s);
         // Eyes
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = PLAYER_PALETTE.eyeWhite;
         ctx.fillRect(px - 3 * s, py - 15 * s, 2.5 * s, 2 * s);
         ctx.fillRect(px + 0.5 * s, py - 15 * s, 2.5 * s, 2 * s);
         ctx.fillStyle = PLAYER_PALETTE.iris;
@@ -2202,35 +2313,43 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillRect(px + 1 * s, py - 15 * s, 1.5 * s, 2 * s);
         ctx.fillStyle = PLAYER_PALETTE.skinShadow;
         ctx.fillRect(px - 0.5 * s, py - 14 * s, 1 * s, 2 * s);
+        ctx.fillStyle = PLAYER_PALETTE.hair;
+        ctx.fillRect(px - 2.5 * s, py - 12.5 * s, 0.5 * s, 0.5 * s);
+        ctx.fillRect(px + 2 * s, py - 12.5 * s, 0.5 * s, 0.5 * s);
         ctx.fillStyle = PLAYER_PALETTE.smile;
         ctx.fillRect(px - 1.5 * s, py - 11.5 * s, 3 * s, 0.5 * s);
         ctx.fillRect(px + 1 * s, py - 12 * s, 1 * s, 0.5 * s);
         // Arms pivot at the shoulder in three discrete poses (Sierra used cels,
         // not tweens) so the limb never slides up the torso past the shoulder.
         const armPose = armAngle < 0.25 ? 0 : (armAngle < 0.7 ? 1 : 2);
-        const drawArm = (sx, out) => {
+        const drawArm = (sx, out, glove) => {
             ctx.fillStyle = PLAYER_PALETTE.suit;
             if (armPose === 0) {
-                ctx.fillRect(sx, py - 8 * s, 2 * s, 6 * s);
+                ctx.fillRect(sx, py - 8 * s, 2 * s, 7 * s);
                 ctx.fillStyle = PLAYER_PALETTE.collar;
                 ctx.fillRect(sx, py - 2 * s, 2 * s, 1 * s);
-                ctx.fillStyle = PLAYER_PALETTE.gloves;
+                ctx.fillStyle = glove;
                 ctx.fillRect(sx, py - 1 * s, 2 * s, 2.5 * s);
+                ctx.fillStyle = PLAYER_PALETTE.glovesDark;
+                ctx.fillRect(sx, py + 0.5 * s, 2 * s, 1 * s);
             } else if (armPose === 1) {
                 // Slight outward bend at the elbow — not a full splay.
                 ctx.fillRect(sx, py - 8 * s, 2 * s, 4 * s);
                 ctx.fillRect(sx + out * 1 * s, py - 4.5 * s, 2 * s, 3 * s);
-                ctx.fillStyle = PLAYER_PALETTE.gloves;
+                ctx.fillStyle = glove;
                 ctx.fillRect(sx + out * 2 * s, py - 2 * s, 2 * s, 2.5 * s);
+                ctx.fillStyle = PLAYER_PALETTE.glovesDark;
+                ctx.fillRect(sx + out * 2 * s, py - 0.5 * s, 2 * s, 1 * s);
             } else {
                 ctx.fillRect(sx, py - 8 * s, 2 * s, 2 * s);
                 ctx.fillRect(out < 0 ? sx - 4 * s : sx + 2 * s, py - 8 * s, 4 * s, 2 * s);
-                ctx.fillStyle = PLAYER_PALETTE.gloves;
+                ctx.fillStyle = glove;
                 ctx.fillRect(out < 0 ? sx - 6 * s : sx + 6 * s, py - 8 * s, 2 * s, 2.5 * s);
             }
         };
-        drawArm(px - 7 * s, -1);
-        drawArm(px + 5 * s, 1);
+        // His right glove has faded after too many industrial solvents.
+        drawArm(px - 7 * s, -1, PLAYER_PALETTE.gloves);
+        drawArm(px + 5 * s, 1, PLAYER_PALETTE.gloveFaded);
     }
 
     /**
@@ -2250,7 +2369,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // ---- BACK ARM (rendered first so it sits behind the body) ----
         ctx.fillStyle = PLAYER_PALETTE.suitShadow;
         ctx.fillRect(bodyX + 1 * s, cy + 3.5 * s, 8 * s, 2 * s);
-        ctx.fillStyle = PLAYER_PALETTE.skinShadow;
+        ctx.fillStyle = PLAYER_PALETTE.gloveFaded;
         ctx.fillRect(bodyX + 8.5 * s, cy + 3.5 * s, 2.5 * s, 2 * s);
 
         // ---- BOOTS ----
@@ -2266,6 +2385,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // ---- BODY ----
         ctx.fillStyle = PLAYER_PALETTE.suit;
         ctx.fillRect(bodyX, cy - 5 * s, 11 * s, 10 * s);
+        ctx.fillStyle = PLAYER_PALETTE.suitOutline;
+        ctx.fillRect(bodyX, cy - 5 * s, 11 * s, 1 * s);
+        ctx.fillRect(bodyX, cy + 4 * s, 11 * s, 1 * s);
 
         // Collar strip at neck end of body
         ctx.fillStyle = PLAYER_PALETTE.collar;
@@ -2292,7 +2414,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillStyle = PLAYER_PALETTE.suit;
         ctx.fillRect(bodyX + 1 * s, cy - 7.5 * s, 8 * s, 2 * s);
         // Hand
-        ctx.fillStyle = PLAYER_PALETTE.skin;
+        ctx.fillStyle = PLAYER_PALETTE.gloves;
         ctx.fillRect(bodyX + 8.5 * s, cy - 7.5 * s, 2.5 * s, 2 * s);
 
         // ---- HAIR ----
@@ -2663,7 +2785,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Interactive object indicator: subtle blinking LED on the closet door electronic lock
-            if (!eng.getFlag('door_unlocked')) {
+            if (!eng.getFlag('closet_door_open')) {
                 const ledBlink = Math.floor(eng.animTimer / 250) % 2;
                 ctx.fillStyle = ledBlink ? '#FF2222' : '#880000';
                 ctx.fillRect(348, 157, 8, 8);
@@ -3519,7 +3641,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: 'Someone lies motionless on the floor.',
                 look: (e) => {
                     e.showMessage('It\'s Dr. Chen from the xenophysics team. She didn\'t make it. Whatever hit the ship was fast and merciless. You notice her security keycard is still clipped to her uniform pocket.');
-                    e.setFlag('examined_crew');
                 },
                 get: (e) => {
                     if (!e.hasItem('keycard') && !e.getFlag('got_keycard_corridor')) {
@@ -6290,7 +6411,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: 'A large, green-skinned alien bartender.',
                 look: (e) => e.showMessage('A burly, three-eyed alien bartender of a species you don\'t recognize. He\'s polishing a glass with three hands while keeping all three eyes on the room. Professional.'),
                 talk: (e) => {
-                    e.setFlag('talked_bartender');
                     e.startDialog('bartender');
                 },
                 useItem: (e, itemId) => {
@@ -6996,6 +7116,26 @@ document.addEventListener('DOMContentLoaded', () => {
             // Korvak's body is solid ground clutter, not something to stand inside
             e.addBarrier(218, 300, 46, 52);
 
+            // Ruptured coolant main across the near deck gives the empty
+            // foreground a plane for the ego to walk behind.
+            e.addForegroundLayer(384, (ctx, eng) => {
+                const seg = (x0, x1) => {
+                    ctx.fillStyle = '#0d0a12'; ctx.fillRect(x0, 358, x1 - x0, 24);
+                    ctx.fillStyle = '#453a4e'; ctx.fillRect(x0, 362, x1 - x0, 16);
+                    ctx.fillStyle = '#6d6086'; ctx.fillRect(x0, 362, x1 - x0, 3);
+                    ctx.fillStyle = 'rgba(190,70,40,0.16)'; ctx.fillRect(x0, 362, x1 - x0, 16);
+                    ctx.fillStyle = '#241b28';
+                    for (let fx = x0 + 14; fx < x1 - 8; fx += 48) ctx.fillRect(fx, 358, 8, 24);
+                };
+                seg(0, 214);
+                seg(426, 640);
+                const puff = Math.floor(eng.animTimer / 260) % 4;
+                ctx.fillStyle = 'rgba(220,210,225,' + (0.24 - puff * 0.05) + ')';
+                ctx.beginPath(); ctx.ellipse(222 + puff * 6, 354 - puff * 10, 12 + puff * 5, 7 + puff * 3, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = 'rgba(220,210,225,' + (0.17 - puff * 0.035) + ')';
+                ctx.beginPath(); ctx.ellipse(418 - puff * 5, 350 - puff * 9, 10 + puff * 4, 6 + puff * 2, 0, 0, Math.PI * 2); ctx.fill();
+            });
+
             // Korvak draws as a y-sorted actor so the player passes behind him
             // correctly; the beam segment is re-drawn over his legs to pin him.
             e.addForegroundLayer(352, (ctx, eng) => {
@@ -7085,32 +7225,214 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath();
             ctx.moveTo(BW_L + 40, BW_B); ctx.lineTo(BW_R - 40, BW_B); ctx.lineTo(w - 60, h); ctx.lineTo(60, h);
             ctx.closePath(); ctx.fill();
+            // Deck grating: lines radiate from the vanishing point, cross members
+            // bunch toward the back wall.
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(0, EDGE); ctx.lineTo(BW_L, BW_B); ctx.lineTo(BW_R, BW_B); ctx.lineTo(w, EDGE);
+            ctx.lineTo(w, h); ctx.lineTo(0, h);
+            ctx.closePath(); ctx.clip();
+            ctx.strokeStyle = 'rgba(18,10,14,0.5)'; ctx.lineWidth = 1;
+            for (let i = -7; i <= 7; i++) {
+                ctx.beginPath();
+                ctx.moveTo(320 + i * 24, BW_B); ctx.lineTo(320 + i * 78, h);
+                ctx.stroke();
+            }
+            [268, 280, 296, 318, 348, 386].forEach((gy) => {
+                ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+            });
+            ctx.strokeStyle = 'rgba(150,90,70,0.10)';
+            [270, 282, 298, 320, 350, 388].forEach((gy) => {
+                ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+            });
+            ctx.restore();
             ctx.strokeStyle = '#4a2a26'; ctx.lineWidth = 1;
             [36, 80, 122].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, lTop(x) + 5); ctx.lineTo(x, lBot(x) - 5); ctx.stroke(); });
             [524, 566, 606].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, rTop(x) + 5); ctx.lineTo(x, rBot(x) - 5); ctx.stroke(); });
+
+            // Overhead pipe runs racing back toward the vanishing point.
+            [[40, 190], [320, 320], [600, 450]].forEach(([nx, fx]) => {
+                ctx.fillStyle = '#180e12';
+                ctx.beginPath();
+                ctx.moveTo(nx - 9, 0); ctx.lineTo(nx + 9, 0);
+                ctx.lineTo(fx + 3, BW_T); ctx.lineTo(fx - 3, BW_T);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#4d3740';
+                ctx.beginPath();
+                ctx.moveTo(nx - 7, 0); ctx.lineTo(nx + 7, 0);
+                ctx.lineTo(fx + 2, BW_T); ctx.lineTo(fx - 2, BW_T);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#6e5460';
+                ctx.beginPath();
+                ctx.moveTo(nx - 7, 0); ctx.lineTo(nx - 3, 0);
+                ctx.lineTo(fx - 1, BW_T); ctx.lineTo(fx - 2, BW_T);
+                ctx.closePath(); ctx.fill();
+            });
+
+            // Service pipe runs along both side walls, thinning with distance.
+            const wallPipe = (band, xNear, xFar, f, body, lit) => {
+                const yN = band(xNear, f), yF = band(xFar, f);
+                ctx.fillStyle = body;
+                ctx.beginPath();
+                ctx.moveTo(xNear, yN - 6); ctx.lineTo(xFar, yF - 2.5);
+                ctx.lineTo(xFar, yF + 2.5); ctx.lineTo(xNear, yN + 6);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = lit;
+                ctx.beginPath();
+                ctx.moveTo(xNear, yN - 6); ctx.lineTo(xFar, yF - 2.5);
+                ctx.lineTo(xFar, yF - 1.5); ctx.lineTo(xNear, yN - 3);
+                ctx.closePath(); ctx.fill();
+            };
+            wallPipe(lBand, 0, BW_L, 0.12, '#3a2a2e', '#5f4752');
+            wallPipe(lBand, 0, BW_L, 0.22, '#32242a', '#54404a');
+            wallPipe(rBand, w, BW_R, 0.12, '#3a2a2e', '#5f4752');
+            wallPipe(rBand, w, BW_R, 0.22, '#32242a', '#54404a');
+            // Coolant valve manifold on the left wall
+            const valveY = lBand(102, 0.36);
+            ctx.fillStyle = '#1a1016';
+            ctx.fillRect(96, valveY - 16, 13, 32);
+            ctx.fillStyle = '#4a3a42';
+            ctx.fillRect(98, valveY - 14, 9, 28);
+            ctx.strokeStyle = '#7a6270'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.arc(102, valveY, 11, 0, Math.PI * 2); ctx.stroke();
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(91, valveY); ctx.lineTo(113, valveY);
+            ctx.moveTo(102, valveY - 11); ctx.lineTo(102, valveY + 11);
+            ctx.stroke(); ctx.lineWidth = 1;
             // Sickly red emergency wash
             ctx.fillStyle = 'rgba(150,30,20,0.10)';
             ctx.fillRect(0, 17, w, h - 17);
             alarmGlow(ctx, w, h, eng);
 
-            // Large reactor column in centre
-            ctx.fillStyle = '#2a2535';
-            ctx.fillRect(295, 80, 50, 182);
-            ctx.fillStyle = '#353045';
-            ctx.fillRect(305, 90, 30, 162);
-            // Reactor core glow (flickering)
+            // Back-wall plant: ducting overhead and a bank of pump housings at
+            // deck level, so the room reads as machinery rather than bare wall.
             const rFlicker = 0.6 + Math.sin(eng.animTimer / 90) * 0.4;
-            ctx.fillStyle = 'rgba(80,200,255,' + (rFlicker * 0.35) + ')';
-            ctx.beginPath(); ctx.arc(320, 170, 28, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = 'rgba(160,240,255,' + (rFlicker * 0.55) + ')';
-            ctx.beginPath(); ctx.arc(320, 170, 14, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#AAEEFF';
-            ctx.beginPath(); ctx.arc(320, 170, 5, 0, Math.PI * 2); ctx.fill();
-            // Reactor labels
-            ctx.fillStyle = '#556677';
+            [[148, 286], [354, 492]].forEach(([dx0, dx1]) => {
+                ctx.fillStyle = '#150d11'; ctx.fillRect(dx0, 44, dx1 - dx0, 28);
+                ctx.fillStyle = '#42353f'; ctx.fillRect(dx0 + 2, 46, dx1 - dx0 - 4, 24);
+                ctx.fillStyle = '#584857'; ctx.fillRect(dx0 + 2, 46, dx1 - dx0 - 4, 3);
+                ctx.fillStyle = '#241b28';
+                for (let sx = dx0 + 10; sx < dx1 - 6; sx += 26) ctx.fillRect(sx, 46, 3, 24);
+            });
+            const pumpUnit = (bx, by, bw, bh) => {
+                ctx.fillStyle = '#150d11'; ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
+                ctx.fillStyle = '#3b3040'; ctx.fillRect(bx, by, bw, bh);
+                ctx.fillStyle = '#4e4155'; ctx.fillRect(bx, by, bw, 4);
+                ctx.fillStyle = '#241b28'; ctx.fillRect(bx, by + bh - 6, bw, 6);
+                for (let rx = bx + 7; rx < bx + bw - 5; rx += 11) ctx.fillRect(rx, by + 7, 3, bh - 16);
+                ctx.fillStyle = '#0d0a10';
+                ctx.beginPath(); ctx.arc(bx + bw - 13, by + 14, 7, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#8c3a24';
+                ctx.beginPath(); ctx.arc(bx + bw - 13, by + 14, 5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#f2c7a0';
+                ctx.fillRect(bx + bw - 14, by + 10, 1, 5);
+            };
+            pumpUnit(150, 196, 80, 62);
+            pumpUnit(240, 212, 46, 46);
+            pumpUnit(354, 212, 46, 46);
+            pumpUnit(410, 196, 80, 62);
+            // Cable bundles draped between the console bank and the pumps
+            ctx.strokeStyle = '#1d141c'; ctx.lineWidth = 4;
+            [[150, 176, 232, 188], [408, 188, 490, 176]].forEach(([cx0, cy0, cx1, cy1]) => {
+                ctx.beginPath();
+                ctx.moveTo(cx0, cy0);
+                ctx.quadraticCurveTo((cx0 + cx1) / 2, cy0 + 16, cx1, cy1);
+                ctx.stroke();
+            });
+            ctx.strokeStyle = '#40303c'; ctx.lineWidth = 2;
+            [[150, 174, 232, 186], [408, 186, 490, 174]].forEach(([cx0, cy0, cx1, cy1]) => {
+                ctx.beginPath();
+                ctx.moveTo(cx0, cy0);
+                ctx.quadraticCurveTo((cx0 + cx1) / 2, cy0 + 16, cx1, cy1);
+                ctx.stroke();
+            });
+            ctx.lineWidth = 1;
+            // Floor vents at the base of each side wall, backlit by the fires below
+            const vent = (vx0, vx1, vy0, vy1) => {
+                ctx.fillStyle = '#120b0f';
+                ctx.beginPath();
+                ctx.moveTo(vx0, vy0); ctx.lineTo(vx1, vy1);
+                ctx.lineTo(vx1, vy1 + 18); ctx.lineTo(vx0, vy0 + 26);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = 'rgba(220,90,40,0.30)';
+                ctx.beginPath();
+                ctx.moveTo(vx0 + 3, vy0 + 4); ctx.lineTo(vx1 - 2, vy1 + 3);
+                ctx.lineTo(vx1 - 2, vy1 + 15); ctx.lineTo(vx0 + 3, vy0 + 22);
+                ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#241b28';
+                for (let i = 0; i < 5; i++) {
+                    const t = i / 4;
+                    const bx = vx0 + (vx1 - vx0) * t;
+                    const by = vy0 + (vy1 - vy0) * t;
+                    ctx.fillRect(bx, by + 2, 3, 22 - t * 8);
+                }
+            };
+            vent(28, 108, 268, 246);
+            vent(612, 532, 268, 246);
+
+            // Reactor: a cylindrical containment stack, banded and caged. Its
+            // core window is the one cool light source in a warm, dying room.
+            ctx.fillStyle = '#0d0a12';
+            ctx.fillRect(281, 30, 78, 258);
+            [['#241e2e', 283, 74], ['#302940', 288, 62], ['#3d3450', 294, 48],
+             ['#4a4060', 301, 32], ['#5a4e72', 306, 18], ['#6d6086', 310, 8]]
+                .forEach(([c, bx, bw]) => { ctx.fillStyle = c; ctx.fillRect(bx, 32, bw, 254); });
+            // Coolant lines leaving the stack and dropping to the pump bank
+            const coolantRun = (hx0, hx1, vx) => {
+                ctx.fillStyle = '#150d11';
+                ctx.fillRect(hx0, 100, hx1 - hx0, 15);
+                ctx.fillRect(vx, 100, 15, 108);
+                ctx.fillStyle = '#4b4159';
+                ctx.fillRect(hx0, 102, hx1 - hx0, 11);
+                ctx.fillRect(vx + 2, 102, 11, 104);
+                ctx.fillStyle = '#6d6086';
+                ctx.fillRect(hx0, 102, hx1 - hx0, 2);
+                ctx.fillRect(vx + 2, 102, 3, 104);
+            };
+            coolantRun(246, 288, 246);
+            coolantRun(352, 394, 379);
+            // Containment rings
+            [90, 136, 212, 250].forEach((ry) => {
+                ctx.fillStyle = '#0d0a12'; ctx.fillRect(279, ry, 82, 12);
+                ctx.fillStyle = '#4b4159'; ctx.fillRect(281, ry + 1, 78, 10);
+                ctx.fillStyle = '#6d6086'; ctx.fillRect(281, ry + 1, 78, 2);
+                ctx.fillStyle = '#1a1424';
+                for (let bx = 286; bx < 358; bx += 12) ctx.fillRect(bx, ry + 4, 3, 5);
+            });
+            // Core viewport behind a cage grille
+            ctx.fillStyle = '#08131c'; ctx.fillRect(290, 152, 60, 58);
+            ctx.fillStyle = 'rgba(40,150,220,' + (rFlicker * 0.5) + ')';
+            ctx.fillRect(292, 154, 56, 54);
+            ctx.fillStyle = 'rgba(120,220,255,' + (rFlicker * 0.6) + ')';
+            ctx.beginPath(); ctx.arc(320, 181, 21, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(200,245,255,' + (rFlicker * 0.85) + ')';
+            ctx.beginPath(); ctx.arc(320, 181, 10, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#EAFBFF';
+            ctx.beginPath(); ctx.arc(320, 181, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#1a1424';
+            for (let gx = 296; gx < 348; gx += 10) ctx.fillRect(gx, 152, 3, 58);
+            ctx.fillRect(290, 179, 60, 3);
+            // Hazard stripes and plinth at the base
+            for (let i = 0; i * 10 < 78; i++) {
+                ctx.fillStyle = i % 2 ? '#c8a416' : '#1b1b28';
+                ctx.fillRect(281 + i * 10, 264, 10, 8);
+            }
+            ctx.fillStyle = '#0d0a12'; ctx.fillRect(275, 272, 90, 16);
+            ctx.fillStyle = '#3b3040'; ctx.fillRect(277, 274, 86, 12);
+            ctx.fillStyle = '#4e4155'; ctx.fillRect(277, 274, 86, 3);
+            // Core light spilling onto the deck
+            ctx.fillStyle = 'rgba(90,200,255,' + (rFlicker * 0.09) + ')';
+            ctx.beginPath(); ctx.ellipse(320, 296, 104, 26, 0, 0, Math.PI * 2); ctx.fill();
+            // Stencilled markings
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#9c8fae';
             ctx.font = '8px "Courier New"';
-            ctx.fillText('REACTOR CORE', 298, 78);
-            ctx.fillText('DANGER', 307, 270);
+            ctx.fillText('REACTOR', 320, 118);
+            ctx.fillText('CORE', 320, 128);
+            ctx.fillStyle = '#c8a416';
+            ctx.fillText('DANGER', 320, 238);
+            ctx.textAlign = 'left';
 
             // Left bank of consoles
             drawComputerTerminal(ctx, 156, 96, 90, 70,
@@ -7245,7 +7567,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             {
                 name: 'Left Console',
-                x: 28, y: 98, w: 96, h: 74,
+                x: 152, y: 92, w: 98, h: 78,
                 description: 'A navigation and systems monitoring console. Status indicators glow red across the board.',
                 look: (e) => e.showMessage('The console shows critical failures across half the ship\'s systems. Core temperature is off the charts.'),
                 use: (e) => e.showMessage('You tap a few keys but the input subsystem is unresponsive. The main I/O bus must be offline.')
@@ -7384,7 +7706,7 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             {
                 name: 'Right Console',
-                x: 518, y: 98, w: 96, h: 74,
+                x: 390, y: 92, w: 98, h: 78,
                 description: 'Engineering status console.',
                 look: (e) => e.showMessage('This console monitors power distribution. According to these readings, life support is the only system drawing full power. Everything else is rerouted or offline.')
             },
@@ -7421,7 +7743,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Pipz draws as a y-sorted actor so the player passes behind her
             // correctly instead of always rendering in front.
             e.addForegroundLayer(322, (ctx, eng) => {
-                if (eng.getFlag('pipz_left')) return;
                 const px = 265, py = 308;
                 eng.drawContactShadow(ctx, px, py + 13, 1, { rx: 12, ry: 3.5, alpha: 0.26 });
                 ctx.fillStyle = '#885533';
@@ -7606,7 +7927,6 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'Pipz',
                 x: 248, y: 274, w: 46, h: 56,
-                get hidden() { return engine.getFlag('pipz_left'); },
                 description: 'A small figure huddled in the shade of the wreck.',
                 look: (e) => {
                     if (!e.getFlag('met_pipz')) {
@@ -7910,10 +8230,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function finalVictoryMessage(e) {
+        // The console can also be spoofed without the cartridge; that route earns
+        // its own sign-off so the harder solve is acknowledged.
+        const improvised = e.getFlag('field_bypassed_without_cartridge')
+            ? ' You never did find the specs the console wanted, so you lied to it with a freight manifest and a stolen radio cadence, which is the most janitorial solution imaginable.'
+            : '';
         if (e.getFlag('rescued_prisoners')) {
-            return 'You grab the Quantum Drive and run for the airlock! The freed prisoners are already aboard your shuttle, which is now both a getaway craft and a serious fire-code violation. After the jump, Jorv and Mella reunite with Pipz at Kerona Docking Bay. From humble janitor to galactic hero... and, annoyingly, still the person everyone expects to clean up afterward. THE END.';
+            return 'You grab the Quantum Drive and run for the airlock! The freed prisoners are already aboard your shuttle, which is now both a getaway craft and a serious fire-code violation. After the jump, Jorv and Mella reunite with Pipz at Kerona Docking Bay.' + improvised + ' From humble janitor to galactic hero... and, annoyingly, still the person everyone expects to clean up afterward. THE END.';
         }
-        return 'You grab the Quantum Drive and run for the airlock! Behind you, alarms blare as the Draknoids realize what\'s happened. You sprint through the corridors, leap into your shuttle, and blast away just as the flagship turns to pursue. But it\'s too late — you jump to hyperspace with the Quantum Drive safely aboard. From humble janitor to galactic hero... the galaxy owes its future to one unlikely sanitation engineer. THE END.';
+        return 'You grab the Quantum Drive and run for the airlock! Behind you, alarms blare as the Draknoids realize what\'s happened. You sprint through the corridors, leap into your shuttle, and blast away just as the flagship turns to pursue. But it\'s too late — you jump to hyperspace with the Quantum Drive safely aboard.' + improvised + ' From humble janitor to galactic hero... the galaxy owes its future to one unlikely sanitation engineer. THE END.';
     }
 
     // ========== ROOM 10: DRAKNOID SHIP ==========

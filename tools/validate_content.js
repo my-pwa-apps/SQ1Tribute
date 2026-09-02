@@ -51,3 +51,27 @@ for (const asset of assetMatches) {
         fail(`Service worker asset does not exist: ${asset}`);
     }
 }
+
+// A misspelt flag name is invisible at runtime: getFlag returns false forever and
+// the puzzle silently never opens. Cross-reference every literal flag name.
+const engine = read('js/engine.js');
+const flagSources = game + engine;
+const collectFlags = (fn) => new Set(
+    [...flagSources.matchAll(new RegExp(`${fn}\\('([^']+)'`, 'g'))].map((m) => m[1])
+);
+const written = collectFlags('setFlag');
+const read_ = collectFlags('getFlag');
+for (const flag of read_) {
+    if (!written.has(flag)) fail(`Flag is read but never set (typo or dead gate): ${flag}`);
+}
+for (const flag of written) {
+    if (!read_.has(flag)) fail(`Flag is set but never read (dead state): ${flag}`);
+}
+
+// maxScore is the published contract for the status bar and the rank thresholds.
+// The walkthrough proves it is reachable; this proves the awards still fund it.
+const awarded = [...game.matchAll(/addScore\((\d+)\)/g)]
+    .reduce((sum, m) => sum + Number(m[1]), 0);
+if (awarded < content.maxScore) {
+    fail(`Score awards total ${awarded} but maxScore is ${content.maxScore}; the bar advertises unreachable points.`);
+}

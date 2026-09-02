@@ -14,5 +14,36 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run check
+
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # The browser download is ~150MB and unchanged between runs of the same
+      # Playwright version, so cache it rather than re-downloading every push.
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # Visual baselines are captured on Windows and are platform-specific
+      # (Chromium renders text differently on Linux), so CI runs the
+      # platform-independent functional suite. Run `npm run test:visual`
+      # locally before release.
+      - run: npm run check:ci
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-failure-output
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore

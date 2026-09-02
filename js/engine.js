@@ -35,6 +35,9 @@ const SUIT_REMAP = {
     '#AAAAAA': '#8C8568'
 };
 
+// Hoisted so the y-sort in the render loop does not allocate a comparator per frame.
+const byDepth = (a, b) => a.y - b.y;
+
 class GameEngine {
     constructor(gameDefinition = {}) {
         this.game = this.createGameDefinition(gameDefinition);
@@ -189,6 +192,17 @@ class GameEngine {
         // hearing-impaired players still receive the audio-only feedback.
         this.sound.onInaudibleCue = (label) => this.showSoundCaption(label);
         this.soundCaption = null; // { text, until }
+
+        // Cached once: the query string cannot change without a reload, and the
+        // update loop must not allocate a URLSearchParams every frame.
+        this.visualTestMode = typeof window !== 'undefined' &&
+            new URLSearchParams(window.location.search).has('visual-test');
+        this._loopRunning = false;
+        this._lightPoolCache = new Map();
+        this._vignetteCache = new Map();
+        // Text measurement happens outside the render pass (word wrap, dialog
+        // hit-testing). Measuring on the visible context leaves ctx.font dirty.
+        this._measureCtx = document.createElement('canvas').getContext('2d');
 
         // Screen shake (intensity decays over time)
         this.screenShake = 0;
@@ -439,6 +453,7 @@ class GameEngine {
                     if (e.key === 'Escape') {
                         this.activeDialog = null;
                         this.textWindow = null;
+                        this.clearAccessibleDialogOptions();
                         return;
                     }
                 }
@@ -1028,6 +1043,7 @@ class GameEngine {
         this.playerFacing = 'toward';
         this.playerTargetX = null;
         this.playerTargetY = null;
+        this.soundCaption = null;
         this.playerWalking = false;
         this.pendingAction = null;
         this.sound.stopAmbient();
@@ -1054,7 +1070,7 @@ class GameEngine {
                 hotspot.walk(this);
             } else if (y > 240) {
                 this.playerTargetX = Math.max(30, Math.min(610, x));
-                this.playerTargetY = Math.max(280, Math.min(370, y));
+                this.playerTargetY = Math.max(Math.max(this.horizon, 280), Math.min(370, y));
                 this.playerWalking = true;
                 this.pendingAction = null;
             } else if (hotspot) {
@@ -1593,7 +1609,7 @@ class GameEngine {
      *  Classic blue box with white border and yellow text. */
     showTextWindow(text, opts) {
         opts = opts || {};
-        const ctx = this.ctx;
+        const ctx = this._measureCtx;
         ctx.font = '13px "Courier New"';
 
         const portraitId = opts.portrait || (this.activeDialog && this.activeDialog.phase !== 'options' ? this.activeDialog.dialogId : null);
@@ -2385,10 +2401,11 @@ class GameEngine {
         const lineH = 18;
         const pad = 12;
         // Auto-size width based on longest option text
-        this.ctx.font = '13px "Courier New"';
+        const measure = this._measureCtx;
+        measure.font = '13px "Courier New"';
         let maxTextW = 200;
         for (const line of lines) {
-            const tw = this.ctx.measureText(line.text).width;
+            const tw = measure.measureText(line.text).width;
             if (tw > maxTextW) maxTextW = tw;
         }
         const boxW = Math.min(560, Math.round(maxTextW) + pad * 2 + 24);
@@ -2453,7 +2470,7 @@ class GameEngine {
 
     // ---- Update Loop ----
     update(dt) {
-        const visualTestMode = new URLSearchParams(window.location.search).has('visual-test');
+        const visualTestMode = this.visualTestMode;
         if (!visualTestMode) {
             this.animTimer += dt;
         }
@@ -2705,6 +2722,7 @@ class GameEngine {
 
         if (this.titleScreen) {
             this.drawTitleScreen(ctx);
+            if (shaking) ctx.restore();
             return;
         }
 
@@ -2791,7 +2809,7 @@ class GameEngine {
         }
 
         // Sort by Y (lower Y = behind, drawn first — AGI's MakeObjList)
-        this._drawables.sort((a, b) => a.y - b.y);
+        this._drawables.sort(byDepth);
 
         // Draw all in sorted order
         for (const d of this._drawables) {
@@ -3015,7 +3033,7 @@ class GameEngine {
         ctx.font = 'bold 11px "Courier New"';
         ctx.fillStyle = '#000000';
         const room = this.rooms[this.currentRoomId];
-        const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta > 0 ? ` +${this.lastScoreDelta}` : '';
+        const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta !== 0 ? ` +${this.lastScoreDelta}` : '';
         ctx.fillText(`Score:${this.score} of ${this.maxScore}${delta}`, 8, 12);
         ctx.textAlign = 'center';
         ctx.fillText(room ? room.name.toUpperCase() : this.game.shortTitle.toUpperCase(), this.WIDTH / 2, 12);
@@ -3038,7 +3056,7 @@ class GameEngine {
         ctx.fillText(actionLabel, 8, 12);
         ctx.fillStyle = '#FFFF55';
         ctx.textAlign = 'right';
-        const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta > 0 ? `  +${this.lastScoreDelta}` : '';
+        const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta !== 0 ? `  +${this.lastScoreDelta}` : '';
         ctx.fillText(`Score: ${this.score} / ${this.maxScore}${delta}`, this.WIDTH - 8, 12);
         ctx.textAlign = 'left';
     }
@@ -3412,14 +3430,22 @@ class GameEngine {
      *  so ceiling strips, fires and glowing props actually spill onto the ground. */
     lightPool(ctx, x, y, radius, color, alpha) {
         if (radius <= 0) return;
-        const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
         const rgb = color || '255,235,180';
-        g.addColorStop(0, `rgba(${rgb},${alpha == null ? 0.18 : alpha})`);
-        g.addColorStop(0.55, `rgba(${rgb},${(alpha == null ? 0.18 : alpha) * 0.35})`);
-        g.addColorStop(1, `rgba(${rgb},0)`);
+        const a = alpha == null ? 0.18 : alpha;
+        // Gradients are immutable once built; rooms call this every frame.
+        const key = `${radius}|${rgb}|${a}`;
+        let g = this._lightPoolCache.get(key);
+        if (!g) {
+            g = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+            g.addColorStop(0, `rgba(${rgb},${a})`);
+            g.addColorStop(0.55, `rgba(${rgb},${a * 0.35})`);
+            g.addColorStop(1, `rgba(${rgb},0)`);
+            this._lightPoolCache.set(key, g);
+        }
         ctx.save();
+        ctx.translate(x, y);
         ctx.fillStyle = g;
-        ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+        ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
         ctx.restore();
     }
 
@@ -3429,10 +3455,15 @@ class GameEngine {
         const s = strength == null ? 0.35 : strength;
         if (s <= 0) return;
         const W = this.WIDTH, H = this.HEIGHT, top = 17;
-        const g = ctx.createRadialGradient(W / 2, H * 0.58, H * 0.28, W / 2, H * 0.58, H * 0.95);
-        g.addColorStop(0, 'rgba(0,0,0,0)');
-        g.addColorStop(0.6, `rgba(${color || '0,0,0'},${s * 0.35})`);
-        g.addColorStop(1, `rgba(${color || '0,0,0'},${s})`);
+        const key = `${s}|${color || '0,0,0'}`;
+        let g = this._vignetteCache.get(key);
+        if (!g) {
+            g = ctx.createRadialGradient(W / 2, H * 0.58, H * 0.28, W / 2, H * 0.58, H * 0.95);
+            g.addColorStop(0, 'rgba(0,0,0,0)');
+            g.addColorStop(0.6, `rgba(${color || '0,0,0'},${s * 0.35})`);
+            g.addColorStop(1, `rgba(${color || '0,0,0'},${s})`);
+            this._vignetteCache.set(key, g);
+        }
         ctx.save();
         ctx.beginPath();
         ctx.rect(0, top, W, H - top);
@@ -4148,6 +4179,7 @@ class GameEngine {
     saveGame(slot) {
         if (this.titleScreen) { this.showMessage('Start the game before saving.'); return; }
         if (this.dead) { this.showMessage('You can\'t save when you\'re dead!'); return; }
+        if (this.won) { this.showMessage('Your adventure is already complete. Start a new game to save.'); return; }
         try {
             const data = this.getSaveData();
             const ok = this.safeStorageSet(this.getSaveKey(slot), JSON.stringify(data));
@@ -4201,8 +4233,9 @@ class GameEngine {
             this.playerTargetX = null;
             this.playerTargetY = null;
             this.pendingAction = null;
-            this.playerDir = data.playerDir || 1;
-            this.playerFacing = data.playerFacing || 'toward';
+            this.playerDir = data.playerDir === -1 ? -1 : 1;
+            this.playerFacing = ['toward', 'away', 'left', 'right'].includes(data.playerFacing)
+                ? data.playerFacing : 'toward';
             this.crtEffects = data.crtEffects !== false;
             this.screenShake = 0;
             // Restore modified item names/descriptions
@@ -4247,6 +4280,13 @@ class GameEngine {
     }
 
     openSaveModal(mode) {
+        // Refuse at the entry point rather than after a slot is chosen, so the
+        // player is never walked into a modal that cannot do anything.
+        if (mode === 'save') {
+            if (this.titleScreen) { this.showMessage('Start the game before saving.'); return; }
+            if (this.dead) { this.showMessage('You can\'t save when you\'re dead!'); return; }
+            if (this.won) { this.showMessage('Your adventure is already complete. Start a new game to save.'); return; }
+        }
         const modal = this.dom.saveModal;
         this.dom.modalTitle.textContent = mode === 'save' ? 'Save Game' : 'Load Game';
         const list = this.dom.slotList;
@@ -4327,6 +4367,9 @@ class GameEngine {
 
     // ---- Game Loop ----
     start() {
+        // A second start() would run two rAF loops against one lastTime.
+        if (this._loopRunning) return;
+        this._loopRunning = true;
         // Initialize VR support if available
         this.initVR();
         this.updateLayoutScale();

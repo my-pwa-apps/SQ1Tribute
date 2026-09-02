@@ -8,9 +8,18 @@ async function clearState(page) {
 
 async function finishIntro(page, modeKey = 'e') {
     await page.keyboard.press(modeKey);
-    for (let index = 0; index < 18; index++) {
+    // The intro cutscene is created when the title screen is dismissed; wait for
+    // it before polling, or the loop exits before a single beat has played.
+    await page.waitForFunction(
+        () => !!window.engine && !window.engine.titleScreen && !!window.engine.cutscene,
+        null,
+        { timeout: 10000 }
+    );
+    // Data-driven rather than a fixed press count: intro beats change over time.
+    for (let index = 0; index < 40; index++) {
+        if (await page.evaluate(() => !window.engine.cutscene)) break;
         await page.keyboard.press('Space');
-        await page.waitForTimeout(120);
+        await page.waitForTimeout(90);
     }
     await expect(page.locator('#message-text')).toContainText('broom closet', { timeout: 5000 });
     await page.keyboard.press('Space');
@@ -372,6 +381,69 @@ test.describe('touch controls', () => {
         await page.locator('#touch-parser-input').fill('LOOK');
         await page.locator('#touch-parser button[type="submit"]').click();
         await expect(page.locator('#message-text')).not.toHaveText('Choose Classic Parser or Enhanced Click to begin.');
+    });
+});
+
+test.describe('regression coverage for documented features', () => {
+    test('the parser answers nonsense with snark rather than silence', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page, 'c');
+        const before = await page.locator('#message-text').textContent();
+        await runClassicCommand(page, 'EAT MOP');
+        await expect(page.locator('#message-text')).not.toHaveText(before);
+        const reply = await page.locator('#message-text').textContent();
+        expect(reply.trim().length).toBeGreaterThan(10);
+    });
+
+    test('F9 toggles CRT effects and F2 toggles object highlighting', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page);
+
+        const crtBefore = await page.evaluate(() => window.engine.crtEffects);
+        await page.keyboard.press('F9');
+        expect(await page.evaluate(() => window.engine.crtEffects)).toBe(!crtBefore);
+
+        await page.keyboard.press('F2');
+        // The Objects button must mirror the engine state for screen readers.
+        await expect(page.locator('#btn-scan')).toHaveAttribute('aria-pressed', 'true');
+        await page.keyboard.press('F2');
+        await expect(page.locator('#btn-scan')).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    test('F3 recalls the last typed parser command into the input line', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page, 'c');
+        await runClassicCommand(page, 'LOOK');
+        await page.evaluate(() => {
+            const e = window.engine;
+            for (let i = 0; i < 20 && e.textWindow; i++) { e.completeTextReveal(); e.dismissTextWindow(); }
+        });
+        await page.keyboard.press('F3');
+        expect((await page.evaluate(() => window.engine.commandLine)).toLowerCase()).toBe('look');
+    });
+
+    test('a completed game refuses to overwrite a save slot', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page);
+        await page.evaluate(() => window.engine.victory('done'));
+        await page.keyboard.press('F5');
+        await expect(page.locator('#message-text')).toContainText(/already complete/i);
+        await expect(page.locator('#save-modal')).toBeHidden();
+    });
+
+    test('corrupt save data is rejected instead of loading a broken world', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page);
+        await page.evaluate(() => {
+            localStorage.setItem('starsweeper_save_0', JSON.stringify({
+                version: 1, timestamp: 1, currentRoomId: 'no_such_room',
+                playerX: 320, playerY: 330, inventory: [], score: 0, flags: {}
+            }));
+        });
+        await page.keyboard.press('F7');
+        await page.locator('.slot-action', { hasText: 'Load' }).first().click();
+        await expect(page.locator('#message-text')).toContainText(/corrupted/i);
+        expect(await page.evaluate(() => window.engine.currentRoomId)).toBe('broom_closet');
     });
 });
 

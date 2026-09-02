@@ -75,6 +75,8 @@
             suitOutline: '#3A3628',
             legs: '#9A9375',
             legHighlight: '#B4AD8D',
+            kneePatch: '#77775F',
+            pocketShadow: '#8C8568',
             collar: '#555555',
             belt: '#333333',
             buckle: '#B9BAC6',

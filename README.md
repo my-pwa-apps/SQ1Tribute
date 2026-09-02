@@ -12,7 +12,7 @@ Serve the folder over any static HTTP server and open `index.html` in a modern b
 npm run serve
 ```
 
-Then browse to http://localhost:8080.
+Then browse to http://127.0.0.1:8080 (the server binds the loopback address explicitly, so `localhost` may fail on IPv6-first hosts).
 
 ## Controls
 
@@ -87,7 +87,6 @@ Install the development dependencies and run the complete release gate:
 npm install
 npm run check
 ```
-
 `npm run check` performs JavaScript syntax checks, structured room/item/asset validation, and Playwright tests in desktop Chrome and Pixel 5 emulation. The browser suite covers mode selection, the touch parser, save/load, accessibility mirrors, both final-console puzzle routes, offline reload, update UI, and the absence of full-canvas pixel readbacks. It also compares reviewed visual baselines for the title, representative rooms, CRT output, and mobile framing. Update those baselines deliberately with `npx playwright test tests/visual.spec.js --update-snapshots` only after reviewing the rendered changes.
 
 Content metadata and items live in [js/content.js](js/content.js) so the validator can consume exact IDs without booting the UI. Room groups remain in [js/game.js](js/game.js); keep production content files below 400 KB and extract the next stable room group before crossing that threshold.
