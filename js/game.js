@@ -614,28 +614,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (introPhase === 2) {
                     const wakeProg = Math.min(t / 2200, 1);
                     drawRoom(ctx, w, h, 0.5 - wakeProg * 0.3);
-                    const standProg = Math.min(wakeProg * 1.5, 1);
-                    const px = 300, baseY = 310;
-                    if (standProg < 0.4) {
+                    const ease = (value) => value * value * (3 - 2 * value);
+                    const px = 300, baseY = 310, sleepX = 258, sleepY = 322;
+                    if (wakeProg < 0.28) {
                         const breathe = Math.sin(elapsed / 400) * 1;
-                        // eyeOpen: starts fully closed, begins opening past standProg 0.2
-                        const eyeOpen = standProg > 0.2 ? (standProg - 0.2) / 0.2 : 0;
-                        drawPlayerSleeping(ctx, 258, 322 + breathe, eyeOpen);
-                    } else if (standProg < 0.7) {
-                        // Sit-up: the shared ego cel, drawn low and rising, so
-                        // the intro cannot use a different character again.
+                        const eyeOpen = ease(Math.min(wakeProg / 0.2, 1));
+                        drawPlayerSleeping(ctx, sleepX, sleepY + breathe, eyeOpen);
+                    } else if (wakeProg < 0.5) {
                         const s = engine.playerSpriteScale(310);
-                        const sitP = (standProg - 0.4) / 0.3;
-                        const riseY = 310 + (1 - sitP) * 13 * s;
-                        ctx.save();
-                        // Crouched: squash vertically and lean back as he pushes up.
-                        ctx.translate(px, riseY);
-                        ctx.scale(1, 0.62 + sitP * 0.38);
-                        ctx.rotate((1 - sitP) * -0.12);
-                        drawPlayerBody(ctx, 0, 0, s, 0.5);
-                        ctx.restore();
+                        drawPlayerWakePose(ctx, px - 5, baseY + 12 * s, s, 'seated');
+                    } else if (wakeProg < 0.72) {
+                        const s = engine.playerSpriteScale(310);
+                        drawPlayerWakePose(ctx, px, baseY + 12 * s, s, 'crouched');
                     } else {
-                        drawPlayerBody(ctx, px, baseY, engine.playerSpriteScale(baseY), wakeProg > 0.85 ? 0 : 0.5);
+                        // Only the final upright cel stretches during the rise; the
+                        // sleeping body itself is never rotated or transformed.
+                        const riseP = ease((wakeProg - 0.72) / 0.28);
+                        const s = engine.playerSpriteScale(baseY);
+                        ctx.save();
+                        ctx.translate(px, baseY + 12 * s);
+                        ctx.rotate((1 - riseP) * -0.16);
+                        ctx.scale(1, 0.72 + riseP * 0.28);
+                        drawPlayerBody(ctx, 0, -12 * s, s, (1 - riseP) * 0.55);
+                        ctx.restore();
                     }
                     if (t > 600) showNarration('p2_yawn', [
                         '*yaaawn*... Huh? What time is it...'

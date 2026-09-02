@@ -188,6 +188,23 @@ test.describe('visual regression', () => {
             const e = window.engine;
             e.update = e._visualTestUpdate;
             delete e._visualTestUpdate;
+            e.cutscene.onAdvance();
+            e.cutscene.elapsed = 6400;
+            e.render();
+            e.cutscene.onAdvance();
+            e.cutscene.elapsed = 7100;
+            e.render();
+            e.cutscene.onAdvance();
+            e.cutscene.elapsed = 7600;
+            e.render();
+            e._visualTestUpdate = e.update;
+            e.update = () => {};
+        });
+        await expectCanvas(page, 'intro-wakeup.png');
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.update = e._visualTestUpdate;
+            delete e._visualTestUpdate;
         });
 
         for (let index = 0; index < 18; index++) {

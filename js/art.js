@@ -1416,11 +1416,82 @@ function miniAnimRedrawRoom(ctx, w, h) {
 
 const PLAYER_PALETTE = PAL.PLAYER;
 
-function drawPlayerBody(ctx, px, py, s, armAngle) {
+function drawPlayerBody(ctx, px, py, s, armAngle, drawShadow = true) {
     // One character definition: the cutscene cel is literally the in-room
     // front-facing sprite, so the ego can never drift between them.
-    engine.drawContactShadow(ctx, px, py + 12 * s, s);
+    if (drawShadow) engine.drawContactShadow(ctx, px, py + 12 * s, s);
     engine.drawEgoFront(ctx, px, py, s, { armAngle: armAngle || 0 });
+}
+
+function drawPlayerWakePose(ctx, px, groundY, s, pose) {
+    const P = PAL.PLAYER;
+    const crouched = pose === 'crouched';
+    engine.drawContactShadow(ctx, px + 3 * s, groundY, s, {
+        rx: crouched ? 9 : 12,
+        ry: 2.2,
+        alpha: 0.27,
+        light: null
+    });
+
+    ctx.save();
+    ctx.translate(px, groundY);
+    ctx.scale(s, s);
+
+    // Bent legs form a compact zig-zag instead of one rotating body axis.
+    ctx.fillStyle = P.legs;
+    if (crouched) {
+        ctx.fillRect(-5, -8, 5, 7);
+        ctx.fillRect(1, -7, 5, 6);
+        ctx.fillStyle = P.legHighlight;
+        ctx.fillRect(-4, -7, 1, 5);
+        ctx.fillRect(2, -6, 1, 4);
+        ctx.fillStyle = P.boots;
+        ctx.fillRect(-6, -2, 6, 2);
+        ctx.fillRect(1, -2, 7, 2);
+    } else {
+        ctx.fillRect(1, -8, 8, 4);
+        ctx.fillRect(8, -7, 4, 6);
+        ctx.fillStyle = P.legHighlight;
+        ctx.fillRect(2, -7, 6, 1);
+        ctx.fillRect(9, -6, 1, 4);
+        ctx.fillStyle = P.boots;
+        ctx.fillRect(9, -2, 7, 2);
+        ctx.fillRect(5, -4, 6, 2);
+    }
+
+    const torsoY = crouched ? -18 : -21;
+    ctx.fillStyle = P.suit;
+    ctx.fillRect(-4, torsoY, 8, 11);
+    ctx.fillStyle = P.suitShadow;
+    ctx.fillRect(2, torsoY, 2, 11);
+    ctx.fillStyle = P.suitOutline;
+    ctx.fillRect(-4, torsoY, 1, 11);
+    ctx.fillStyle = P.belt;
+    ctx.fillRect(-4, torsoY + 9, 8, 2);
+    ctx.fillStyle = P.collar;
+    ctx.fillRect(-2, torsoY, 4, 1);
+
+    // One arm braces on the deck; the other rests across the raised knee.
+    ctx.fillStyle = P.suit;
+    ctx.fillRect(-7, torsoY + 2, 3, 8);
+    ctx.fillRect(4, torsoY + 3, crouched ? 5 : 7, 3);
+    ctx.fillStyle = P.gloves;
+    ctx.fillRect(-8, torsoY + 9, 4, 2);
+    ctx.fillRect(crouched ? 8 : 10, torsoY + 3, 3, 3);
+
+    const headY = torsoY - 8;
+    ctx.fillStyle = P.skin;
+    ctx.fillRect(-3, headY, 7, 7);
+    ctx.fillStyle = P.skinShadow;
+    ctx.fillRect(2, headY + 2, 2, 5);
+    ctx.fillStyle = P.hair;
+    ctx.fillRect(-4, headY - 1, 8, 3);
+    ctx.fillRect(-4, headY + 1, 2, 4);
+    ctx.fillStyle = P.eyeWhite;
+    ctx.fillRect(1, headY + 3, 2, 1);
+    ctx.fillStyle = P.iris;
+    ctx.fillRect(2, headY + 3, 1, 1);
+    ctx.restore();
 }
 
 /**
@@ -1429,7 +1500,7 @@ function drawPlayerBody(ctx, px, py, s, armAngle) {
  * Derived from the same VGA proportions as drawEgoFront, rotated 90 degrees.
  * eyeOpen: 0 = closed, 1 = fully open.
  */
-function drawPlayerSleeping(ctx, bx, cy, eyeOpen) {
+function drawPlayerSleeping(ctx, bx, cy, eyeOpen, drawShadow = true) {
     const s = engine.playerSpriteScale(310);
     const P = PAL.PLAYER;
     // Horizontal reference points, head at the left, boots at the right.
@@ -1440,7 +1511,9 @@ function drawPlayerSleeping(ctx, bx, cy, eyeOpen) {
     const legX  = beltX + 1.8 * s;
     const bootX = legX + 12 * s;
 
-    engine.drawContactShadow(ctx, bodyX + 6 * s, cy + 5 * s, s, { rx: 20 * s, ry: 2.4 * s, alpha: 0.22 });
+    if (drawShadow) {
+        engine.drawContactShadow(ctx, bodyX + 6 * s, cy + 5 * s, s, { rx: 20 * s, ry: 2.4 * s, alpha: 0.22 });
+    }
 
     // Far arm and leg first so the body overlaps them.
     ctx.fillStyle = P.suitShadow;
