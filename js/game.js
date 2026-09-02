@@ -438,7 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             const lines = narrationBox.lines;
             const lh = 16;
-            const padX = 16, padY = 10;
+            const padY = 10;
             const boxH = lines.length * lh + padY * 2 + 14;
             const boxW = Math.min(w - 40, 560);
             const boxX = Math.round((w - boxW) / 2);
@@ -905,13 +905,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillRect(px + rw - 1, y + 5, 1, h - 9);
             ctx.fillRect(px + 1, y + h - 5, rw - 2, 1);
         }
-    }
-
-    function metalFloor(ctx, y, w, h, color1, color2) {
-        ditherRect(ctx, 0, y, w, h, color1 || PAL.FLOOR_LIGHT, color2 || PAL.FLOOR_DARK, 2);
-        ctx.strokeStyle = PAL.OUTLINE;
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
     }
 
     function perspectiveFloor(ctx, topY, w, h, base) {
@@ -2464,7 +2457,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.addBarrier(345, 305, 35, 25);    // Floor drain
 
             // Foreground layer: bucket rim draws over player when walking behind it
-            e.addForegroundLayer(319, (ctx, eng) => {
+            e.addForegroundLayer(319, (ctx) => {
                 // Bucket front rim (draws over player walking behind bucket)
                 ctx.fillStyle = '#404855';
                 ctx.fillRect(474, 299, 46, 3);
@@ -3707,7 +3700,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.addBarrier(195, 285, 35, 25);    // Overturned chair
 
             // Foreground layer: lab table edge draws over player walking behind it
-            e.addForegroundLayer(285, (ctx, eng) => {
+            e.addForegroundLayer(285, (ctx) => {
                 ctx.fillStyle = '#555570';
                 ctx.fillRect(240, 268, 185, 4); // Table front edge
             });
@@ -4848,7 +4841,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.addBarrier(60, 330, 140, 25);    // Underground pool
 
             // Foreground layer: stalagmite tips draw over player
-            e.addForegroundLayer(320, (ctx, eng) => {
+            e.addForegroundLayer(320, (ctx) => {
                 // Center stalagmite foreground tip
                 ctx.fillStyle = '#3d2e1e';
                 ctx.beginPath();
@@ -5942,7 +5935,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.addBarrier(525, 295, 85, 12);    // Table 2
 
             // Foreground layer: bar counter top draws over player walking behind
-            e.addForegroundLayer(270, (ctx, eng) => {
+            e.addForegroundLayer(270, (ctx) => {
                 // Bar counter top lip
                 ctx.fillStyle = '#775544';
                 ctx.fillRect(28, 250, 305, 4);
@@ -6627,7 +6620,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.addBarrier(40, 255, 420, 15);    // Counter front edge
 
             // Foreground layer: counter top draws over player
-            e.addForegroundLayer(265, (ctx, eng) => {
+            e.addForegroundLayer(265, (ctx) => {
                 ctx.fillStyle = '#665533';
                 ctx.fillRect(48, 255, 405, 3); // Counter front lip
             });
@@ -7563,7 +7556,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 },
                 get: (e) => e.die('You reach to take a souvenir chunk of the reactor. This is the last decision you ever make. Your family will be proud. They will also be unable to hold a funeral without a lead-lined box.'),
-                useItem: (e, id) => e.showMessage('That won\'t help with a reactor meltdown.')
+                useItem: (e) => e.showMessage('That won\'t help with a reactor meltdown.')
             },
             {
                 name: 'Left Console',
@@ -7734,6 +7727,16 @@ document.addEventListener('DOMContentLoaded', () => {
         onEnter: (e) => {
             e.sound.startAmbient('desert_wind');
             e.setDepthScaling(260, 380, 0.75, 1.1);
+            // First arrival replays how the Ironclad Star ended up here.
+            if (!e.getFlag('saw_freighter_crash')) {
+                e.setFlag('saw_freighter_crash');
+                e.playCutscene({
+                    duration: 9000,
+                    skippable: true,
+                    draw: cutsceneFreighterCrash,
+                    onEnd: () => { e.playerVisible = true; }
+                });
+            }
             // Bay wall barriers
             e.addBarrier(0, 230, 80, 60);     // Left bay wall
             e.addBarrier(560, 230, 80, 60);   // Right bay wall
@@ -7781,7 +7784,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ditherRect(ctx, 0, 250, w, 20, '#CC7733', '#AA7744', 4);
 
             // Bay walls left and right (structural pylons)
-            for (let bx of [0, 540]) {
+            for (const bx of [0, 540]) {
                 ctx.fillStyle = '#556670';
                 ctx.fillRect(bx, 120, 80, 200);
                 ctx.fillStyle = '#445560';
@@ -8266,7 +8269,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Foreground layer: platform surface draws over player walking behind
-            e.addForegroundLayer(285, (ctx, eng) => {
+            e.addForegroundLayer(285, (ctx) => {
                 ctx.fillStyle = '#1a3a1a';
                 ctx.fillRect(248, 280, 145, 3);
             });

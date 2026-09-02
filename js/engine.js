@@ -2830,7 +2830,6 @@ class GameEngine {
      * while allowing rooms to use modern Canvas drawing and expanded colour. */
     applyClassicSceneRaster(ctx) {
         const low = this.sceneRasterCtx;
-        const scale = this.sceneRasterScale;
         low.save();
         low.setTransform(1, 0, 0, 1, 0, 0);
         low.clearRect(0, 0, this.sceneRasterCanvas.width, this.sceneRasterCanvas.height);
@@ -3591,7 +3590,8 @@ class GameEngine {
             rightLeg = Math.min(0, -walkCycle);
         }
         // Boot offset — foot tap only moves the boot, not the leg
-        let leftBoot = leftLeg, rightBoot = rightLeg;
+        const leftBoot = leftLeg;
+        let rightBoot = rightLeg;
         if (idleFootTap > 0) rightBoot = -idleFootTap;
         // Hand swing: the shoulders stay put and only the hands travel, so the
         // arms read as swinging rather than sliding up and down the torso.
@@ -4415,7 +4415,7 @@ class AnimatedNPC {
      * @param {boolean} [def.ignoreHorizon] - If true, can go above horizon
      * @param {Object} [def.motionParams] - Parameters for motion type
      */
-    constructor(def, engine) {
+    constructor(def, _engine) {
         this.id = def.id;
         this.x = def.x || 0;
         this.y = def.y || 310;
