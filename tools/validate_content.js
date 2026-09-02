@@ -95,7 +95,8 @@ for (const asset of assetMatches) {
 // A misspelt flag name is invisible at runtime: getFlag returns false forever and
 // the puzzle silently never opens. Cross-reference every literal flag name.
 const engine = read('js/engine.js');
-const flagSources = game + engine;const collectFlags = (fn) => new Set(
+const flagSources = game + engine;
+const collectFlags = (fn) => new Set(
     [...flagSources.matchAll(new RegExp(`${fn}\\('([^']+)'`, 'g'))].map((m) => m[1])
 );
 const written = collectFlags('setFlag');

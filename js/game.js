@@ -531,13 +531,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     // The survey vessel, drifting slowly to port.
                     const shipX = 366 - Math.min(t, 6000) / 1000 * 7;
                     drawShipSilhouette(ctx, shipX, 262, 2.2);
-                    // Lit habitat windows and a blinking beacon.
-                    ctx.fillStyle = '#FFEE99';
-                    for (let i = 0; i < 9; i++) ctx.fillRect(shipX - 70 + i * 16, 256, 4, 3);
-                    ctx.fillStyle = Math.floor(t / 600) % 2 ? '#FF5544' : '#5a1c16';
-                    ctx.fillRect(shipX + 104, 254, 4, 4);
-                    ctx.fillStyle = 'rgba(90,190,255,0.35)';
-                    ctx.fillRect(shipX - 146, 256, 16, 12);
                     // Console readout plate
                     const rx = 150, ry = 38, rw = 340, rh = 150;
                     ctx.fillStyle = '#000000';

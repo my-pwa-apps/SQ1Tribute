@@ -1,6 +1,6 @@
 // Star Sweeper: A Space Adventure - Service Worker
 // BUMP VERSION on every code change to invalidate the cache.
-const VERSION = 'v1.0.97';
+const VERSION = 'v1.0.105';
 const CACHE_NAME = `starsweeper-${VERSION}`;
 
 const ASSETS = [
@@ -43,6 +43,10 @@ self.addEventListener('activate', (event) => {
     );
 });
 
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
 self.addEventListener('fetch', (event) => {
     const req = event.request;
     if (req.method !== 'GET') return;
@@ -82,6 +86,9 @@ function cacheFirst(req) {
         return fetch(req).then((res) => {
             cacheResponse(req, res);
             return res;
-        }).catch(() => cached);
+        }).catch(() => new Response('Asset unavailable offline.', {
+            status: 504,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        }));
     });
 }

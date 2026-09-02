@@ -9,11 +9,12 @@ Open items only (resolved items from prior reviews are retained below for histor
 | Priority | Count |
 |---|---:|
 | Critical | 0 |
-| High | 0 |
-| Medium | 5 |
-| Low | 5 |
+| High | 4 |
+| Medium | 19 |
+| Low | 8 |
 
-Open items are all from the 2026-09-02 reviews; see the two dated sections at the end of this file for detail.
+See the dated sections at the end of this file for detail; the most recent is the
+Principal Engineering Review of 2026-09-02 (second pass).
 
 ---
 
@@ -957,6 +958,10 @@ Scope: reintroduce VR as Wilkins' first-person view rather than the previous thi
 
 ### Implemented
 
+- [x] [Priority: Medium] **Blob NPCs and non-perspective scene furniture** — *(RESOLVED: the brig prisoners and docking-bay Pipz were circles-on-rectangles while the same characters had full cels elsewhere. All now draw from the shared `drawVgaPerson` civilian palettes (`CIV_JORV`/`CIV_MELLA`/`CIV_PIPZ`/`CIV_CREW_A|B`), prisoners render behind re-laid bars, and Pipz's hotspot was realigned. The reunion bay lost its floor perspective grid, gained wall-plane trapezoid fixtures via `wallQuad`, and replaced gradient fills with flat Sierra tonal bands.)*
+
+- [x] [Priority: Medium] **The Pipz reunion epilogue was too sparse for its emotional importance** — *(RESOLVED: Pipz, Jorv and Mella are now drawn by a shared `drawVgaPerson` helper built on the ego's SCI/VGA measurements (~6 heads tall, outline columns, small eyes), with two-segment arms that actually wrap into a hug. The bay was rebuilt as a true Sierra pseudo-3D interior with converging side walls, ceiling wedge, perspective floor grid and an open door onto Kerona.)*
+
 - [x] [Priority: High] **VR represented the game as a distant third-person curved screen** — *(RESOLVED: authored room pixels are projected onto curved wall, floor and ceiling geometry; Wilkins' sprite is suppressed in-session so the headset wearer is Wilkins.)*
 - [x] [Priority: High] **Headset locomotion did not drive canonical adventure-game movement** — *(RESOLVED: view-relative left-stick motion feeds the existing directional input path, retaining room barriers, walkable areas, footsteps and automatic exits.)*
 - [x] [Priority: High] **Immersive interaction could diverge from desktop puzzle logic** — *(RESOLVED: controller rays map wall/floor intersections back to 640x400 hotspot coordinates and call the existing action dispatcher.)*
@@ -979,5 +984,336 @@ Scope: reintroduce VR as Wilkins' first-person view rather than the previous thi
 | Priority | Resolved | Open |
 |---|---:|---:|
 | High | 3 | 1 |
-| Medium | 3 | 0 |
-| **Total** | **6** | **1** |
+| Medium | 4 | 0 |
+| **Total** | **7** | **1** |
+
+---
+
+## Dated Findings — Principal Engineering Review, Second Pass (2026-09-02)
+
+Scope: a full-stack review acting as principal engineer, QE, architect, product, security,
+performance, UX reviewer and tech lead. Product goals, architecture, every source module,
+the test suite, tooling, CI, the PWA shell, save/load security and the accessibility surface
+were re-examined against the shipped `v1.0.104` build. Three subagent audits (engine,
+tests/tooling, content) were cross-checked by reading the cited code before anything was
+accepted as a finding.
+
+Verification for this pass: `npm run check` — static gate, content validator and the
+service-worker version guard all pass; **83 Playwright tests pass, 7 skipped** (up from 75,
+because four new regression tests and their mobile projections were added). The scored
+walkthrough still completes at 378/378.
+
+### Resolved in this pass
+
+- [x] [Priority: Critical] **Unwinnable state: arriving at the Draknoid flagship unarmed** — the landing pad warns once about flying without the Pulsar Ray, then permits the launch and sets `flew_unarmed`. On the flagship the guard can only be defeated with the ray, walking past him is fatal, the corridor is a scripted dead end, and the Airlock refused to let the player leave. The result was a permanent no-win state with no death and no feedback — strictly worse than dying, because nothing told the player the game was over. *(RESOLVED: the Airlock now flies the player back to Kerona when the guard is alive and the ray is not held, clearing `flew_away`/`flew_unarmed` so the shuttle and the shop are reachable again. The flagship hint names the retreat. Covered by a new regression test.)*
+- [x] [Priority: High] **Save loading could be poisoned through the prototype chain** — `loadGame` validated `currentRoomId` with `!this.rooms[id]`, filtered inventory with `this.items[x]` and restored `itemNames` with `this.items[id]`. All three resolve inherited keys, so a crafted save using `__proto__`/`constructor` passed validation, admitted pseudo-items, and `itemNames.__proto__` wrote `name`/`description` onto `Object.prototype` for the rest of the session. *(RESOLVED: every registry lookup on save data now uses `Object.hasOwn`, including `getSlotInfo`. Covered by a new prototype-pollution regression test.)*
+- [x] [Priority: High] **`destroy()` leaked an `AudioContext` per engine instance** — it called `sound.stopAmbient()` while `SoundEngine.dispose()` (which closes the context and drops the `statechange` listener) already existed and was never called. *(RESOLVED: `destroy()` prefers `dispose()`.)*
+- [x] [Priority: Medium] **Inventory was the last mouse-only control surface** — items rendered as `div`s with a click listener inside a `role="list"` container, so they could not be tabbed to, announced as controls, or activated by keyboard, and the list role was invalid for its children. *(RESOLVED: real `button` elements with `aria-pressed`, container switched to `role="group"`, `.inv-item` given `font-family: inherit` so the pixel typeface is preserved. Covered by a new keyboard-selection test.)*
+- [x] [Priority: Medium] **Service worker could respond with `undefined`** — `cacheFirst`'s catch returned the already-falsy `cached`, so a failed fetch for an uncached asset passed `undefined` to `respondWith`, surfacing as an opaque network error instead of a diagnosable response. *(RESOLVED: returns an explicit 504 text response.)*
+- [x] [Priority: Medium] **The update banner could not activate a waiting worker** — the button called `location.reload()`, which keeps the old controller while a worker sits in `waiting`. *(RESOLVED: the banner receives the registration, posts `SKIP_WAITING`, and reloads on `controllerchange`; the worker now handles that message. The no-argument call used by the existing test still falls back to a plain reload.)*
+- [x] [Priority: Medium] **The dev server crashed on a malformed request** — `new URL(...)` and `decodeURIComponent(...)` were unguarded, so a bad percent-encoding threw inside the request handler and took the process down mid-test-run. *(RESOLVED: parsing is guarded and returns 400.)*
+- [x] [Priority: Medium] **The service-worker version guard was not in the local gate** — `check:sw` existed but no local script ran it, and CI ran it only for pull requests, so direct pushes bypassed cache-version discipline entirely. *(RESOLVED: `npm run check` now runs `check:sw`.)*
+- [x] [Priority: Low] **Save `version` was written but never read** — no schema gate and no migration branch, so a future format change would fail in ad-hoc ways. *(RESOLVED: a `SAVE_VERSION` constant is written and validated, with an explicit unsupported-version message.)*
+- [x] [Priority: Low] **`validate_content.js` had two statements on one line**, hiding the `collectFlags` declaration behind the `flagSources` assignment. *(RESOLVED.)*
+
+### Previously open items that are now stale
+
+- [x] **Add ESLint with a browser-globals flat config** — delivered; `eslint.config.js` derives art globals from `js/art.js` and `lint` is the first step of `check:static`.
+- [x] **Split `js/game.js` into per-room modules** — delivered; content now lives in `js/rooms/*.js` behind the `StarSweeper.defineRooms` registry.
+- [x] **The engine has no `destroy()`** — delivered; `_on()` tracks listeners and `destroy()` detaches them and stops the loop.
+
+### Open items
+
+- [ ] **VR title-screen confirm bypasses `startNewGame()`**
+
+  Priority: High
+  Category: Bug
+  Area: WebXR
+  Affected files: `js/vr.js`
+  Problem: `_confirm()` sets `titleScreen = false` and calls `goToRoom(...)` directly instead of `engine.startNewGame()`, so it skips the `onGameStart`/`game.onStart` hook that plays the intro and initialises new-game state.
+  Impact: A player who starts the game from inside the headset gets a different, less-initialised opening than every desktop player, and any future new-game setup added to the hook silently will not run in VR.
+  Recommended solution: Call `this.engine.startNewGame()` and then set `playerVisible = false` for immersive mode.
+  Acceptance criteria: Starting from the title in VR runs the same start hook as desktop; a test asserts the intro cutscene exists after an in-headset confirm.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **The test suite drives engine internals instead of real input paths**
+
+  Priority: High
+  Category: Testing
+  Area: Test integrity
+  Affected files: `tests/full-game.spec.js`, `tests/game.spec.js`, `tests/visual.spec.js`
+  Problem: Room traversal calls `hs.onExit(e)` and `e.performAction(exit)` directly, and visual setup calls `setFlag`/`goToRoom`. Hotspot rectangles, click hit-testing, walk-to targets and the automatic exit trigger are therefore largely unexercised.
+  Impact: This is precisely the class of defect the repo has already been bitten by — art moved while its hotspot stayed behind. A fully green suite can coexist with an unclickable door.
+  Recommended solution: Keep direct state setup for snapshot fixtures only. Add real click-and-walk transition tests for each act boundary and for at least one wall-mounted object whose art and hotspot can drift apart.
+  Acceptance criteria: Deliberately offsetting one hotspot rectangle by 40 px fails the suite.
+  Estimated effort: Medium
+  Business value: High
+  Technical debt reduction: High
+
+- [ ] **The content validator is regex-based and both over- and under-matches**
+
+  Priority: High
+  Category: Developer Experience
+  Area: Tooling
+  Affected files: `tools/validate_content.js`
+  Problem: Room, item, flag and score extraction rely on single-quote-only regexes (`registerRoom\(\{\s*id:\s*'...'`, `getFlag\('...'`, `addScore\((\d+)\)`), and structural checks are raw `includes()` substring tests over `index.html`, the worker and `_headers`. Reordered object properties, double quotes, a constant, or an HTML attribute reorder produce false results in either direction.
+  Impact: The gate that is supposed to guarantee the content contract can quietly stop checking, which is more dangerous than not having it.
+  Recommended solution: Parse the modules with an AST (Node ships `acorn` via `npm`) and inspect real call expressions; parse the asset list and headers structurally.
+  Acceptance criteria: Rewriting a room registration with double quotes and reordered keys still validates, and a genuinely unknown room reference still fails.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: High
+
+- [ ] **`check_sw_version` misses deletions, renames and ASSETS-list edits**
+
+  Priority: Medium
+  Category: Developer Experience
+  Area: Release process
+  Affected files: `tools/check_sw_version.js`
+  Problem: It compares changed files against the *current* asset list only. Deleting or renaming a previously cached asset, or editing the `ASSETS` array itself without touching a listed file, reports "no cached asset changed" and skips.
+  Impact: A cache-content change can ship without a version bump — the exact failure the tool exists to prevent.
+  Recommended solution: Diff the base and current cached-asset sets and treat any delta in the list as bump-worthy.
+  Acceptance criteria: Removing an asset from `ASSETS` without bumping `VERSION` fails the check.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **Ambient audio nodes are never tracked, so `stopAmbient()` cannot stop them**
+
+  Priority: Medium
+  Category: Bug
+  Area: Audio
+  Affected files: `js/sound.js`
+  Problem: `startAmbient()` initialises `_ambientNodes = []` and `stopAmbient()` iterates it, but no oscillator or noise source is ever pushed into it. Only the interval is cleared; already-scheduled tones play out.
+  Impact: Room-change audio bleeds across transitions and the cleanup array is dead code that reads as if it works.
+  Recommended solution: Route each ambient program through a dedicated gain node and disconnect that node on stop, or push every created source into `_ambientNodes`.
+  Acceptance criteria: Changing rooms silences the previous ambience immediately; a test asserts no ambient source outlives the transition.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **The game loop keeps running while the save/load modal is open**
+
+  Priority: Medium
+  Category: Bug
+  Area: Engine lifecycle
+  Affected files: `js/engine.js`
+  Problem: `update()` returns early for `dead`/`won`/`titleScreen` but not for an open modal. NPC animation, timed text windows, idle timers and room `onUpdate` continue behind a UI the player reasonably believes is blocking.
+  Impact: The desert exposure timer can advance — and kill the player — while they are choosing a save slot.
+  Recommended solution: Add an explicit paused state checked at the top of `update()` and set it while the modal is open.
+  Acceptance criteria: Opening the modal in the desert freezes `desert_timer`.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **VR scene resources are not disposed**
+
+  Priority: Medium
+  Category: Performance
+  Area: WebXR
+  Affected files: `js/vr.js`
+  Problem: `_initScene()` allocates textures, geometries and materials; `destroy()` disposes only the renderer.
+  Impact: GPU memory leaks on repeated enter/exit or engine replacement.
+  Recommended solution: Dispose textures, geometries and materials, clear the marker group, and null retained scene references.
+  Acceptance criteria: Repeated VR enter/exit cycles show no monotonic GPU memory growth.
+  Estimated effort: Small
+  Business value: Low
+  Technical debt reduction: Medium
+
+- [ ] **The desert survival-kit route is a one-way death trap**
+
+  Priority: Medium
+  Category: UX
+  Area: Content
+  Affected files: `js/rooms/ship.js`, `js/rooms/kerona.js`
+  Problem: Launching the pod without the survival kit is warned once, then permitted. The kit has no second source, and the desert kills the player after 45 s of accumulated exposure. Unlike the flagship case this at least produces a death, but the run is unrecoverable from that point.
+  Impact: A player without a recent save loses the entire run to a single ignorable warning. Sierra-authentic, but the project already treats recoverable dead ends as a design value.
+  Recommended solution: Either hard-block the launch until the kit is held, or add a scavengeable water source in the desert wreck that sets `used_kit`.
+  Acceptance criteria: No reachable state leaves the player unable to progress and unable to recover.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Low
+
+- [ ] **The engine-room hint contradicts the implemented puzzle**
+
+  Priority: Medium
+  Category: Business Logic
+  Area: Content
+  Affected files: `js/rooms/engine-room.js`
+  Problem: The room hint says the fire-suppression cabinet is locked and needs Korvak's plasma cutter, but the cabinet's `use` handler opens it directly via a hidden override switch.
+  Impact: The stated rule and the implemented rule disagree, which undermines Korvak's cutter setup and makes the puzzle feel arbitrary.
+  Recommended solution: Pick one contract — require the cutter, or rewrite the hint and flavour text to acknowledge the override.
+  Acceptance criteria: Hint text, look text and the handler describe the same rule.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Low
+
+- [ ] **Healing Korvak produces different state depending on the route taken**
+
+  Priority: Medium
+  Category: Business Logic
+  Area: Content
+  Affected files: `js/game.js`, `js/rooms/engine-room.js`
+  Problem: The dialog path sets `korvak_healed`/`korvak_freed`/`korvak_left` but never grants the plasma cutter; the use-item path sets `korvak_freed`/`korvak_left` and conditionally grants the cutter but never sets `korvak_healed`.
+  Impact: The same narrative action yields two different save shapes and two different inventories — the drift that later content bugs are built on.
+  Recommended solution: Route both through one `healKorvak(e)` helper producing a single canonical state.
+  Acceptance criteria: Both routes yield identical flags and inventory.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **Cantina and shop economy logic is implemented twice**
+
+  Priority: Medium
+  Category: Refactor
+  Area: Content
+  Affected files: `js/game.js`, `js/rooms/kerona.js`
+  Problem: Buying the ale, giving the pilot a drink and granting the nav chip each exist in both the dialog trees and the room hotspot handlers, duplicating `credits_amount` arithmetic, item renaming and progression flags.
+  Impact: Two implementations of the same business rule will drift; a balance change must be made in two places or the economy becomes inconsistent.
+  Recommended solution: Extract `buyDrink`, `givePilotDrink`, `sellCrystal` and `buyPulsarRay` helpers and call them from both surfaces.
+  Acceptance criteria: Each economic transaction has exactly one implementation.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: High
+
+- [ ] **Room modules are approaching the maintainability ceiling again**
+
+  Priority: Medium
+  Category: Architecture
+  Area: Content layer
+  Affected files: `js/rooms/kerona.js`, `js/rooms/ship.js`, `js/rooms/endgame.js`, `js/art.js`
+  Problem: `kerona.js` is ~2.7k lines, `ship.js` ~2.0k, `art.js` ~1.9k and `endgame.js` ~1.7k, against a documented ~1,500-line hard ceiling. Each mixes room art, hotspot contracts, cutscene triggers, inventory mutation and progression flags.
+  Impact: The same conditions that produced the original 8,900-line monolith are re-forming, and the duplicated economy logic above is the first symptom.
+  Recommended solution: Split to one room per file and extract a shared content-logic module for progression helpers.
+  Acceptance criteria: No content file exceeds 1,500 lines; visual baselines unchanged after the move.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: High
+
+- [ ] **No end-to-end save/load round trip, and a thin corrupt-save matrix**
+
+  Priority: Medium
+  Category: Testing
+  Area: Persistence
+  Affected files: `tests/game.spec.js`
+  Problem: Save coverage asserts two fields, and load helpers inject JSON directly. Nothing plays to a mid-game state, saves through the UI, mutates state, loads, and compares. Corrupt-save coverage is one unknown-room case plus the new prototype-pollution case.
+  Impact: Persistence is the feature players most expect to be safe, and regressions in position, facing, inventory, score or flag restoration would pass.
+  Recommended solution: Add a round-trip test with a deep field comparison, and a table-driven corrupt-save matrix (unparseable, missing fields, wrong types, bad version, non-array inventory).
+  Acceptance criteria: Both exist and fail when any restored field is dropped.
+  Estimated effort: Small
+  Business value: High
+  Technical debt reduction: Medium
+
+- [ ] **Parser and dialog-tree coverage is shallow**
+
+  Priority: Medium
+  Category: Testing
+  Area: Interaction
+  Affected files: `tests/game.spec.js`, `tests/full-game.spec.js`
+  Problem: Parser coverage is essentially one nonsense command, one recall case and one `LOOK`. Synonyms, case folding, whitespace, `USE x ON y` and noun aliases are untested. Dialog coverage walks one happy path per NPC, so locked/unlocked options, one-shot exhaustion and repeat-award guards are unverified.
+  Impact: The parser is a headline feature of the genre, and dialog one-shots are a plausible source of duplicate item or score awards.
+  Recommended solution: Add a parser matrix over representative verbs and aliases, and per-tree dialog tests asserting option visibility before/after state changes and no re-award on repeat.
+  Acceptance criteria: Both matrices exist and cover the documented synonym table.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **No Firefox or WebKit coverage, no retries, and an unused HTML report artifact**
+
+  Priority: Medium
+  Category: Testing
+  Area: CI
+  Affected files: `playwright.config.js`, `.github/workflows/quality.yml`
+  Problem: Only Desktop Chrome and Pixel 5 projects exist, `retries` is unset, the reporter is `line`, yet CI uploads `playwright-report/` on failure — a directory the run never produces.
+  Impact: Service-worker, focus and font behaviour are browser-sensitive and untested elsewhere; the failure artifact is misleadingly empty.
+  Recommended solution: Add Firefox and WebKit projects for the functional suite, set `retries: 1` in CI while flakiness is addressed, and add the HTML reporter or drop the artifact path.
+  Acceptance criteria: CI runs three desktop engines and uploads a report that exists.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **ESLint declares browser globals for Node-context test files**
+
+  Priority: Medium
+  Category: Developer Experience
+  Area: Tooling
+  Affected files: `eslint.config.js`
+  Problem: The test override spreads `globals.browser`, but Playwright specs execute in Node. Accidental top-level use of `window`, `document` or `localStorage` outside `page.evaluate` therefore lints clean and fails only at runtime. There is also no Playwright rule set.
+  Impact: The linter cannot catch the most common Playwright authoring mistake.
+  Recommended solution: Remove `globals.browser` from the test block and add `eslint-plugin-playwright` (`no-wait-for-timeout`, `missing-playwright-await`, `prefer-web-first-assertions`).
+  Acceptance criteria: A top-level `document` reference in a spec fails lint.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **Fixed sleeps and a wall-clock threshold make the suite timing-sensitive**
+
+  Priority: Medium
+  Category: Testing
+  Area: Reliability
+  Affected files: `tests/game.spec.js`, `tests/full-game.spec.js`, `tests/visual.spec.js`
+  Problem: Numerous `waitForTimeout` sleeps drive intro advancement and animation, and the stalled-navigation test asserts `Date.now() - started < 4500` against a 3 s worker timeout.
+  Impact: Under CI contention these produce failures unrelated to the change under test, which erodes trust in the gate.
+  Recommended solution: Wait on engine predicates and DOM state; assert the cache-fallback outcome rather than host-side elapsed milliseconds.
+  Acceptance criteria: No `waitForTimeout` remains in a control-flow position, and no assertion depends on wall-clock duration.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **The pod-bay cartridge warning contradicts the alternate endgame route**
+
+  Priority: Low
+  Category: Documentation
+  Area: Content
+  Affected files: `js/rooms/ship.js`
+  Problem: The pod warns that leaving without the data cartridge "becomes a terrible problem three planets later", but the flagship console explicitly supports a cartridge-free solve.
+  Impact: The narration presents an optional harder route as a mandatory requirement.
+  Recommended solution: Reword the warning as a recommendation.
+  Acceptance criteria: Warning text and the implemented routes agree.
+  Estimated effort: Small
+  Business value: Low
+  Technical debt reduction: Low
+
+- [ ] **`korvak_healed` is redundant state**
+
+  Priority: Low
+  Category: Cleanup
+  Area: Content
+  Affected files: `js/game.js`
+  Problem: The flag is set and read only inside the single dialog branch that guards itself; every other consumer keys off `korvak_freed`/`korvak_left`.
+  Impact: Extra save-state surface encoding no distinct fact.
+  Recommended solution: Remove it and guard the branch with `!korvak_freed` (fold into the shared `healKorvak` helper above).
+  Acceptance criteria: The flag no longer exists and the dialog behaves identically.
+  Estimated effort: Small
+  Business value: Low
+  Technical debt reduction: Low
+
+- [ ] **Dev server follows symlinks out of the repository**
+
+  Priority: Low
+  Category: Security
+  Area: Tooling
+  Affected files: `tools/serve.js`
+  Problem: Traversal protection is a `startsWith(root + sep)` string check performed before `readFile`, so a symlink inside the repo pointing outside it is served.
+  Impact: Local-only and loopback-bound, so exposure is minimal, but the check does not do what it appears to do.
+  Recommended solution: Resolve with `fs.realpath` and re-check containment, or refuse symlinks.
+  Acceptance criteria: A symlink to a file outside the root returns 403.
+  Estimated effort: Small
+  Business value: Low
+  Technical debt reduction: Low
+
+### Summary of this pass
+
+| Priority | Resolved | Open (new) |
+|---|---:|---:|
+| Critical | 1 | 0 |
+| High | 2 | 3 |
+| Medium | 5 | 13 |
+| Low | 2 | 3 |
+| **Total** | **10** | **19** |
+
+Three previously open items (ESLint, the content split, engine `destroy()`) were confirmed
+delivered and closed.
+

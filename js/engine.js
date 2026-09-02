@@ -13,6 +13,10 @@ const PAL = (typeof window !== 'undefined' && window.SS_PALETTE) || {
     TEXT_NEGATIVE: '#FF8855', TEXT_MUTED: '#AAAAAA'
 };
 
+// Save schema version. Bump only for a breaking layout change, and add a
+// migration branch in loadGame when doing so.
+const SAVE_VERSION = 1;
+
 // Ego scale. Room architecture is authored large (interior doors run ~200px),
 // so the sprite is scaled to sit in Sierra's ego-to-doorway range.
 // The ego is a ~5.5-head SCI/VGA-era figure spanning roughly 36 units from
@@ -343,7 +347,10 @@ class GameEngine {
             target.removeEventListener(type, handler, options);
         }
         this._listeners.length = 0;
-        if (this.sound && this.sound.stopAmbient) this.sound.stopAmbient();
+        // dispose() also closes the AudioContext; stopAmbient alone leaks one
+        // audio graph per replaced engine instance.
+        if (this.sound && this.sound.dispose) this.sound.dispose();
+        else if (this.sound && this.sound.stopAmbient) this.sound.stopAmbient();
         this.cutscene = null;
         if (typeof window !== 'undefined' && window.engine === this) delete window.engine;
     }
@@ -867,9 +874,11 @@ class GameEngine {
         this.inventory.forEach(itemId => {
             const item = this.items[itemId];
             if (!item) return;
-            const el = document.createElement('div');
+            const el = document.createElement('button');
+            el.type = 'button';
             el.className = 'inv-item' + (this.selectedItem === itemId ? ' selected' : '');
             el.textContent = item.name;
+            el.setAttribute('aria-pressed', this.selectedItem === itemId ? 'true' : 'false');
             el.addEventListener('click', () => this.handleInventoryClick(itemId));
             container.appendChild(el);
         });
@@ -4212,7 +4221,7 @@ class GameEngine {
 
     getSaveData() {
         return {
-            version: 1,
+            version: SAVE_VERSION,
             timestamp: Date.now(),
             currentRoomId: this.currentRoomId,
             playerX: this.playerX,
@@ -4257,7 +4266,12 @@ class GameEngine {
                 typeof data.flags !== 'object' || data.flags === null || Array.isArray(data.flags)) {
                 this.showMessage('Save data is corrupted.'); return;
             }
-            if (!this.rooms[data.currentRoomId] ||
+            if (data.version !== undefined && data.version !== SAVE_VERSION) {
+                this.showMessage('That save was written by a different version of the game.'); return;
+            }
+            // Own-property checks only: '__proto__' and 'constructor' resolve
+            // through the prototype chain and would pass a plain lookup.
+            if (!Object.hasOwn(this.rooms, data.currentRoomId) ||
                 !Number.isFinite(data.playerX) ||
                 !Number.isFinite(data.playerY)) {
                 this.showMessage('Save data is corrupted.'); return;
@@ -4272,7 +4286,7 @@ class GameEngine {
             const playerX = Math.max(30, Math.min(610, data.playerX));
             const playerY = Math.max(280, Math.min(370, data.playerY));
             // Filter inventory to known string item IDs
-            this.inventory = data.inventory.filter(x => typeof x === 'string' && this.items[x]);
+            this.inventory = data.inventory.filter(x => typeof x === 'string' && Object.hasOwn(this.items, x));
             this.score = Math.max(0, Math.min(this.maxScore, Math.floor(data.score)));
             this.flags = safeFlags;
             this.dead = false;
@@ -4294,7 +4308,7 @@ class GameEngine {
             // Restore modified item names/descriptions
             if (data.itemNames) {
                 for (const [id, info] of Object.entries(data.itemNames)) {
-                    if (this.items[id] &&
+                    if (Object.hasOwn(this.items, id) &&
                         info &&
                         typeof info.name === 'string' &&
                         typeof info.description === 'string') {
@@ -4322,7 +4336,7 @@ class GameEngine {
             const raw = this.safeStorageGet(this.getSaveKey(slot));
             if (!raw) return null;
             const data = JSON.parse(raw);
-            const room = this.rooms[data.currentRoomId];
+            const room = Object.hasOwn(this.rooms, data.currentRoomId) ? this.rooms[data.currentRoomId] : null;
             const date = new Date(data.timestamp);
             return {
                 room: room ? room.name : data.currentRoomId,

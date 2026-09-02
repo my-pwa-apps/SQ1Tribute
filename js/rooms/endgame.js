@@ -36,25 +36,23 @@ StarSweeper.defineRooms((engine) => {
             // Pipz draws as a y-sorted actor so the player passes behind her
             // correctly instead of always rendering in front.
             e.addForegroundLayer(322, (ctx, eng) => {
-                const px = 265, py = 308;
-                eng.drawContactShadow(ctx, px, py + 13, 1, { rx: 12, ry: 3.5, alpha: 0.26 });
-                ctx.fillStyle = '#885533';
-                ctx.beginPath(); ctx.arc(px, py - 22, 7, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#BB7744';
-                ctx.fillRect(px - 6, py - 16, 12, 16);
-                ctx.fillStyle = '#665533';
-                ctx.fillRect(px - 8, py, 8, 12); ctx.fillRect(px + 2, py + 2, 8, 10);
-                ctx.fillStyle = '#331100';
-                ctx.fillRect(px - 7, py - 30, 14, 8);
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(px - 4, py - 25, 4, 4); ctx.fillRect(px + 1, py - 25, 4, 4);
-                ctx.fillStyle = '#2255AA';
-                ctx.fillRect(px - 3, py - 24, 2, 2); ctx.fillRect(px + 2, py - 24, 2, 2);
+                const px = 265, feet = 320;
+                eng.drawContactShadow(ctx, px, feet + 1, 1, { rx: 12, ry: 3.5, alpha: 0.26 });
+                drawVgaPerson(ctx, px, feet, 1.6, Object.assign({}, CIV_PIPZ, {
+                    farArm: { side: -1, up: 0.06, lo: 0.2 },
+                    nearArm: { side: 1, up: 0.06, lo: 0.2 }
+                }));
             });
         },
         draw: (ctx, w, h, eng) => {
-            // Sky — Kerona harsh midday
-            gradientRect(ctx, 0, 0, w, 260, '#882200', '#CC7733');
+            // Sky — Kerona harsh midday, in flat bands; gradients get dithered
+            // into checkerboard noise by the scene finish.
+            [['#7a1e05', 0, 62], ['#932f0d', 62, 62], ['#ab4718', 124, 62], ['#c2622a', 186, 74]].forEach(([col, y0, bh]) => {
+                ctx.fillStyle = col; ctx.fillRect(0, y0, w, bh);
+            });
+            ditherRect(ctx, 0, 56, w, 12, '#7a1e05', '#932f0d', 4);
+            ditherRect(ctx, 0, 118, w, 12, '#932f0d', '#ab4718', 4);
+            ditherRect(ctx, 0, 180, w, 12, '#ab4718', '#c2622a', 4);
 
             // Distant mesas frame the wreck and establish a hot, open-air bay.
             ctx.fillStyle = '#98451f';
@@ -73,32 +71,86 @@ StarSweeper.defineRooms((engine) => {
             // Dithered horizon
             ditherRect(ctx, 0, 250, w, 20, '#CC7733', '#AA7744', 4);
 
-            // Bay walls left and right (structural pylons)
-            for (const bx of [0, 540]) {
-                ctx.fillStyle = '#556670';
-                ctx.fillRect(bx, 120, 80, 200);
-                ctx.fillStyle = '#445560';
-                ctx.fillRect(bx + (bx === 0 ? 0 : 8), 120, 24, 200);
-                // Rivet lines
-                for (let ry = 140; ry < 300; ry += 20) {
-                    ctx.fillStyle = '#667780';
-                    ctx.fillRect(bx + 12, ry, 4, 4);
-                    ctx.fillRect(bx + 56, ry, 4, 4);
+            // Bay pylons: tapered towers with black underdrawing, three tones,
+            // cross-bracing, hazard skirt and a lamp head.
+            const pylon = (px) => {
+                const topW = 26, botW = 38, top = 92, bot = 334;
+                const lT = px - topW, rT = px + topW, lB = px - botW, rB = px + botW;
+                ctx.fillStyle = CRAFT.edge;
+                ctx.beginPath();
+                ctx.moveTo(lT - 4, top - 5); ctx.lineTo(rT + 4, top - 5);
+                ctx.lineTo(rB + 5, bot + 5); ctx.lineTo(lB - 5, bot + 5); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#4d5b66';
+                ctx.beginPath();
+                ctx.moveTo(lT, top); ctx.lineTo(rT, top); ctx.lineTo(rB, bot); ctx.lineTo(lB, bot); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#697883';
+                ctx.beginPath();
+                ctx.moveTo(lT, top); ctx.lineTo(lT + 10, top); ctx.lineTo(lB + 13, bot); ctx.lineTo(lB, bot); ctx.closePath(); ctx.fill();
+                ctx.fillStyle = '#333f49';
+                ctx.beginPath();
+                ctx.moveTo(rT - 9, top); ctx.lineTo(rT, top); ctx.lineTo(rB, bot); ctx.lineTo(rB - 12, bot); ctx.closePath(); ctx.fill();
+                // Panel bands and X-bracing read as fabricated structure.
+                for (let py = top + 30; py < bot - 20; py += 40) {
+                    const t = (py - top) / (bot - top);
+                    const hw = topW + (botW - topW) * t;
+                    ctx.fillStyle = CRAFT.edge; ctx.fillRect(px - hw, py, hw * 2, 5);
+                    ctx.fillStyle = '#7d8c96'; ctx.fillRect(px - hw, py, hw * 2, 2);
+                    const t2 = (py + 40 - top) / (bot - top);
+                    const hw2 = topW + (botW - topW) * t2;
+                    ctx.strokeStyle = '#3c4854'; ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(px - hw + 5, py + 6); ctx.lineTo(px + hw2 - 5, py + 38);
+                    ctx.moveTo(px + hw - 5, py + 6); ctx.lineTo(px - hw2 + 5, py + 38);
+                    ctx.stroke();
                 }
-            }
+                // Hazard skirt and footing plate settle it into the sand.
+                ctx.fillStyle = '#d8a02c'; ctx.fillRect(lB + 2, bot - 26, botW * 2 - 4, 12);
+                ctx.fillStyle = '#241a10';
+                for (let hx = lB + 2; hx < rB - 6; hx += 14) {
+                    ctx.beginPath();
+                    ctx.moveTo(hx, bot - 14); ctx.lineTo(hx + 7, bot - 26);
+                    ctx.lineTo(hx + 14, bot - 26); ctx.lineTo(hx + 7, bot - 14);
+                    ctx.closePath(); ctx.fill();
+                }
+                ctx.fillStyle = CRAFT.edge; ctx.fillRect(lB - 8, bot - 8, botW * 2 + 16, 12);
+                ctx.fillStyle = '#59666f'; ctx.fillRect(lB - 6, bot - 6, botW * 2 + 12, 6);
+                // Lamp head
+                ctx.fillStyle = CRAFT.edge; ctx.fillRect(px - 16, top - 16, 32, 14);
+                ctx.fillStyle = '#3c4854'; ctx.fillRect(px - 14, top - 14, 28, 5);
+                const lit = Math.floor(Date.now() / 800) % 2;
+                ctx.fillStyle = lit ? '#ffd84a' : '#8e7a26';
+                ctx.fillRect(px - 12, top - 9, 24, 6);
+                ctx.fillStyle = CRAFT.accent; ctx.fillRect(lB + 4, top + 44, botW * 2 - 8, 4);
+            };
+            pylon(30); pylon(610);
 
-            // Overhead hangar roof structure
-            ctx.fillStyle = '#445566';
-            ctx.fillRect(60, 60, w - 120, 40);
-            ctx.fillStyle = '#334455';
-            ctx.fillRect(60, 60, w - 120, 10);
-            // Roof lights
-            for (let lx = 100; lx < w - 80; lx += 80) {
-                ctx.fillStyle = Math.floor(Date.now() / 800) % 2 ? '#FFDD44' : '#AA9922';
-                ctx.fillRect(lx, 68, 20, 12);
-                ctx.fillStyle = 'rgba(255,200,50,0.2)';
-                ctx.beginPath(); ctx.arc(lx + 10, 80, 22, 0, Math.PI * 2); ctx.fill();
+            // Overhead gantry: paired chords with a zig-zag web and hung lamps.
+            ctx.fillStyle = CRAFT.edge; ctx.fillRect(46, 50, w - 92, 9);
+            ctx.fillStyle = '#55636e'; ctx.fillRect(48, 52, w - 96, 5);
+            ctx.fillStyle = '#7d8c96'; ctx.fillRect(48, 52, w - 96, 2);
+            ctx.fillStyle = CRAFT.edge; ctx.fillRect(46, 92, w - 92, 9);
+            ctx.fillStyle = '#414e59'; ctx.fillRect(48, 94, w - 96, 5);
+            ctx.strokeStyle = CRAFT.edge; ctx.lineWidth = 6;
+            for (let tx = 54; tx < w - 54; tx += 44) {
+                ctx.beginPath(); ctx.moveTo(tx, 59); ctx.lineTo(tx + 22, 92); ctx.lineTo(tx + 44, 59); ctx.stroke();
             }
+            ctx.strokeStyle = '#4a5762'; ctx.lineWidth = 3;
+            for (let tx = 54; tx < w - 54; tx += 44) {
+                ctx.beginPath(); ctx.moveTo(tx, 59); ctx.lineTo(tx + 22, 92); ctx.lineTo(tx + 44, 59); ctx.stroke();
+            }
+            [150, 320, 490].forEach((lx) => {
+                ctx.fillStyle = CRAFT.edge; ctx.fillRect(lx - 4, 100, 8, 12);
+                ctx.fillRect(lx - 18, 110, 36, 15);
+                ctx.fillStyle = '#3c4854'; ctx.fillRect(lx - 16, 112, 32, 5);
+                const lit = Math.floor(Date.now() / 800) % 2;
+                ctx.fillStyle = lit ? '#FFDD44' : '#9a8a2a';
+                ctx.fillRect(lx - 14, 117, 28, 6);
+                ctx.fillStyle = 'rgba(255,200,60,' + (lit ? 0.15 : 0.06) + ')';
+                ctx.beginPath();
+                ctx.moveTo(lx - 14, 124); ctx.lineTo(lx + 14, 124);
+                ctx.lineTo(lx + 34, 178); ctx.lineTo(lx - 34, 178);
+                ctx.closePath(); ctx.fill();
+            });
 
             // Wrecked freighter (Ironclad Star) — centre-back
             ctx.fillStyle = 'rgba(35,22,22,0.34)';
@@ -122,16 +174,34 @@ StarSweeper.defineRooms((engine) => {
             ctx.lineTo(140, 262); ctx.lineTo(100, 280);
             ctx.closePath(); ctx.fill();
 
-            // Crash debris gives the foreground story detail and stronger scale.
-            ctx.fillStyle = '#394955';
-            ctx.beginPath(); ctx.moveTo(104, 326); ctx.lineTo(138, 314); ctx.lineTo(153, 325); ctx.lineTo(118, 333); ctx.closePath(); ctx.fill();
+            // Crash debris: torn hull plates with scorching and a bent strut.
+            ctx.fillStyle = CRAFT.edge;
+            ctx.beginPath(); ctx.moveTo(98, 329); ctx.lineTo(137, 310); ctx.lineTo(159, 325); ctx.lineTo(117, 337); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#4a5a66';
+            ctx.beginPath(); ctx.moveTo(104, 328); ctx.lineTo(136, 314); ctx.lineTo(152, 325); ctx.lineTo(118, 333); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#71808a';
+            ctx.beginPath(); ctx.moveTo(107, 325); ctx.lineTo(135, 317); ctx.lineTo(143, 321); ctx.lineTo(114, 328); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = 'rgba(18,10,6,0.5)';
+            ctx.beginPath(); ctx.moveTo(132, 320); ctx.lineTo(150, 325); ctx.lineTo(126, 331); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = CRAFT.accent; ctx.fillRect(112, 323, 13, 2);
+            ctx.strokeStyle = CRAFT.edge; ctx.lineWidth = 5;
+            ctx.beginPath(); ctx.moveTo(150, 330); ctx.lineTo(171, 322); ctx.lineTo(183, 333); ctx.stroke();
+            ctx.strokeStyle = '#59666f'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(150, 330); ctx.lineTo(171, 322); ctx.lineTo(183, 333); ctx.stroke();
+
+            ctx.fillStyle = CRAFT.edge;
+            ctx.beginPath(); ctx.moveTo(496, 339); ctx.lineTo(526, 317); ctx.lineTo(545, 330); ctx.lineTo(517, 346); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#3f4d59';
+            ctx.beginPath(); ctx.moveTo(501, 338); ctx.lineTo(525, 321); ctx.lineTo(539, 330); ctx.lineTo(516, 342); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#63727c';
+            ctx.beginPath(); ctx.moveTo(504, 335); ctx.lineTo(524, 323); ctx.lineTo(530, 327); ctx.lineTo(510, 337); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = 'rgba(18,10,6,0.45)'; ctx.fillRect(519, 330, 15, 7);
+            ctx.fillStyle = CRAFT.accent; ctx.fillRect(507, 331, 11, 2);
+            // Scattered rubble keeps the sand from reading as empty.
+            ctx.fillStyle = CRAFT.edge;
+            [[543, 352, 7, 4], [556, 361, 5, 3], [88, 344, 6, 4], [196, 350, 5, 3]].forEach(([rx, ry, rw, rh]) => ctx.fillRect(rx, ry, rw, rh));
             ctx.fillStyle = '#6d7880';
-            ctx.fillRect(111, 319, 18, 3);
-            ctx.fillStyle = '#2b3540';
-            ctx.beginPath(); ctx.moveTo(500, 336); ctx.lineTo(526, 320); ctx.lineTo(540, 330); ctx.lineTo(518, 343); ctx.closePath(); ctx.fill();
-            ctx.fillStyle = '#aa5522';
-            ctx.fillRect(535, 351, 4, 4);
-            ctx.fillRect(548, 360, 2, 2);
+            [[544, 352, 5, 2], [557, 361, 3, 1], [89, 344, 4, 2], [197, 350, 3, 1]].forEach(([rx, ry, rw, rh]) => ctx.fillRect(rx, ry, rw, rh));
 
             // Nav console — accessible from breach (if breach is entered)
             if (eng.getFlag('entered_freighter')) {
@@ -155,13 +225,22 @@ StarSweeper.defineRooms((engine) => {
                 ctx.fillText('IFEST', 305, 330);
             }
 
-            // Outpost exit — left edge
-            ctx.fillStyle = '#335544';
-            ctx.fillRect(0, 260, 30, 120);
-            ctx.font = '8px "Courier New"';
+            // Outpost exit — a graded path off the apron with a mounted sign.
+            ctx.fillStyle = '#a87b48';
+            ctx.beginPath();
+            ctx.moveTo(0, 292); ctx.lineTo(74, 314); ctx.lineTo(74, 358); ctx.lineTo(0, 388); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#8d6437';
+            ctx.beginPath();
+            ctx.moveTo(0, 300); ctx.lineTo(66, 319); ctx.lineTo(66, 332); ctx.lineTo(0, 316); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = CRAFT.edge; ctx.fillRect(84, 262, 8, 66);
+            ctx.fillStyle = '#5f4c33'; ctx.fillRect(85, 264, 5, 62);
+            ctx.fillStyle = CRAFT.edge; ctx.fillRect(56, 252, 66, 24);
+            ctx.fillStyle = '#3f6b52'; ctx.fillRect(58, 254, 62, 20);
+            ctx.fillStyle = '#2c4d3a'; ctx.fillRect(58, 268, 62, 6);
+            ctx.font = '9px "Courier New"';
             ctx.fillStyle = '#AACCAA';
-            ctx.save(); ctx.translate(14, 340); ctx.rotate(-Math.PI / 2);
-            ctx.fillText('OUTPOST', 0, 0); ctx.restore();
+            ctx.fillText('OUTPOST', 62, 266);
+            ctx.beginPath(); ctx.moveTo(60, 285); ctx.lineTo(72, 279); ctx.lineTo(72, 291); ctx.closePath(); ctx.fill();
 
             // Room label
             ctx.font = '10px "Courier New"';
@@ -219,7 +298,7 @@ StarSweeper.defineRooms((engine) => {
             },
             {
                 name: 'Pipz',
-                x: 248, y: 274, w: 46, h: 56,
+                x: 249, y: 256, w: 34, h: 68,
                 description: 'A small figure huddled in the shade of the wreck.',
                 look: (e) => {
                     if (!e.getFlag('met_pipz')) {
@@ -234,7 +313,7 @@ StarSweeper.defineRooms((engine) => {
             },
             {
                 name: 'Outpost Exit',
-                x: 0, y: 255, w: 32, h: 130, isExit: true, walkToX: 50, walkToY: 340,
+                x: 0, y: 255, w: 46, h: 130, isExit: true, walkToX: 50, walkToY: 340,
                 description: 'Back to the frontier outpost.',
                 look: (e) => e.showMessage('The path back to the outpost.'),
                 onExit: (e) => e.goToRoom('outpost', 570, 310)
@@ -368,44 +447,37 @@ StarSweeper.defineRooms((engine) => {
             ctx.fillStyle = barsOpen ? '#22AA44' : '#AA2222';
             ctx.fillRect(462, 246, 10, 10);
 
-            // Prisoners in cells (Jorv and Mella — only visible if cells not open)
-            if (!barsOpen) {
-                // Left cell — Jorv (tall male, silver-streaked hair)
-                ctx.fillStyle = '#996644'; // skin
-                ctx.beginPath(); ctx.arc(54, 296, 7, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#334488';
-                ctx.fillRect(47, 300, 14, 26);
-                ctx.fillStyle = '#556699';
-                ctx.fillRect(47, 300, 14, 6); // collar
-                ctx.fillStyle = '#CCCCCC'; // silver hair
-                ctx.fillRect(47, 288, 14, 7);
-
-                // Right of left block — Mella (shorter, auburn hair)
-                ctx.fillStyle = '#BB8866';
-                ctx.beginPath(); ctx.arc(112, 300, 6, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#553366';
-                ctx.fillRect(106, 304, 12, 22);
-                ctx.fillStyle = '#AA4422'; // auburn hair
-                ctx.fillRect(106, 291, 12, 8);
-
-                // Right cells — two other Constellation crew
-                ctx.fillStyle = '#AA9977';
-                ctx.beginPath(); ctx.arc(508, 298, 6, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#335544'; ctx.fillRect(502, 302, 12, 20);
-
-                ctx.fillStyle = '#CC9966';
-                ctx.beginPath(); ctx.arc(568, 296, 7, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#443322'; ctx.fillRect(562, 300, 14, 22);
-
-                // Hands gripping bars
-                ctx.fillStyle = '#996644';
-                ctx.fillRect(82, 280, 5, 10); ctx.fillRect(90, 280, 5, 10); // Jorv hands
-                ctx.fillStyle = '#BB8866';
-                ctx.fillRect(82, 290, 4, 8); ctx.fillRect(90, 290, 4, 8);
-            } else {
+            if (barsOpen) {
                 // Cells open — prisoners freed, show open cell interiors
                 ctx.fillStyle = 'rgba(0,160,80,0.06)'; ctx.fillRect(20, 160, 140, 190);
                 ctx.fillStyle = 'rgba(0,160,80,0.06)'; ctx.fillRect(480, 160, 140, 190);
+            } else {
+                // Same shared cels as the epilogue, then the vertical bars are
+                // re-laid on top so the prisoners read as being behind them.
+                drawVgaPerson(ctx, 54, 334, 2, Object.assign({}, CIV_JORV, {
+                    farArm: { side: -1, up: -2.45, lo: -0.2 },
+                    nearArm: { side: 1, up: -2.45, lo: -0.2 }
+                }));
+                drawVgaPerson(ctx, 117, 336, 1.85, Object.assign({}, CIV_MELLA, {
+                    farArm: { side: -1, up: -0.1, lo: 0.12 },
+                    nearArm: { side: 1, up: -2.3, lo: -0.25 }
+                }));
+                drawVgaPerson(ctx, 512, 336, 1.8, Object.assign({}, CIV_CREW_A, {
+                    farArm: { side: -1, up: -0.1, lo: 0.1 },
+                    nearArm: { side: 1, up: -0.1, lo: 0.1 }
+                }));
+                drawVgaPerson(ctx, 578, 334, 1.9, Object.assign({}, CIV_CREW_B, {
+                    farArm: { side: -1, up: -2.3, lo: -0.25 },
+                    nearArm: { side: 1, up: -0.12, lo: 0.1 }
+                }));
+                [[20, 65], [86, 65], [480, 65], [547, 65]].forEach(([bx0, bw]) => {
+                    for (let i = 0; i <= 4; i++) {
+                        ctx.fillStyle = '#445566';
+                        ctx.fillRect(bx0 + Math.floor(i * bw / 4) - 2, 156, 4, 194);
+                        ctx.fillStyle = '#556677';
+                        ctx.fillRect(bx0 + Math.floor(i * bw / 4) - 1, 160, 2, 2);
+                    }
+                });
             }
 
             // Corridor lit panels (ceiling recessed)
@@ -539,6 +611,7 @@ StarSweeper.defineRooms((engine) => {
         id: 'draknoid_ship',
         transition: 'iris',
         hint: (e) => {
+            if (!e.getFlag('guard_defeated') && !e.hasItem('pulsar_ray')) return 'You cannot beat that guard bare-handed. Leave through the airlock, buy the Pulsar Ray at Tiny\'s, and come back.';
             if (!e.getFlag('guard_defeated')) return 'Use the Pulsar Ray on the guard. Stand back. Way back.';
             if (!e.getFlag('guard_anim_done')) return 'Wait for the dust to settle. The guard is still arguing with physics.';
             if (!e.getFlag('field_down') && e.hasItem('cartridge')) return 'The console wants Quantum Drive specs. Use the data cartridge on it.';
@@ -1546,6 +1619,22 @@ StarSweeper.defineRooms((engine) => {
                 get: (e) => e.showMessage('You can\'t "get" an airlock. That\'s not how airlocks work. That\'s not how any of this works.'),
                 talk: (e) => e.showMessage('"Please don\'t decompress," you whisper to the airlock. Given that you\'re on an enemy ship, this is a real concern.'),
                 onExit: (e) => {
+                    // The guard cannot be beaten without the Pulsar Ray and the
+                    // chamber is a dead end, so an unarmed arrival must be able to
+                    // retreat rather than becoming an unwinnable state.
+                    if (!e.getFlag('guard_defeated') && !e.hasItem('pulsar_ray')) {
+                        e.setFlag('flew_away', false);
+                        e.setFlag('flew_unarmed', false);
+                        e.setFlag('unarmed_arrival_notice', false);
+                        e.showMessage('Unarmed, that guard is an unsolvable problem and the corridor behind him is worse. You slip back through the airlock and fly to Kerona to buy something with a trigger.');
+                        e.playCutscene({
+                            duration: 4000,
+                            draw: cutsceneShuttleFlight,
+                            onEnd: () => e.goToRoom('outpost', 520, 305),
+                            skippable: true
+                        });
+                        return;
+                    }
                     if (!e.getFlag('field_down') || !e.getFlag('guard_defeated')) {
                         e.showMessage('You can\'t leave yet! The Quantum Drive is still here — you have to recover it. The galaxy is counting on you!');
                     } else {

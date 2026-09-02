@@ -220,6 +220,19 @@ function drawShipSilhouette(ctx, x, y, scale) {
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(scale, scale);
+    // Engine bell and plume sit behind the hull silhouette.
+    ctx.fillStyle = CRAFT.edge;
+    ctx.fillRect(-72, -7, 14, 14);
+    ctx.fillStyle = CRAFT.lo;
+    ctx.fillRect(-70, -5, 11, 10);
+    ctx.fillStyle = CRAFT.hi;
+    ctx.fillRect(-68, -5, 2, 10);
+    ctx.fillStyle = CRAFT.glassLo;
+    ctx.fillRect(-80, -4, 10, 8);
+    ctx.fillStyle = CRAFT.glass;
+    ctx.fillRect(-78, -3, 8, 6);
+    ctx.fillStyle = CRAFT.spec;
+    ctx.fillRect(-77, -2, 4, 1);
     ctx.fillStyle = CRAFT.edge;
     ctx.beginPath();
     ctx.moveTo(-64, 0); ctx.lineTo(-43, -15); ctx.lineTo(52, -13);
@@ -237,16 +250,32 @@ function drawShipSilhouette(ctx, x, y, scale) {
     ctx.beginPath();
     ctx.moveTo(-40, -12); ctx.lineTo(50, -10); ctx.lineTo(63, -3); ctx.lineTo(-48, -4);
     ctx.closePath(); ctx.fill();
+    ctx.fillStyle = CRAFT.lo;
+    ctx.beginPath();
+    ctx.moveTo(-48, 4); ctx.lineTo(63, 3); ctx.lineTo(49, 9); ctx.lineTo(-40, 11);
+    ctx.closePath(); ctx.fill();
     ctx.fillStyle = CRAFT.accent;
     ctx.fillRect(-16, -11, 4, 22);
-    // Bridge
+    // Stepped bridge superstructure and habitat spine.
+    ctx.fillStyle = CRAFT.edge;
+    ctx.fillRect(25, -10, 27, 17);
     ctx.fillStyle = CRAFT.lo;
-    ctx.fillRect(30, -6, 18, 12);
+    ctx.fillRect(27, -8, 23, 13);
+    ctx.fillStyle = CRAFT.mid;
+    ctx.fillRect(-42, -3, 66, 7);
+    ctx.fillStyle = CRAFT.hi;
+    ctx.fillRect(-40, -3, 64, 2);
     ctx.fillStyle = CRAFT.glass;
-    ctx.fillRect(33, -4, 12, 3);
-    // Engine glow
-    ctx.fillStyle = '#4af';
-    ctx.fillRect(-62, -3, 4, 6);
+    ctx.fillRect(31, -6, 15, 4);
+    ctx.fillStyle = CRAFT.spec;
+    ctx.fillRect(32, -5, 5, 1);
+    // Windows and beacon belong to the vessel, not to an individual scene.
+    ctx.fillStyle = '#FFEE99';
+    for (let wx = -37; wx <= 19; wx += 8) ctx.fillRect(wx, -1, 3, 2);
+    ctx.fillStyle = '#FF5544';
+    ctx.fillRect(55, -7, 3, 3);
+    ctx.fillStyle = CRAFT.edge;
+    ctx.fillRect(-30, 8, 52, 2);
     ctx.restore();
 }
 
@@ -853,70 +882,434 @@ function cutsceneShuttleFlight(ctx, w, h, progress, elapsed) {
     }
 }
 
-function drawPipzReunion(ctx, w, h) {
-    gradientRect(ctx, 0, 0, w, 190, '#24162f', '#9c4e48');
-    gradientRect(ctx, 0, 190, w, h - 190, '#574032', '#211a1a');
-    // Deep hangar mouth and structural frame.
-    ctx.fillStyle = '#171d2b';
-    ctx.beginPath();
-    ctx.moveTo(122, 74); ctx.lineTo(518, 74); ctx.lineTo(570, 286);
-    ctx.lineTo(70, 286); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#675850';
-    ctx.fillRect(70, 68, 500, 17);
-    ctx.fillRect(70, 275, 500, 12);
-    ctx.fillRect(70, 68, 14, 219);
-    ctx.fillRect(556, 68, 14, 219);
-    ctx.fillStyle = '#2b3343';
-    ctx.fillRect(205, 116, 230, 159);
-    // Receding ceiling ribs and floor seams reinforce the cinematic depth.
-    ctx.strokeStyle = '#485268';
-    ctx.lineWidth = 3;
-    for (let x = 108; x <= 532; x += 53) {
-        ctx.beginPath(); ctx.moveTo(x, 84); ctx.lineTo(320 + (x - 320) * 0.54, 116); ctx.stroke();
-    }
-    ctx.strokeStyle = '#745744';
-    ctx.lineWidth = 2;
-    for (let x = 40; x < w; x += 70) {
-        ctx.beginPath(); ctx.moveTo(320, 275); ctx.lineTo(x, h); ctx.stroke();
-    }
-    // Dock lights lead the eye toward the reunited family.
-    ctx.fillStyle = '#FFAA22';
-    for (let x = 205; x < 435; x += 24) ctx.fillRect(x, 268, 12, 7);
-    ctx.fillStyle = '#55FFFF';
-    ctx.fillRect(74, 84, 5, 178);
-    ctx.fillRect(561, 84, 5, 178);
-    ctx.fillStyle = '#55FFFF';
-    ctx.font = 'bold 14px "Courier New"';
-    ctx.textAlign = 'center';
-    ctx.fillText('KERONA DOCKING BAY', w / 2, 56);
-    ctx.fillStyle = 'rgba(255,190,100,0.12)';
-    ctx.beginPath(); ctx.arc(320, 286, 62, 0, Math.PI * 2); ctx.fill();
+// Two-segment NPC arm. Angles are measured from hanging straight down and are
+// signed so a positive angle always swings the limb toward the body centre.
+function drawVgaArm(ctx, sx, sy, s, sign, upperAngle, foreAngle, c) {
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(sign * upperAngle);
+    ctx.fillStyle = c.edge;
+    ctx.fillRect(-1.5 * s, -0.9 * s, 3 * s, 7.6 * s);
+    ctx.fillStyle = c.sleeve;
+    ctx.fillRect(-1.1 * s, -0.5 * s, 2.2 * s, 6.9 * s);
+    ctx.fillStyle = c.sleeveLo;
+    ctx.fillRect(sign > 0 ? -1.1 * s : 0.3 * s, -0.5 * s, 0.8 * s, 6.9 * s);
+    ctx.translate(0, 6.2 * s);
+    ctx.rotate(sign * foreAngle);
+    ctx.fillStyle = c.edge;
+    ctx.fillRect(-1.4 * s, -0.7 * s, 2.8 * s, 8 * s);
+    ctx.fillStyle = c.sleeve;
+    ctx.fillRect(-1 * s, -0.3 * s, 2 * s, 5.4 * s);
+    ctx.fillStyle = c.sleeveLo;
+    ctx.fillRect(sign > 0 ? -1 * s : 0.2 * s, -0.3 * s, 0.8 * s, 5.4 * s);
+    ctx.fillStyle = c.skin;
+    ctx.fillRect(-1.2 * s, 5 * s, 2.4 * s, 2.3 * s);
+    ctx.fillStyle = c.skinLo;
+    ctx.fillRect(-1.2 * s, 6.7 * s, 2.4 * s, 0.6 * s);
+    ctx.restore();
+}
 
-    const people = [
-        { x: 286, height: 48, body: '#9b694f', skin: '#d8a07e', face: 1 },
-        { x: 354, height: 44, body: '#805b43', skin: '#d8a07e', face: -1 },
-        { x: 320, height: 28, body: '#5b7fa0', skin: '#e0aa88', face: 0 }
-    ];
-    people.forEach((person) => {
-        const y = 310;
-        ctx.fillStyle = person.body;
-        ctx.fillRect(person.x - 7, y - person.height, 14, person.height - 12);
-        ctx.fillStyle = person.skin;
-        ctx.fillRect(person.x - 6, y - person.height - 12, 12, 12);
-        ctx.fillStyle = '#35251f';
-        ctx.fillRect(person.x - 6, y - person.height - 12, 12, 3);
-        ctx.fillStyle = '#2c2630';
-        ctx.fillRect(person.x - 6, y - 12, 5, 12);
-        ctx.fillRect(person.x + 1, y - 12, 5, 12);
-        // Outstretched arms turn three blocks into an unmistakable reunion.
-        if (person.face) {
-            ctx.fillStyle = person.body;
-            const armX = person.face > 0 ? person.x + 7 : person.x - 18;
-            ctx.fillRect(armX, y - person.height + 8, 11, 5);
-            ctx.fillStyle = person.skin;
-            ctx.fillRect(person.face > 0 ? armX + 9 : armX, y - person.height + 8, 3, 5);
-        }
+// Shared civilian cel on the ego's SCI/VGA measurements: ~6 heads tall, dark
+// outline columns, small eyes. NPCs drawn any other way read as chunky AGI
+// mascots standing next to Wilkins.
+function drawVgaPerson(ctx, x, y, s, o) {
+    const b = y - 12 * s;
+    const hs = o.headScale || 1;
+    const c = { edge: o.edge, sleeve: o.coat, sleeveLo: o.coatLo, skin: o.skin, skinLo: o.skinLo };
+    ctx.fillStyle = o.edge;
+    ctx.fillRect(x - 4 * s, b - 3.4 * s, 8 * s, 12.8 * s);
+    ctx.fillStyle = o.trousers;
+    ctx.fillRect(x - 3.6 * s, b - 3 * s, 3.2 * s, 12 * s);
+    ctx.fillRect(x + 0.4 * s, b - 3 * s, 3.2 * s, 12 * s);
+    ctx.fillStyle = o.trousersHi;
+    ctx.fillRect(x - 3.3 * s, b - 2 * s, 1 * s, 10 * s);
+    ctx.fillRect(x + 0.7 * s, b - 2 * s, 1 * s, 10 * s);
+    ctx.fillStyle = o.edge;
+    ctx.fillRect(x - 0.6 * s, b - 3 * s, 1.2 * s, 12 * s);
+    ctx.fillStyle = o.boot;
+    ctx.fillRect(x - 4.3 * s, b + 9 * s, 4.1 * s, 3 * s);
+    ctx.fillRect(x + 0.2 * s, b + 9 * s, 4.1 * s, 3 * s);
+    ctx.fillStyle = o.edge;
+    ctx.fillRect(x - 4.5 * s, b + 11.2 * s, 4.5 * s, 0.8 * s);
+    ctx.fillRect(x + 0.2 * s, b + 11.2 * s, 4.5 * s, 0.8 * s);
+    ctx.fillStyle = o.bootHi;
+    ctx.fillRect(x - 3.9 * s, b + 9.2 * s, 2 * s, 0.7 * s);
+    ctx.fillRect(x + 0.6 * s, b + 9.2 * s, 2 * s, 0.7 * s);
+    // The far arm goes down before the torso so the shoulder line stays clean.
+    if (o.farArm) drawVgaArm(ctx, x + o.farArm.side * 3.4 * s, b - 15.2 * s, s, o.farArm.side, o.farArm.up, o.farArm.lo, c);
+    ctx.fillStyle = o.edge;
+    ctx.fillRect(x - 4.4 * s, b - 16.6 * s, 8.8 * s, 13.8 * s);
+    ctx.fillStyle = o.coat;
+    ctx.fillRect(x - 4 * s, b - 16 * s, 8 * s, 13 * s);
+    ctx.fillStyle = o.coatHi;
+    ctx.fillRect(x - 3.4 * s, b - 15.4 * s, 2.8 * s, 11.6 * s);
+    ctx.fillStyle = o.coatLo;
+    ctx.fillRect(x + 2.2 * s, b - 15.8 * s, 1.8 * s, 12.6 * s);
+    ctx.fillStyle = o.edge;
+    ctx.fillRect(x - 4 * s, b - 16 * s, 0.8 * s, 13 * s);
+    ctx.fillRect(x + 3.2 * s, b - 16 * s, 0.8 * s, 13 * s);
+    if (o.chestStripe) {
+        ctx.fillStyle = o.chestStripe;
+        ctx.fillRect(x - 1.4 * s, b - 16 * s, 2.8 * s, 13 * s);
+    }
+    ctx.fillStyle = o.collar;
+    ctx.fillRect(x - 2.8 * s, b - 16.4 * s, 5.6 * s, 1.3 * s);
+    ctx.fillStyle = o.belt;
+    ctx.fillRect(x - 4 * s, b - 4.6 * s, 8 * s, 1.8 * s);
+    ctx.fillStyle = o.buckle;
+    ctx.fillRect(x - 1.2 * s, b - 4.4 * s, 2.4 * s, 1.5 * s);
+    if (o.patch) {
+        ctx.fillStyle = o.patch;
+        ctx.fillRect(x + 1.4 * s, b - 13.6 * s, 1.9 * s, 1.9 * s);
+    }
+    // Head is scaled about the neck so a child keeps a larger skull.
+    ctx.save();
+    ctx.translate(x, b - 16.4 * s);
+    ctx.scale(hs, hs);
+    ctx.fillStyle = o.skinLo;
+    ctx.fillRect(-1.3 * s, -1.4 * s, 2.6 * s, 2 * s);
+    ctx.fillStyle = o.edge;
+    ctx.fillRect(-3 * s, -7 * s, 6 * s, 6.2 * s);
+    ctx.fillStyle = o.skin;
+    ctx.fillRect(-2.6 * s, -6.6 * s, 5.2 * s, 5.6 * s);
+    ctx.fillStyle = o.skinHi;
+    ctx.fillRect(-2.1 * s, -6.2 * s, 2.1 * s, 2.2 * s);
+    ctx.fillStyle = o.skinLo;
+    ctx.fillRect(1.7 * s, -6.2 * s, 0.9 * s, 4.8 * s);
+    ctx.fillStyle = o.hairLo;
+    ctx.fillRect(-2.2 * s, -5 * s, 1.5 * s, 0.5 * s);
+    ctx.fillRect(0.7 * s, -5 * s, 1.5 * s, 0.5 * s);
+    ctx.fillStyle = '#F2F0E2';
+    ctx.fillRect(-2.1 * s, -4.3 * s, 1.5 * s, 1.2 * s);
+    ctx.fillRect(0.6 * s, -4.3 * s, 1.5 * s, 1.2 * s);
+    ctx.fillStyle = o.eye;
+    ctx.fillRect(-1.6 * s, -4.2 * s, 0.8 * s, 1.1 * s);
+    ctx.fillRect(0.9 * s, -4.2 * s, 0.8 * s, 1.1 * s);
+    ctx.fillStyle = '#2A2018';
+    ctx.fillRect(-2.1 * s, -4.4 * s, 1.5 * s, 0.3 * s);
+    ctx.fillRect(0.6 * s, -4.4 * s, 1.5 * s, 0.3 * s);
+    ctx.fillStyle = o.skinLo;
+    ctx.fillRect(-0.4 * s, -3.5 * s, 0.9 * s, 1.4 * s);
+    ctx.fillStyle = o.mouth;
+    ctx.fillRect(-1.3 * s, -1.9 * s, 2.6 * s, 0.6 * s);
+    ctx.fillRect(-1.7 * s, -2.3 * s, 0.6 * s, 0.5 * s);
+    ctx.fillRect(1.1 * s, -2.3 * s, 0.6 * s, 0.5 * s);
+    if (o.tear) {
+        ctx.fillStyle = '#9de8ff';
+        ctx.fillRect(1.9 * s, -3.6 * s, 0.6 * s, 1.8 * s);
+    }
+    if (o.smudge) {
+        ctx.fillStyle = 'rgba(60,40,20,0.55)';
+        ctx.fillRect(1 * s, -2.6 * s, 1.5 * s, 0.9 * s);
+    }
+    ctx.fillStyle = o.hair;
+    if (o.hairStyle === 'bob') {
+        ctx.fillRect(-3 * s, -7.4 * s, 6 * s, 2.6 * s);
+        ctx.fillRect(-3.3 * s, -6.4 * s, 1 * s, 4.4 * s);
+        ctx.fillRect(2.3 * s, -6.4 * s, 1 * s, 4.4 * s);
+        ctx.fillStyle = o.hairLo;
+        ctx.fillRect(-3.3 * s, -5 * s, 1 * s, 1.8 * s);
+    } else if (o.hairStyle === 'bangs') {
+        ctx.fillRect(-2.7 * s, -6.9 * s, 5.4 * s, 1.9 * s);
+        ctx.fillRect(-3 * s, -6 * s, 0.9 * s, 2.6 * s);
+        ctx.fillRect(2.1 * s, -6 * s, 0.9 * s, 2.6 * s);
+    } else {
+        ctx.fillRect(-3 * s, -7.4 * s, 6 * s, 2.2 * s);
+        ctx.fillRect(-3.1 * s, -6.4 * s, 0.9 * s, 2.2 * s);
+        ctx.fillRect(2.2 * s, -6.4 * s, 0.9 * s, 2.2 * s);
+        ctx.fillStyle = o.hairHi;
+        ctx.fillRect(-1.6 * s, -7.2 * s, 2.6 * s, 0.7 * s);
+    }
+    if (o.helmet) {
+        ctx.fillStyle = o.edge;
+        ctx.beginPath(); ctx.arc(0, -6.6 * s, 4.1 * s, Math.PI, 0); ctx.fill();
+        ctx.fillRect(-4.1 * s, -6.6 * s, 8.2 * s, 1.9 * s);
+        ctx.fillStyle = o.helmet;
+        ctx.beginPath(); ctx.arc(0, -6.8 * s, 3.6 * s, Math.PI, 0); ctx.fill();
+        ctx.fillRect(-3.9 * s, -6.8 * s, 7.8 * s, 1.5 * s);
+        ctx.fillStyle = o.helmetHi;
+        ctx.fillRect(-2.4 * s, -9.4 * s, 1.9 * s, 1 * s);
+        ctx.fillStyle = o.helmetLo;
+        ctx.fillRect(-3.9 * s, -5.7 * s, 7.8 * s, 0.4 * s);
+    }
+    ctx.restore();
+    if (o.nearArm) drawVgaArm(ctx, x + o.nearArm.side * 3.4 * s, b - 15.2 * s, s, o.nearArm.side, o.nearArm.up, o.nearArm.lo, c);
+}
+
+// Shared civilian palettes. The Vance family appears in both the brig and the
+// epilogue, so both scenes must draw them from the same definition.
+const CIV_JORV = {
+    edge: '#0b0a10', skin: '#c0855c', skinHi: '#dda87c', skinLo: '#8d5735',
+    hair: '#5b4b45', hairHi: '#9a8d85', hairLo: '#332723',
+    coat: '#3a5488', coatHi: '#5878b0', coatLo: '#1f3055',
+    trousers: '#2b3a5e', trousersHi: '#3d4f79', boot: '#161a26', bootHi: '#3a4152',
+    collar: '#6d8bbe', belt: '#1b1d28', buckle: '#b9bac6', patch: '#ff8833',
+    eye: '#4477CC', mouth: '#8a4030', tear: true
+};
+
+const CIV_MELLA = {
+    edge: '#0b0a10', skin: '#cf9569', skinHi: '#eab68a', skinLo: '#96603b',
+    hair: '#a2452a', hairHi: '#c76a3e', hairLo: '#5f2617',
+    coat: '#5b3a70', coatHi: '#7d569a', coatLo: '#361f47',
+    trousers: '#3a2650', trousersHi: '#4d3568', boot: '#171320', bootHi: '#3b3149',
+    collar: '#9b73b4', belt: '#1b1626', buckle: '#b9bac6', patch: '#c8d8e8',
+    eye: '#3f7a6e', mouth: '#8a4030', hairStyle: 'bob'
+};
+
+const CIV_PIPZ = {
+    edge: '#0b0a10', skin: '#f0c39a', skinHi: '#ffdcb8', skinLo: '#b57f52',
+    hair: '#4A2A1A', hairHi: '#6b3f27', hairLo: '#2d190f',
+    coat: '#555566', coatHi: '#71718a', coatLo: '#33333f',
+    trousers: '#3f3f50', trousersHi: '#55556a', boot: '#191922', bootHi: '#3e3e4e',
+    collar: '#7a7a92', belt: '#22222c', buckle: '#b9bac6', chestStripe: '#FF8800',
+    eye: '#0088CC', mouth: '#a0503c', hairStyle: 'bangs', smudge: true,
+    helmet: '#FF6600', helmetHi: '#ffb066', helmetLo: '#b34400', headScale: 1.16
+};
+
+const CIV_CREW_A = {
+    edge: '#0b0a10', skin: '#b98f63', skinHi: '#d8ac7d', skinLo: '#7f5c3a',
+    hair: '#2f2723', hairHi: '#4a3d35', hairLo: '#181310',
+    coat: '#33564a', coatHi: '#4a7566', coatLo: '#1c332c',
+    trousers: '#26382f', trousersHi: '#334a3f', boot: '#141a17', bootHi: '#31403a',
+    collar: '#5d8a79', belt: '#161c19', buckle: '#b9bac6', patch: '#ff8833',
+    eye: '#5a6f52', mouth: '#7d3f31'
+};
+
+const CIV_CREW_B = {
+    edge: '#0b0a10', skin: '#d5a274', skinHi: '#f0c093', skinLo: '#9a6a44',
+    hair: '#7d6a4f', hairHi: '#a08a68', hairLo: '#4a3d2c',
+    coat: '#5a4632', coatHi: '#7d6446', coatLo: '#33271b',
+    trousers: '#3f3122', trousersHi: '#53412d', boot: '#191410', bootHi: '#3d3428',
+    collar: '#8a7050', belt: '#1d1710', buckle: '#b9bac6', patch: '#55aacc',
+    eye: '#6b5535', mouth: '#7d3f31'
+};
+
+const CIV_KORVAK = {
+    edge: '#0b0a10', skin: '#b97b55', skinHi: '#d9a078', skinLo: '#79472f',
+    hair: '#423733', hairHi: '#71645e', hairLo: '#241b19',
+    coat: '#365b83', coatHi: '#5681ab', coatLo: '#203850',
+    trousers: '#343b55', trousersHi: '#4c5674', boot: '#151923', bootHi: '#353d50',
+    collar: '#8aa9c2', belt: '#171b25', buckle: '#b9bac6', patch: '#ff8833',
+    eye: '#466c83', mouth: '#7d3f31'
+};
+
+function drawPipzReunion(ctx, w, h) {
+    const bwL = 155, bwR = 485, bwT = 72, bwB = 250;
+    const path = (pts) => {
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+        ctx.closePath();
+    };
+    const fill = (color, pts) => { ctx.fillStyle = color; path(pts); ctx.fill(); };
+    // Wall edge functions, so anything mounted on a side wall is a true
+    // perspective trapezoid rather than a flat rectangle pasted on top.
+    const lTop = (x) => x * (bwT / bwL);
+    const lBot = (x) => 400 - x * ((400 - bwB) / bwL);
+    const rTop = (x) => (w - x) * (bwT / (w - bwR));
+    const rBot = (x) => 400 - (w - x) * ((400 - bwB) / (w - bwR));
+    const wallQuad = (x1, x2, f0, f1, top, bot) => ([
+        [x1, top(x1) + (bot(x1) - top(x1)) * f0],
+        [x2, top(x2) + (bot(x2) - top(x2)) * f0],
+        [x2, top(x2) + (bot(x2) - top(x2)) * f1],
+        [x1, top(x1) + (bot(x1) - top(x1)) * f1]
+    ]);
+
+    ctx.fillStyle = '#0b0d14';
+    ctx.fillRect(0, 0, w, h);
+
+    // Ceiling wedge. Broad transverse ribs imply depth without a visible grid.
+    fill('#232a38', [[0, 0], [w, 0], [bwR, bwT], [bwL, bwT]]);
+    ctx.save(); path([[0, 0], [w, 0], [bwR, bwT], [bwL, bwT]]); ctx.clip();
+    ctx.fillStyle = '#151a24';
+    ctx.fillRect(0, 7, w, 5);
+    ctx.fillRect(42, 32, w - 84, 5);
+    ctx.fillRect(104, 55, w - 208, 4);
+    ctx.restore();
+
+    // Side walls as trapezoids converging on the same point.
+    fill('#2e3646', [[0, 0], [bwL, bwT], [bwL, bwB], [0, 400]]);
+    fill('#232a38', [[w, 0], [bwR, bwT], [bwR, bwB], [w, 400]]);
+    ctx.save(); path([[0, 0], [bwL, bwT], [bwL, bwB], [0, 400]]); ctx.clip();
+    ctx.strokeStyle = '#414b60'; ctx.lineWidth = 2;
+    for (const t of [0.18, 0.36, 0.54, 0.72, 0.9]) {
+        const px = bwL * t;
+        ctx.beginPath(); ctx.moveTo(px, bwT * t); ctx.lineTo(px, 400 - (400 - bwB) * t); ctx.stroke();
+    }
+    // A conduit run and two lamps, all mounted on the wall plane itself.
+    fill('#212836', wallQuad(0, bwL, 0.09, 0.14, lTop, lBot));
+    fill('#46516a', wallQuad(0, bwL, 0.095, 0.115, lTop, lBot));
+    for (const [x1, x2] of [[26, 62], [88, 118]]) {
+        fill('#12161f', wallQuad(x1, x2, 0.26, 0.42, lTop, lBot));
+        fill('#ffd05a', wallQuad(x1 + 4, x2 - 4, 0.29, 0.39, lTop, lBot));
+    }
+    ctx.restore();
+    ctx.save(); path([[w, 0], [bwR, bwT], [bwR, bwB], [w, 400]]); ctx.clip();
+    ctx.strokeStyle = '#333c4e'; ctx.lineWidth = 2;
+    for (const t of [0.18, 0.36, 0.54, 0.72, 0.9]) {
+        const px = w - (w - bwR) * t;
+        ctx.beginPath(); ctx.moveTo(px, bwT * t); ctx.lineTo(px, 400 - (400 - bwB) * t); ctx.stroke();
+    }
+    // Fuel line and vent grilles ride the right wall on the same plane.
+    fill('#1b2230', wallQuad(bwR, w, 0.12, 0.19, rTop, rBot));
+    fill('#4a5568', wallQuad(bwR, w, 0.13, 0.165, rTop, rBot));
+    for (const [x1, x2] of [[bwR + 14, bwR + 52], [bwR + 76, bwR + 126]]) {
+        fill('#151b26', wallQuad(x1, x2, 0.38, 0.58, rTop, rBot));
+        fill('#2f3a4c', wallQuad(x1 + 4, x2 - 4, 0.41, 0.55, rTop, rBot));
+        fill('#67e4ef', wallQuad(x1 + 6, x2 - 6, 0.43, 0.47, rTop, rBot));
+    }
+    ctx.restore();
+
+    // Back wall band with the bay door standing open on Kerona.
+    fill('#39445a', [[bwL, bwT], [bwR, bwT], [bwR, bwB], [bwL, bwB]]);
+    ctx.fillStyle = '#222a38';
+    ctx.fillRect(bwL, bwT, bwR - bwL, 12);
+    ctx.fillRect(bwL, bwB - 10, bwR - bwL, 10);
+    ctx.fillStyle = '#4d596f';
+    ctx.fillRect(bwL + 6, bwT + 14, bwR - bwL - 12, 4);
+    const dL = 196, dR = 444, dT = 118;
+    ctx.fillStyle = '#151b26';
+    ctx.fillRect(dL - 14, dT - 12, dR - dL + 28, bwB - dT + 2);
+    // Flat tonal bands: smooth gradients get dithered into checkerboard noise
+    // by the engine's Sierra scene finish.
+    [['#7e3550', 0, 24], ['#9c4550', 24, 20], ['#bd5f4c', 44, 18], ['#cf7a4e', 62, 20]].forEach(([col, off, bh]) => {
+        ctx.fillStyle = col; ctx.fillRect(dL, dT + off, dR - dL, bh);
     });
+    ditherRect(ctx, dL, dT + 20, dR - dL, 8, '#7e3550', '#9c4550', 4);
+    ditherRect(ctx, dL, dT + 40, dR - dL, 8, '#9c4550', '#bd5f4c', 4);
+    ctx.fillStyle = '#ffd36a';
+    ctx.beginPath(); ctx.arc(392, 140, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ff8d50';
+    ctx.beginPath(); ctx.arc(416, 155, 7, 0, Math.PI * 2); ctx.fill();
+    fill('#6b3a3f', [[dL, 176], [232, 148], [268, 166], [312, 140], [356, 168], [404, 150], [dR, 174], [dR, 188], [dL, 188]]);
+    fill('#8a4a3e', [[dL, 188], [252, 178], [330, 186], [408, 176], [dR, 186], [dR, 200], [dL, 200]]);
+    ctx.fillStyle = '#a2603a'; ctx.fillRect(dL, 200, dR - dL, 22);
+    ctx.fillStyle = '#8a5030'; ctx.fillRect(dL, 222, dR - dL, 24);
+    ditherRect(ctx, dL, 198, dR - dL, 8, '#8a4a3e', '#a2603a', 4);
+    // The escape shuttle waits on the apron outside, still cooling.
+    ctx.fillStyle = 'rgba(40,20,14,0.42)';
+    ctx.beginPath(); ctx.ellipse(300, 232, 60, 9, 0, 0, Math.PI * 2); ctx.fill();
+    drawShuttleCraft(ctx, 300, 213, 1.3, 0);
+    ctx.fillStyle = '#ff843a';
+    ctx.fillRect(260, 228, 13, 3); ctx.fillRect(328, 228, 13, 3);
+    // Door frame, retracted slabs and hazard chevrons.
+    ctx.fillStyle = '#5a6678';
+    ctx.fillRect(dL - 16, dT - 14, 16, bwB - dT + 4);
+    ctx.fillRect(dR, dT - 14, 16, bwB - dT + 4);
+    ctx.fillRect(dL - 16, dT - 20, dR - dL + 32, 8);
+    ctx.fillStyle = '#2b3342';
+    for (let i = 0; i < 5; i++) {
+        ctx.fillRect(dL - 14, dT - 6 + i * 28, 12, 14);
+        ctx.fillRect(dR + 2, dT - 6 + i * 28, 12, 14);
+    }
+    ctx.strokeStyle = '#d19a3e'; ctx.lineWidth = 3;
+    for (let x = dL - 12; x < dR + 12; x += 18) {
+        ctx.beginPath(); ctx.moveTo(x, bwT + 30); ctx.lineTo(x + 9, bwT + 42); ctx.stroke();
+    }
+    ctx.fillStyle = '#1b2230';
+    ctx.fillRect(238, bwT + 12, 164, 17);
+    ctx.fillStyle = '#67e4ef';
+    ctx.font = 'bold 11px "Courier New"';
+    ctx.textAlign = 'center';
+    ctx.fillText('BAY 03 - ARRIVALS', 320, bwT + 25);
+    ctx.textAlign = 'left';
+
+    // Floor: tonal banding only. This game removed visible floor grid lines in
+    // an earlier art-consistency pass; depth comes from the wall convergence.
+    fill('#4a3a2e', [[bwL, bwB], [bwR, bwB], [w, 400], [0, 400]]);
+    ctx.save(); path([[bwL, bwB], [bwR, bwB], [w, 400], [0, 400]]); ctx.clip();
+    [['#6b5340', 250, 22], ['#5b4632', 272, 28], ['#4a3928', 300, 40], ['#3a2d20', 340, 60]].forEach(([col, by, bh]) => {
+        ctx.fillStyle = col; ctx.fillRect(0, by, w, bh);
+    });
+    ditherRect(ctx, 0, 268, w, 8, '#6b5340', '#5b4632', 4);
+    ditherRect(ctx, 0, 296, w, 8, '#5b4632', '#4a3928', 4);
+    ditherRect(ctx, 0, 336, w, 8, '#4a3928', '#3a2d20', 4);
+    // Inset guide lamps sit flush in the deck, shrinking with distance.
+    [[262, 268, 7, 3], [378, 268, 7, 3], [232, 300, 11, 4], [408, 300, 11, 4], [188, 348, 16, 6], [452, 348, 16, 6]].forEach(([lx, ly, lw, lh]) => {
+        fill('#20303a', [[lx - lw, ly], [lx + lw, ly], [lx + lw + 2, ly + lh], [lx - lw - 2, ly + lh]]);
+        fill('#ffd05a', [[lx - lw + 2, ly + 1], [lx + lw - 2, ly + 1], [lx + lw - 1, ly + lh - 1], [lx - lw + 1, ly + lh - 1]]);
+    });
+    ctx.restore();
+
+    // Ground crew kit, drawn in the shared object style: black underdrawing,
+    // three tones and one saturated accent.
+    const cartX = 66, cartY = 328;
+    ctx.fillStyle = 'rgba(0,0,0,0.34)';
+    ctx.beginPath(); ctx.ellipse(cartX, cartY + 16, 48, 7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = CRAFT.edge; ctx.fillRect(cartX - 45, cartY - 36, 90, 48);
+    ctx.fillStyle = CRAFT.mid; ctx.fillRect(cartX - 42, cartY - 33, 84, 42);
+    ctx.fillStyle = CRAFT.hi; ctx.fillRect(cartX - 42, cartY - 33, 84, 7);
+    ctx.fillStyle = CRAFT.lo; ctx.fillRect(cartX - 42, cartY, 84, 9);
+    ctx.fillStyle = CRAFT.accent; ctx.fillRect(cartX - 42, cartY - 25, 84, 4);
+    ctx.fillStyle = CRAFT.lo;
+    ctx.fillRect(cartX - 37, cartY - 18, 34, 14); ctx.fillRect(cartX + 3, cartY - 18, 34, 14);
+    ctx.fillStyle = CRAFT.hi;
+    ctx.fillRect(cartX - 29, cartY - 12, 18, 2); ctx.fillRect(cartX + 11, cartY - 12, 18, 2);
+    ctx.fillStyle = CRAFT.edge;
+    ctx.beginPath(); ctx.arc(cartX - 30, cartY + 15, 9, 0, Math.PI * 2); ctx.arc(cartX + 30, cartY + 15, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = CRAFT.lo;
+    ctx.beginPath(); ctx.arc(cartX - 30, cartY + 15, 4, 0, Math.PI * 2); ctx.arc(cartX + 30, cartY + 15, 4, 0, Math.PI * 2); ctx.fill();
+
+    const bottle = (bx, by, tall, body, hi, lo) => {
+        ctx.fillStyle = 'rgba(0,0,0,0.32)';
+        ctx.beginPath(); ctx.ellipse(bx, by + 3, 15, 5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = CRAFT.edge;
+        ctx.fillRect(bx - 12, by - tall - 6, 24, tall + 8);
+        ctx.beginPath(); ctx.arc(bx, by - tall - 4, 12, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = body; ctx.fillRect(bx - 9, by - tall - 3, 18, tall + 3);
+        ctx.beginPath(); ctx.arc(bx, by - tall - 3, 9, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = hi; ctx.fillRect(bx - 9, by - tall - 3, 5, tall + 3);
+        ctx.fillStyle = lo; ctx.fillRect(bx + 5, by - tall - 3, 4, tall + 3);
+        ctx.fillStyle = CRAFT.lo; ctx.fillRect(bx - 3, by - tall - 18, 6, 10);
+        ctx.fillStyle = CRAFT.accent; ctx.fillRect(bx - 9, by - tall + 10, 18, 3);
+        ctx.fillStyle = CRAFT.glassLo; ctx.fillRect(bx - 5, by - tall + 20, 10, 8);
+        ctx.fillStyle = CRAFT.glass; ctx.fillRect(bx - 4, by - tall + 21, 8, 6);
+        ctx.fillStyle = CRAFT.spec; ctx.fillRect(bx - 3, by - tall + 22, 3, 1);
+    };
+    bottle(574, 350, 48, '#2f6470', '#4d8b96', '#1b414b');
+    bottle(610, 378, 40, '#96382f', '#c05a45', '#5d2119');
+
+    // Warm landing light pools on the family, with grounded contact shadows.
+    const reunionGlow = ctx.createRadialGradient(305, 300, 12, 305, 300, 132);
+    reunionGlow.addColorStop(0, 'rgba(255,222,150,0.32)');
+    reunionGlow.addColorStop(1, 'rgba(255,160,70,0)');
+    ctx.fillStyle = reunionGlow;
+    ctx.beginPath(); ctx.arc(305, 300, 132, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.34)';
+    ctx.beginPath(); ctx.ellipse(258, 341, 27, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(352, 341, 27, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(305, 345, 22, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+    // Parents and their outer arms first, then Pipz, then the arms that close
+    // around her, so the embrace overlaps the way a real hug does.
+    drawVgaPerson(ctx, 258, 340, 2.9, Object.assign({}, CIV_JORV, {
+        farArm: { side: -1, up: -0.12, lo: 0.12 }
+    }));
+    drawVgaPerson(ctx, 352, 340, 2.8, Object.assign({}, CIV_MELLA, {
+        farArm: { side: 1, up: -0.12, lo: 0.12 }
+    }));
+    drawVgaPerson(ctx, 305, 344, 2.4, Object.assign({}, CIV_PIPZ, {
+        farArm: { side: -1, up: -1.78, lo: -0.32 },
+        nearArm: { side: 1, up: -1.78, lo: -0.32 }
+    }));
+    const jorvArm = {
+        edge: CIV_JORV.edge, sleeve: CIV_JORV.coat, sleeveLo: CIV_JORV.coatLo,
+        skin: CIV_JORV.skin, skinLo: CIV_JORV.skinLo
+    };
+    const mellaArm = {
+        edge: CIV_MELLA.edge, sleeve: CIV_MELLA.coat, sleeveLo: CIV_MELLA.coatLo,
+        skin: CIV_MELLA.skin, skinLo: CIV_MELLA.skinLo
+    };
+    drawVgaArm(ctx, 258 + 3.4 * 2.9, 340 - 27.2 * 2.9, 2.9, 1, -1.05, -0.3, jorvArm);
+    drawVgaArm(ctx, 352 - 3.4 * 2.8, 340 - 27.2 * 2.8, 2.8, -1, -0.95, -0.25, mellaArm);
+
+    // Wilkins hangs back with the recovered drive, letting them have the moment.
+    ctx.fillStyle = 'rgba(0,0,0,0.34)';
+    ctx.beginPath(); ctx.ellipse(522, 302, 15, 4, 0, 0, Math.PI * 2); ctx.fill();
+    drawPlayerBody(ctx, 522, 300, 2, 0);
+    ctx.fillStyle = '#55ccff'; ctx.fillRect(537, 288, 11, 17);
+    ctx.fillStyle = '#d9fbff'; ctx.fillRect(540, 292, 3, 9);
+
     ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 16px "Courier New"';
     ctx.fillText('SOME PROMISES MAKE IT HOME.', w / 2, h - 34);

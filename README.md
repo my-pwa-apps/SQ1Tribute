@@ -122,7 +122,7 @@ npm run check
 | `npm run test:functional` | Playwright gameplay and PWA tests (platform-independent) |
 | `npm run test:visual` | Visual regression against committed baselines |
 | `npm run test:visual:update` | Re-record visual baselines after an intentional art change |
-| `npm run check` | Full local gate: static checks plus every Playwright test |
+| `npm run check` | Full local gate: static checks, the cache-version guard, and every Playwright test |
 | `npm run check:ci` | What CI runs: static checks plus the functional suite |
 | `npm run check:sw` | Fails if a cached asset changed without a service worker version bump |
 

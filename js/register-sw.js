@@ -3,7 +3,7 @@ if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('serviceworker.js').then((reg) => {
             if (reg.waiting) {
-                showUpdateBanner();
+                showUpdateBanner(reg);
                 return;
             }
             reg.addEventListener('updatefound', () => {
@@ -11,7 +11,7 @@ if ('serviceWorker' in navigator) {
                 if (!newWorker) return;
                 newWorker.addEventListener('statechange', () => {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        showUpdateBanner();
+                        showUpdateBanner(reg);
                     }
                 });
             });
@@ -21,7 +21,7 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-function showUpdateBanner() {
+function showUpdateBanner(reg) {
     if (document.getElementById('pwa-update-banner')) return;
     const banner = document.createElement('div');
     banner.id = 'pwa-update-banner';
@@ -33,6 +33,19 @@ function showUpdateBanner() {
     reloadButton.textContent = 'NEW UPDATE AVAILABLE - RELOAD';
     reloadButton.style.cssText = 'background:#5555FF;color:#FFFFFF;border:2px solid #FFFFFF;padding:8px 16px;font-family:\'Courier New\',monospace;font-size:12px;box-shadow:0 4px 15px rgba(0,0,0,0.5);border-radius:4px;cursor:pointer;text-align:center;text-shadow:1px 1px 0 #000;';
     reloadButton.addEventListener('click', () => {
+        // A worker stuck in `waiting` keeps controlling the page across a plain
+        // reload, so ask it to take over and reload once it does.
+        const waiting = reg && reg.waiting;
+        if (waiting && navigator.serviceWorker) {
+            let reloaded = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (reloaded) return;
+                reloaded = true;
+                window.location.reload();
+            });
+            waiting.postMessage({ type: 'SKIP_WAITING' });
+            return;
+        }
         window.location.reload();
     });
     banner.appendChild(reloadButton);

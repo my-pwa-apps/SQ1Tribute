@@ -32,8 +32,8 @@ StarSweeper.defineRooms((engine) => {
             e.addBarrier(280, 295, 160, 25);
             // Central reactor column
             e.addBarrier(290, 220, 60, 120);
-            // Korvak's body is solid ground clutter, not something to stand inside
-            e.addBarrier(218, 300, 46, 52);
+            // Korvak's body is solid ground clutter, not something to stand inside.
+            if (!e.getFlag('korvak_left')) e.addBarrier(218, 300, 46, 52);
 
             // Ruptured coolant main across the near deck gives the empty
             // foreground a plane for the ego to walk behind.
@@ -60,19 +60,16 @@ StarSweeper.defineRooms((engine) => {
             e.addForegroundLayer(352, (ctx, eng) => {
                 if (!eng.getFlag('korvak_freed')) {
                     eng.drawContactShadow(ctx, 240, 358, 1, { rx: 28, ry: 4, alpha: 0.28 });
-                    // Legs run under the beam; head and torso stay clear of it.
-                    ctx.fillStyle = '#555570';
-                    ctx.fillRect(232, 292, 18, 20);
-                    ctx.fillStyle = '#AA7755';
-                    ctx.fillRect(233, 326, 16, 18);
-                    ctx.fillStyle = '#224488';
-                    ctx.fillRect(234, 328, 14, 12);
-                    ctx.fillStyle = '#AA7755';
-                    ctx.beginPath(); ctx.arc(241, 350, 7, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = '#7a4a2c';
-                    ctx.fillRect(234, 343, 14, 4);
-                    ctx.fillStyle = '#AA7755';
-                    ctx.fillRect(219, 334, 15, 6);
+                    // The shared VGA cel is rotated into a pinned pose so Korvak
+                    // keeps the same proportions and material detail as other NPCs.
+                    ctx.save();
+                    ctx.translate(278, 342);
+                    ctx.rotate(-Math.PI / 2);
+                    drawVgaPerson(ctx, 0, 0, 1.7, Object.assign({}, CIV_KORVAK, {
+                        farArm: { side: -1, up: -0.7, lo: 0.4 },
+                        nearArm: { side: 1, up: 0.5, lo: -0.3 }
+                    }));
+                    ctx.restore();
                     ctx.fillStyle = 'rgba(160,20,20,0.5)';
                     ctx.beginPath(); ctx.ellipse(238, 357, 15, 5, 0, 0, Math.PI * 2); ctx.fill();
                     // Beam segment re-drawn over his legs to pin him
@@ -93,11 +90,10 @@ StarSweeper.defineRooms((engine) => {
                     for (let bx = -82; bx < 86; bx += 14) ctx.fillRect(bx, -3, 2, 2);
                     ctx.restore();
                 } else if (!eng.getFlag('korvak_left')) {
-                    eng.drawContactShadow(ctx, 153, 342, 1, { rx: 14, ry: 3.5, alpha: 0.28 });
-                    ctx.fillStyle = '#555570'; ctx.fillRect(145, 310, 16, 30);
-                    ctx.fillStyle = '#AA7755'; ctx.fillRect(148, 306, 10, 16);
-                    ctx.beginPath(); ctx.arc(153, 304, 7, 0, Math.PI * 2); ctx.fill();
-                    ctx.fillStyle = '#224488'; ctx.fillRect(148, 308, 10, 14);
+                    eng.drawContactShadow(ctx, 153, 343, 1, { rx: 16, ry: 4, alpha: 0.28 });
+                    drawVgaPerson(ctx, 153, 342, 1.75, Object.assign({}, CIV_KORVAK, {
+                        nearArm: { side: 1, up: 0.28, lo: 0.7 }
+                    }));
                 }
             });
         },
@@ -144,26 +140,20 @@ StarSweeper.defineRooms((engine) => {
             ctx.beginPath();
             ctx.moveTo(BW_L + 40, BW_B); ctx.lineTo(BW_R - 40, BW_B); ctx.lineTo(w - 60, h); ctx.lineTo(60, h);
             ctx.closePath(); ctx.fill();
-            // Deck grating: lines radiate from the vanishing point, cross members
-            // bunch toward the back wall.
+            // Tonal deck bands imply depth without visible perspective-grid lines.
             ctx.save();
             ctx.beginPath();
             ctx.moveTo(0, EDGE); ctx.lineTo(BW_L, BW_B); ctx.lineTo(BW_R, BW_B); ctx.lineTo(w, EDGE);
             ctx.lineTo(w, h); ctx.lineTo(0, h);
             ctx.closePath(); ctx.clip();
-            ctx.strokeStyle = 'rgba(18,10,14,0.5)'; ctx.lineWidth = 1;
-            for (let i = -7; i <= 7; i++) {
-                ctx.beginPath();
-                ctx.moveTo(320 + i * 24, BW_B); ctx.lineTo(320 + i * 78, h);
-                ctx.stroke();
-            }
-            [268, 280, 296, 318, 348, 386].forEach((gy) => {
-                ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
-            });
-            ctx.strokeStyle = 'rgba(150,90,70,0.10)';
-            [270, 282, 298, 320, 350, 388].forEach((gy) => {
-                ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
-            });
+            [['#38282c', 262, 24], ['#332429', 286, 34], ['#2d2025', 320, 38], ['#271c22', 358, 42]]
+                .forEach(([color, bandY, bandH]) => {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(0, bandY, w, bandH);
+                });
+            ditherRect(ctx, 0, 282, w, 8, '#38282c', '#332429', 4);
+            ditherRect(ctx, 0, 316, w, 8, '#332429', '#2d2025', 4);
+            ditherRect(ctx, 0, 354, w, 8, '#2d2025', '#271c22', 4);
             ctx.restore();
             ctx.strokeStyle = '#4a2a26'; ctx.lineWidth = 1;
             [36, 80, 122].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, lTop(x) + 5); ctx.lineTo(x, lBot(x) - 5); ctx.stroke(); });

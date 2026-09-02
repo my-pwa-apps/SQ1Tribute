@@ -609,6 +609,88 @@ test.describe('regression coverage for documented features', () => {
         await expect(page.locator('#message-text')).toContainText(/corrupted/i);
         expect(await page.evaluate(() => window.engine.currentRoomId)).toBe('broom_closet');
     });
+
+    test('a save cannot pollute Object.prototype through crafted keys', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page);
+        await page.evaluate(() => {
+            localStorage.setItem('starsweeper_save_0', JSON.stringify({
+                version: 1, timestamp: 1, currentRoomId: 'broom_closet',
+                playerX: 320, playerY: 330, inventory: ['__proto__', 'constructor'],
+                score: 0, flags: { __proto__: { polluted: true } },
+                itemNames: { __proto__: { name: 'pwn', description: 'pwn' } }
+            }));
+        });
+        await page.keyboard.press('F7');
+        await page.locator('.slot-action', { hasText: 'Load' }).first().click();
+        await page.keyboard.press('Space');
+        const result = await page.evaluate(() => ({
+            polluted: {}.polluted !== undefined,
+            protoName: {}.name !== undefined,
+            inventory: window.engine.inventory
+        }));
+        expect(result.polluted).toBe(false);
+        expect(result.protoName).toBe(false);
+        expect(result.inventory).toEqual([]);
+    });
+
+    test('arriving at the flagship unarmed can retreat instead of softlocking', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page, 'c');
+        await loadSave(page, lateGameSave([], { guard_defeated: false, flew_away: true }));
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.setFlag('flew_unarmed');
+            const airlock = e.rooms.draknoid_ship.hotspots.find((h) => h.name === 'Airlock');
+            airlock.onExit(e);
+            e.skipCutscene();
+        });
+        await expect
+            .poll(() => page.evaluate(() => window.engine.currentRoomId), { timeout: 10000 })
+            .toBe('outpost');
+        const flags = await page.evaluate(() => ({
+            flewAway: window.engine.getFlag('flew_away'),
+            flewUnarmed: window.engine.getFlag('flew_unarmed')
+        }));
+        expect(flags.flewAway).toBe(false);
+        expect(flags.flewUnarmed).toBe(false);
+    });
+
+    test('relaunching the shuttle does not award the launch points twice', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page, 'c');
+        const scores = await page.evaluate(() => {
+            const e = window.engine;
+            e.goToRoom('outpost', 520, 305);
+            e.roomTransition = 0;
+            e.addToInventory('nav_chip');
+            e.addToInventory('pulsar_ray');
+            const pad = e.rooms.outpost.hotspots.find((h) => h.name === 'Landing Pad');
+            const before = e.score;
+            pad.use(e);
+            const afterFirst = e.score;
+            e.skipCutscene();
+            // Simulate the retreat path making the shuttle available again.
+            e.setFlag('flew_away', false);
+            pad.use(e);
+            e.skipCutscene();
+            return { before, afterFirst, afterSecond: e.score };
+        });
+        expect(scores.afterFirst).toBe(scores.before + 15);
+        expect(scores.afterSecond).toBe(scores.afterFirst);
+    });
+
+    test('inventory items are focusable buttons that select with the keyboard', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page);
+        await page.evaluate(() => window.engine.addToInventory('keycard'));
+        const item = page.locator('#inventory-items .inv-item').first();
+        await expect(item).toHaveRole('button');
+        await expect(item).toHaveAttribute('aria-pressed', 'false');
+        await item.focus();
+        await page.keyboard.press('Enter');
+        await expect(item).toHaveAttribute('aria-pressed', 'true');
+    });
 });
 
 test('installed app reloads from cache while offline', async ({ page, context }) => {

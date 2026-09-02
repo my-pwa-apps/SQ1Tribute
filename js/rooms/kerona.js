@@ -1388,7 +1388,12 @@ StarSweeper.defineRooms((engine) => {
                         }
                         engine.sound.hyperspace();
                         e.setFlag('flew_away');
-                        e.addScore(15);
+                        // Retreating from the flagship makes the shuttle available
+                        // again, so the launch award must only ever be paid once.
+                        if (!e.getFlag('scored_shuttle_launch')) {
+                            e.setFlag('scored_shuttle_launch');
+                            e.addScore(15);
+                        }
                         e.playCutscene({
                             duration: 6000,
                             draw: cutsceneShuttleFlight,
@@ -1419,7 +1424,10 @@ StarSweeper.defineRooms((engine) => {
                         }
                         engine.sound.hyperspace();
                         e.setFlag('flew_away');
-                        e.addScore(15);
+                        if (!e.getFlag('scored_shuttle_launch')) {
+                            e.setFlag('scored_shuttle_launch');
+                            e.addScore(15);
+                        }
                         e.playCutscene({
                             duration: 6000,
                             draw: cutsceneShuttleFlight,
@@ -1529,7 +1537,17 @@ StarSweeper.defineRooms((engine) => {
             ctx.moveTo(0, 0); ctx.lineTo(w, 0); ctx.lineTo(548, 34); ctx.lineTo(92, 34);
             ctx.closePath(); ctx.fill();
 
-            perspectiveFloor(ctx, 250, w, h, '#1e1018', '#3a1b2b');
+            // Tonal floor bands carry the perspective without visible grid lines.
+            ctx.fillStyle = '#28131e';
+            ctx.beginPath();
+            ctx.moveTo(92, 250); ctx.lineTo(548, 250); ctx.lineTo(w, 400); ctx.lineTo(0, 400);
+            ctx.closePath(); ctx.fill();
+            [['#321725', 250, 28], ['#29131f', 278, 34], ['#211019', 312, 40], ['#190c13', 352, 48]].forEach(([color, by, bh]) => {
+                ctx.fillStyle = color; ctx.fillRect(0, by, w, bh);
+            });
+            ditherRect(ctx, 0, 274, w, 8, '#321725', '#29131f', 4);
+            ditherRect(ctx, 0, 308, w, 8, '#29131f', '#211019', 4);
+            ditherRect(ctx, 0, 348, w, 8, '#211019', '#190c13', 4);
 
             // Recessed wall bays and converging trim keep the room legible as
             // a deep tavern rather than a row of sprites on a flat backdrop.
@@ -1557,14 +1575,27 @@ StarSweeper.defineRooms((engine) => {
             ctx.fillStyle = 'rgba(145,70,210,0.05)';
             ctx.beginPath(); ctx.ellipse(565, 300, 62, 28, 0, 0, Math.PI * 2); ctx.fill();
 
-            // Bar counter (back)
-            ctx.fillStyle = '#553322';
-            ctx.fillRect(30, 130, 300, 15);
-            // Bar front
-            ctx.fillStyle = '#664433';
-            ctx.fillRect(20, 140, 320, 110);
-            ctx.fillStyle = '#553322';
-            ctx.fillRect(25, 145, 310, 100);
+            // Bar counter: black underdrawing, polished rim, panelled front and
+            // a cyan service-light accent keep it from reading as a flat slab.
+            ctx.fillStyle = '#0d090b';
+            ctx.fillRect(16, 126, 328, 128);
+            ctx.fillStyle = '#6d4630';
+            ctx.fillRect(22, 132, 316, 116);
+            ctx.fillStyle = '#8c6041';
+            ctx.fillRect(20, 130, 320, 13);
+            ctx.fillStyle = '#b07a4b';
+            ctx.fillRect(24, 131, 312, 3);
+            ctx.fillStyle = '#3d241d';
+            ctx.fillRect(26, 148, 308, 94);
+            for (let panelX = 34; panelX < 324; panelX += 58) {
+                ctx.fillStyle = '#1b1115'; ctx.fillRect(panelX, 156, 48, 75);
+                ctx.fillStyle = '#563326'; ctx.fillRect(panelX + 3, 159, 42, 69);
+                ctx.fillStyle = '#70442e'; ctx.fillRect(panelX + 3, 159, 42, 4);
+            }
+            ctx.fillStyle = '#44c9c8';
+            ctx.fillRect(30, 238, 300, 2);
+            ctx.fillStyle = 'rgba(68,201,200,0.10)';
+            ctx.fillRect(30, 240, 300, 8);
 
             // Bottles behind bar
             const bottleColors = ['#CC3333', '#33CC33', '#3333CC', '#CCCC33', '#CC33CC', '#33CCCC', '#FF8800', '#8800FF'];
@@ -1576,9 +1607,12 @@ StarSweeper.defineRooms((engine) => {
             });
 
             // Shelf behind bar
-            ctx.fillStyle = '#443322';
-            ctx.fillRect(30, 90, 300, 4);
-            ctx.fillRect(30, 60, 300, 4);
+            ctx.fillStyle = '#160d12';
+            ctx.fillRect(27, 88, 306, 8);
+            ctx.fillRect(27, 58, 306, 7);
+            ctx.fillStyle = '#815239';
+            ctx.fillRect(30, 89, 300, 3);
+            ctx.fillRect(30, 59, 300, 3);
 
             // Irregular silhouettes stop the shelves looking like a colour
             // swatch while keeping every prop chunky and readable.
@@ -1591,16 +1625,25 @@ StarSweeper.defineRooms((engine) => {
 
             // Bar stools
             for (let i = 0; i < 4; i++) {
-                ctx.fillStyle = '#444';
-                ctx.fillRect(60 + i * 70, 255, 4, 35);
-                ctx.fillStyle = '#663333';
-                ctx.fillRect(50 + i * 70, 250, 24, 10);
+                const stoolX = 62 + i * 70;
+                eng.drawContactShadow(ctx, stoolX, 291, 1, { rx: 14, ry: 3, alpha: 0.26 });
+                ctx.fillStyle = '#121016'; ctx.fillRect(stoolX - 3, 257, 6, 33);
+                ctx.fillStyle = '#5f5660'; ctx.fillRect(stoolX - 1, 258, 3, 30);
+                ctx.fillStyle = '#120d12'; ctx.fillRect(stoolX - 14, 248, 28, 12);
+                ctx.fillStyle = '#873c47'; ctx.fillRect(stoolX - 11, 250, 22, 7);
+                ctx.fillStyle = '#b95b5f'; ctx.fillRect(stoolX - 9, 250, 18, 2);
             }
 
             // Bartender - detailed multi-armed alien
             // Body - thick torso
-            ctx.fillStyle = '#55AA55';
+            ctx.fillStyle = '#102019';
+            ctx.fillRect(175, 97, 40, 41);
+            ctx.fillStyle = '#3f854e';
             ctx.fillRect(178, 100, 34, 35);
+            ctx.fillStyle = '#67bd68';
+            ctx.fillRect(179, 101, 8, 32);
+            ctx.fillStyle = '#28653f';
+            ctx.fillRect(205, 101, 7, 34);
             // Apron
             ctx.fillStyle = '#CCBB99';
             ctx.fillRect(182, 110, 26, 25);
@@ -1610,6 +1653,8 @@ StarSweeper.defineRooms((engine) => {
             ctx.fillStyle = '#AA9977';
             ctx.fillRect(188, 120, 4, 4);
             // Head - bulbous alien
+            ctx.fillStyle = '#133027';
+            ctx.fillRect(177, 65, 36, 36);
             ctx.fillStyle = '#44AA88';
             ctx.fillRect(181, 65, 28, 35);
             // Head shape - wider at top
@@ -1673,6 +1718,7 @@ StarSweeper.defineRooms((engine) => {
 
             // Tables
             // Table 1 with patron (alien pilot)
+            eng.drawContactShadow(ctx, 460, 288, 1, { rx: 55, ry: 12, alpha: 0.28 });
             ctx.fillStyle = '#443322';
             ctx.fillRect(420, 240, 80, 6);
             ctx.fillRect(450, 246, 6, 40);
@@ -1768,6 +1814,7 @@ StarSweeper.defineRooms((engine) => {
             }
 
             // Table 2 (Blorp the tentacled blob patron)
+            eng.drawContactShadow(ctx, 565, 307, 1, { rx: 54, ry: 13, alpha: 0.30 });
             ctx.fillStyle = '#443322';
             ctx.fillRect(530, 260, 80, 6);
             ctx.fillRect(560, 266, 6, 40);
@@ -1945,10 +1992,14 @@ StarSweeper.defineRooms((engine) => {
             ctx.beginPath(); ctx.moveTo(33, 151); ctx.lineTo(52, 151); ctx.stroke();
 
             // Alien jukebox in corner
-            ctx.fillStyle = '#553355';
+            ctx.fillStyle = '#110b16';
+            ctx.fillRect(556, 116, 48, 69);
+            ctx.fillStyle = '#5f315f';
             ctx.fillRect(560, 120, 40, 60);
-            ctx.fillStyle = '#664466';
+            ctx.fillStyle = '#8a4d78';
             ctx.fillRect(564, 124, 32, 30);
+            ctx.fillStyle = '#c07191';
+            ctx.fillRect(566, 125, 28, 3);
             // Jukebox lights
             const jbGlow = Math.sin(eng.animTimer / 300);
             ctx.fillStyle = `rgba(255,100,100,${0.5 + jbGlow * 0.3})`;
@@ -2065,7 +2116,7 @@ StarSweeper.defineRooms((engine) => {
                 }
             },
             {
-                name: 'Bottles', x: 40, y: 55, w: 280, h: 42,
+                name: 'Bottles', x: 40, y: 62, w: 280, h: 65,
                 description: 'Colorful bottles line the shelves.',
                 look: (e) => e.showMessage('An impressive collection of alien liquors in every color imaginable. You recognize none of them. Some of the bottles appear to be glowing. One seems to be moving.'),
                 get: (e) => e.showMessage('The bartender gives you a stern three-eyed glare. Best not to steal from a guy with three arms.'),
@@ -2212,9 +2263,7 @@ StarSweeper.defineRooms((engine) => {
             ctx.beginPath();
             ctx.moveTo(0, 0); ctx.lineTo(w, 0); ctx.lineTo(558, 32); ctx.lineTo(82, 32);
             ctx.closePath(); ctx.fill();
-            perspectiveFloor(ctx, 260, w, h, '#22201a', '#4a4126');
-            // Shop floor: warm spill from the display wall and a runner toward the
-            // counter, so the foreground reads as boards rather than empty space.
+            // Shop floor: warm tonal bands and a runner toward the counter.
             ctx.fillStyle = '#2b2721';
             ctx.beginPath();
             ctx.moveTo(96, 260); ctx.lineTo(544, 260); ctx.lineTo(w, 400); ctx.lineTo(0, 400);
@@ -2227,27 +2276,46 @@ StarSweeper.defineRooms((engine) => {
             ctx.beginPath();
             ctx.moveTo(120, 262); ctx.lineTo(520, 262); ctx.lineTo(596, 328); ctx.lineTo(44, 328);
             ctx.closePath(); ctx.fill();
-            ctx.fillStyle = 'rgba(0,0,0,0.20)';
-            ctx.fillRect(96, 300, 448, 2);
-            ctx.fillRect(56, 350, 528, 3);
+            ditherRect(ctx, 0, 292, w, 8, '#342e25', '#2b2721', 4);
+            ditherRect(ctx, 0, 344, w, 8, '#2b2721', '#211e1a', 4);
+            ctx.fillStyle = '#211e1a';
+            ctx.fillRect(0, 352, w, 48);
 
-            // Counter
-            ctx.fillStyle = '#554422';
-            ctx.fillRect(50, 200, 400, 12);
-            ctx.fillStyle = '#665533';
-            ctx.fillRect(40, 210, 420, 50);
-            ctx.fillStyle = '#554422';
-            ctx.fillRect(45, 215, 410, 40);
+            // Counter with a heavy silhouette, lit cap and recessed front panels.
+            ctx.fillStyle = '#0d0b08';
+            ctx.fillRect(36, 196, 428, 68);
+            ctx.fillStyle = '#6b542c';
+            ctx.fillRect(40, 204, 420, 56);
+            ctx.fillStyle = '#9b7a3d';
+            ctx.fillRect(46, 198, 408, 15);
+            ctx.fillStyle = '#c29a50';
+            ctx.fillRect(50, 199, 400, 3);
+            ctx.fillStyle = '#3f321e';
+            for (let panelX = 50; panelX < 438; panelX += 78) {
+                ctx.fillRect(panelX, 218, 66, 32);
+                ctx.fillStyle = '#70572d'; ctx.fillRect(panelX + 3, 221, 60, 4);
+                ctx.fillStyle = '#3f321e';
+            }
+            ctx.fillStyle = '#ff8833';
+            ctx.fillRect(48, 255, 404, 2);
 
             // Display case behind counter
-            ctx.fillStyle = '#333328';
+            ctx.fillStyle = '#0c0d0c';
+            ctx.fillRect(56, 46, 388, 148);
+            ctx.fillStyle = '#282d2b';
             ctx.fillRect(60, 50, 380, 140);
-            ctx.strokeStyle = '#555540';
-            ctx.strokeRect(60, 50, 380, 140);
+            ctx.fillStyle = '#414944';
+            ctx.fillRect(60, 50, 380, 5);
+            ctx.fillStyle = 'rgba(90,210,190,0.08)';
+            ctx.fillRect(64, 58, 372, 126);
+            ctx.fillStyle = '#55c9b7';
+            ctx.fillRect(64, 184, 372, 2);
 
             // Items on display
             // Pulsar Ray - detailed weapon
             if (!eng.getFlag('bought_ray')) {
+                ctx.fillStyle = CRAFT.edge;
+                ctx.fillRect(96, 106, 74, 27);
                 // Gun body
                 ctx.fillStyle = '#888899';
                 ctx.fillRect(100, 110, 45, 18);
@@ -2295,6 +2363,8 @@ StarSweeper.defineRooms((engine) => {
             }
 
             // Jet pack - more detail
+            ctx.fillStyle = CRAFT.edge;
+            ctx.fillRect(226, 75, 48, 82);
             ctx.fillStyle = '#777766';
             ctx.fillRect(230, 90, 40, 50);
             // Vent nozzles
@@ -2329,6 +2399,8 @@ StarSweeper.defineRooms((engine) => {
             ctx.fillText('500 BUCKS', 224, 167);
 
             // Shield belt - more detail
+            ctx.fillStyle = CRAFT.edge;
+            ctx.fillRect(344, 100, 73, 30);
             ctx.fillStyle = '#886633';
             ctx.fillRect(348, 108, 65, 18);
             // Belt segments
@@ -2357,8 +2429,14 @@ StarSweeper.defineRooms((engine) => {
 
             // Merchant - tall lanky alien with robe (positioned behind counter)
             // Body / robe
-            ctx.fillStyle = '#AA8844';
+            ctx.fillStyle = '#17120c';
+            ctx.fillRect(374, 126, 48, 80);
+            ctx.fillStyle = '#9b7235';
             ctx.fillRect(378, 130, 40, 72);
+            ctx.fillStyle = '#c49b52';
+            ctx.fillRect(379, 132, 9, 60);
+            ctx.fillStyle = '#755329';
+            ctx.fillRect(410, 132, 8, 63);
             // Robe detail - hem
             ctx.fillStyle = '#997733';
             ctx.fillRect(378, 195, 40, 7);
@@ -2486,15 +2564,19 @@ StarSweeper.defineRooms((engine) => {
             ctx.fillRect(500, 155, 3, 10);
             ctx.fillRect(550, 155, 3, 10);
 
-            // Wall-mounted alien weapons (decoration)
+            // Back-wall alien weapon rack.
+            ctx.fillStyle = '#171712';
+            ctx.fillRect(90, 68, 60, 14);
             ctx.fillStyle = '#555566';
-            ctx.fillRect(25, 70, 50, 8);
-            ctx.fillStyle = '#666677';
-            ctx.fillRect(30, 72, 12, 4);
+            ctx.fillRect(94, 71, 52, 8);
+            ctx.fillStyle = '#85859a';
+            ctx.fillRect(99, 72, 15, 3);
+            ctx.fillStyle = '#33ccee';
+            ctx.fillRect(140, 73, 5, 4);
             // Mounting brackets
             ctx.fillStyle = '#443322';
-            ctx.fillRect(35, 65, 3, 6);
-            ctx.fillRect(60, 65, 3, 6);
+            ctx.fillRect(101, 65, 3, 6);
+            ctx.fillRect(136, 65, 3, 6);
 
             // "NO REFUNDS" sign
             ctx.fillStyle = '#CC4444';
@@ -2509,12 +2591,12 @@ StarSweeper.defineRooms((engine) => {
 
             // Cash register
             ctx.fillStyle = '#444444';
-            ctx.fillRect(50, 215, 30, 20);
+            ctx.fillRect(146, 215, 30, 20);
             ctx.fillStyle = '#555555';
-            ctx.fillRect(52, 217, 26, 12);
+            ctx.fillRect(148, 217, 26, 12);
             ctx.fillStyle = '#22CC22';
             ctx.font = '6px "Courier New"';
-            ctx.fillText('0.00', 55, 225);
+            ctx.fillText('0.00', 151, 225);
 
             // Exit door
             ctx.fillStyle = '#3a3020';

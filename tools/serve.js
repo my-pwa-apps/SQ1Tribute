@@ -26,8 +26,16 @@ const mimeTypes = {
 };
 
 http.createServer((request, response) => {
-    const requestUrl = new URL(request.url, `http://${request.headers.host}`);
-    const pathname = decodeURIComponent(requestUrl.pathname);
+    let requestUrl;
+    let pathname;
+    try {
+        // A malformed target or bad percent-encoding must not take the server down.
+        requestUrl = new URL(request.url, `http://${request.headers.host}`);
+        pathname = decodeURIComponent(requestUrl.pathname);
+    } catch {
+        response.writeHead(400).end('Bad request');
+        return;
+    }
     const relativePath = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
     const filePath = path.resolve(root, relativePath);
     if (!filePath.startsWith(root + path.sep)) {
