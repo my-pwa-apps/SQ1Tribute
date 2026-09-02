@@ -15,7 +15,10 @@ const PAL = (typeof window !== 'undefined' && window.SS_PALETTE) || {
 
 // Ego scale. Room architecture is authored large (interior doors run ~200px),
 // so the sprite is scaled to sit in Sierra's ego-to-doorway range.
-const PLAYER_SPRITE_SCALE = 1.45;
+// The ego is a ~5.5-head SCI/VGA-era figure spanning roughly 36 units from
+// cowlick to sole, so the scale is tuned to keep him the same on-screen height
+// as the older, chunkier 32-unit sprite.
+const PLAYER_SPRITE_SCALE = 1.27;
 
 // Auto-walk exit trigger box, and the larger box the player must leave before an
 // exit they arrived through can fire again.
@@ -34,6 +37,9 @@ const SUIT_REMAP = {
     '#BBBBBB': '#9A9375',
     '#AAAAAA': '#8C8568'
 };
+
+// Hoisted so the y-sort in the render loop does not allocate a comparator per frame.
+const byDepth = (a, b) => a.y - b.y;
 
 class GameEngine {
     constructor(gameDefinition = {}) {
@@ -190,6 +196,18 @@ class GameEngine {
         this.sound.onInaudibleCue = (label) => this.showSoundCaption(label);
         this.soundCaption = null; // { text, until }
 
+        // Cached once: the query string cannot change without a reload, and the
+        // update loop must not allocate a URLSearchParams every frame.
+        this.visualTestMode = typeof window !== 'undefined' &&
+            new URLSearchParams(window.location.search).has('visual-test');
+        this._loopRunning = false;
+        this._listeners = [];
+        this._lightPoolCache = new Map();
+        this._vignetteCache = new Map();
+        // Text measurement happens outside the render pass (word wrap, dialog
+        // hit-testing). Measuring on the visible context leaves ctx.font dirty.
+        this._measureCtx = document.createElement('canvas').getContext('2d');
+
         // Screen shake (intensity decays over time)
         this.screenShake = 0;
         this.screenShakeDecay = 0.003; // per ms
@@ -303,8 +321,30 @@ class GameEngine {
         };
     }
 
+    /** Attach a listener and remember it so destroy() can detach it again.
+     *  Listeners on elements the engine itself creates are not tracked: they
+     *  are discarded together with their element. */
+    _on(target, type, handler, options) {
+        if (!target) return;
+        target.addEventListener(type, handler, options);
+        this._listeners.push({ target, type, handler, options });
+    }
+
+    /** Detach every tracked listener and stop the render loop. Required before
+     *  replacing one engine instance with another on the same page. */
+    destroy() {
+        this._loopRunning = false;
+        for (const { target, type, handler, options } of this._listeners) {
+            target.removeEventListener(type, handler, options);
+        }
+        this._listeners.length = 0;
+        if (this.sound && this.sound.stopAmbient) this.sound.stopAmbient();
+        this.cutscene = null;
+        if (typeof window !== 'undefined' && window.engine === this) delete window.engine;
+    }
+
     setupInput() {
-        this.canvas.addEventListener('click', (e) => {
+        this._on(this.canvas, 'click', (e) => {
             this.sound.init();
             if (this.cutscene) {
                 this.skipCutscene();
@@ -344,17 +384,17 @@ class GameEngine {
             this.handleClick(coords.x, coords.y);
         });
 
-        this.canvas.addEventListener('mousemove', (e) => {
+        this._on(this.canvas, 'mousemove', (e) => {
             const coords = this.getCanvasCoords(e);
             this.mouseX = coords.x;
             this.mouseY = coords.y;
         });
 
         this.actionButtons.forEach(btn => {
-            btn.addEventListener('click', () => this.setAction(btn.dataset.action));
+            this._on(btn, 'click', () => this.setAction(btn.dataset.action));
         });
 
-        document.addEventListener('keydown', (e) => {
+        this._on(document, 'keydown', (e) => {
             this.keysDown[e.key] = true;
             this.sound.init().finally(() => this.updateSoundUI());
 
@@ -439,6 +479,7 @@ class GameEngine {
                     if (e.key === 'Escape') {
                         this.activeDialog = null;
                         this.textWindow = null;
+                        this.clearAccessibleDialogOptions();
                         return;
                     }
                 }
@@ -473,42 +514,42 @@ class GameEngine {
             }
         });
 
-        document.addEventListener('keyup', (e) => {
+        this._on(document, 'keyup', (e) => {
             delete this.keysDown[e.key];
         });
 
         // Clear stuck keys when window loses focus
-        window.addEventListener('blur', () => {
+        this._on(window, 'blur', () => {
             this.keysDown = {};
         });
 
-        window.addEventListener('resize', () => this.updateLayoutScale());
-        window.addEventListener('orientationchange', () => this.updateLayoutScale());
+        this._on(window, 'resize', () => this.updateLayoutScale());
+        this._on(window, 'orientationchange', () => this.updateLayoutScale());
 
-        if (this.dom.btnSave) this.dom.btnSave.addEventListener('click', () => this.openSaveModal('save'));
-        if (this.dom.btnLoad) this.dom.btnLoad.addEventListener('click', () => this.openSaveModal('load'));
-        if (this.dom.btnHint) this.dom.btnHint.addEventListener('click', () => this.showHint());
-        if (this.dom.btnScan) this.dom.btnScan.addEventListener('click', () => this.toggleHotspotReveal());
+        if (this.dom.btnSave) this._on(this.dom.btnSave, 'click', () => this.openSaveModal('save'));
+        if (this.dom.btnLoad) this._on(this.dom.btnLoad, 'click', () => this.openSaveModal('load'));
+        if (this.dom.btnHint) this._on(this.dom.btnHint, 'click', () => this.showHint());
+        if (this.dom.btnScan) this._on(this.dom.btnScan, 'click', () => this.toggleHotspotReveal());
         if (this.dom.btnTools) {
-            this.dom.btnTools.addEventListener('click', () => {
+            this._on(this.dom.btnTools, 'click', () => {
                 const bar = this.dom.btnTools.parentElement;
                 const expanded = bar.classList.toggle('tools-open');
                 this.dom.btnTools.setAttribute('aria-expanded', String(expanded));
             });
         }
         if (this.dom.btnMute) {
-            this.dom.btnMute.addEventListener('click', () => {
+            this._on(this.dom.btnMute, 'click', () => {
                 this.sound.init().finally(() => this.updateSoundUI());
                 this.sound.toggleMute();
                 this.updateSoundUI();
             });
         }
-        this.dom.saveModalClose.addEventListener('click', () => this.closeSaveModal());
-        this.dom.saveModal.addEventListener('click', (e) => {
+        this._on(this.dom.saveModalClose, 'click', () => this.closeSaveModal());
+        this._on(this.dom.saveModal, 'click', (e) => {
             if (e.target === this.dom.saveModal) this.closeSaveModal();
         });
         if (this.dom.touchParser) {
-            this.dom.touchParser.addEventListener('submit', (e) => {
+            this._on(this.dom.touchParser, 'submit', (e) => {
                 e.preventDefault();
                 if (this.titleScreen || this.dead || this.won) return;
                 const command = this.dom.touchParserInput.value.trim();
@@ -521,11 +562,11 @@ class GameEngine {
             });
         }
         if (this.dom.btnEnhanced) {
-            this.dom.btnEnhanced.addEventListener('click', () => this.setInterfaceMode('enhanced', true));
+            this._on(this.dom.btnEnhanced, 'click', () => this.setInterfaceMode('enhanced', true));
         }
 
         // Touch support for canvas
-        this.canvas.addEventListener('touchstart', (e) => {
+        this._on(this.canvas, 'touchstart', (e) => {
             e.preventDefault();
             this.sound.init();
             const touch = e.touches[0];
@@ -561,7 +602,7 @@ class GameEngine {
             this.handleClick(coords.x, coords.y);
         }, { passive: false });
 
-        this.canvas.addEventListener('touchmove', (e) => {
+        this._on(this.canvas, 'touchmove', (e) => {
             e.preventDefault();
             const touch = e.touches[0];
             const coords = this.getCanvasCoords(touch);
@@ -579,12 +620,12 @@ class GameEngine {
             if (!btn) continue;
             const press = (ev) => { ev.preventDefault(); this.keysDown[key] = true; };
             const release = (ev) => { ev.preventDefault(); delete this.keysDown[key]; };
-            btn.addEventListener('touchstart', press, { passive: false });
-            btn.addEventListener('touchend', release, { passive: false });
-            btn.addEventListener('touchcancel', release, { passive: false });
-            btn.addEventListener('mousedown', press);
-            btn.addEventListener('mouseup', release);
-            btn.addEventListener('mouseleave', release);
+            this._on(btn, 'touchstart', press, { passive: false });
+            this._on(btn, 'touchend', release, { passive: false });
+            this._on(btn, 'touchcancel', release, { passive: false });
+            this._on(btn, 'mousedown', press);
+            this._on(btn, 'mouseup', release);
+            this._on(btn, 'mouseleave', release);
         }
     }
 
@@ -1028,6 +1069,7 @@ class GameEngine {
         this.playerFacing = 'toward';
         this.playerTargetX = null;
         this.playerTargetY = null;
+        this.soundCaption = null;
         this.playerWalking = false;
         this.pendingAction = null;
         this.sound.stopAmbient();
@@ -1054,7 +1096,7 @@ class GameEngine {
                 hotspot.walk(this);
             } else if (y > 240) {
                 this.playerTargetX = Math.max(30, Math.min(610, x));
-                this.playerTargetY = Math.max(280, Math.min(370, y));
+                this.playerTargetY = Math.max(Math.max(this.horizon, 280), Math.min(370, y));
                 this.playerWalking = true;
                 this.pendingAction = null;
             } else if (hotspot) {
@@ -1593,7 +1635,7 @@ class GameEngine {
      *  Classic blue box with white border and yellow text. */
     showTextWindow(text, opts) {
         opts = opts || {};
-        const ctx = this.ctx;
+        const ctx = this._measureCtx;
         ctx.font = '13px "Courier New"';
 
         const portraitId = opts.portrait || (this.activeDialog && this.activeDialog.phase !== 'options' ? this.activeDialog.dialogId : null);
@@ -2385,10 +2427,11 @@ class GameEngine {
         const lineH = 18;
         const pad = 12;
         // Auto-size width based on longest option text
-        this.ctx.font = '13px "Courier New"';
+        const measure = this._measureCtx;
+        measure.font = '13px "Courier New"';
         let maxTextW = 200;
         for (const line of lines) {
-            const tw = this.ctx.measureText(line.text).width;
+            const tw = measure.measureText(line.text).width;
             if (tw > maxTextW) maxTextW = tw;
         }
         const boxW = Math.min(560, Math.round(maxTextW) + pad * 2 + 24);
@@ -2453,7 +2496,7 @@ class GameEngine {
 
     // ---- Update Loop ----
     update(dt) {
-        const visualTestMode = new URLSearchParams(window.location.search).has('visual-test');
+        const visualTestMode = this.visualTestMode;
         if (!visualTestMode) {
             this.animTimer += dt;
         }
@@ -2705,6 +2748,7 @@ class GameEngine {
 
         if (this.titleScreen) {
             this.drawTitleScreen(ctx);
+            if (shaking) ctx.restore();
             return;
         }
 
@@ -2791,7 +2835,7 @@ class GameEngine {
         }
 
         // Sort by Y (lower Y = behind, drawn first — AGI's MakeObjList)
-        this._drawables.sort((a, b) => a.y - b.y);
+        this._drawables.sort(byDepth);
 
         // Draw all in sorted order
         for (const d of this._drawables) {
@@ -2812,7 +2856,6 @@ class GameEngine {
      * while allowing rooms to use modern Canvas drawing and expanded colour. */
     applyClassicSceneRaster(ctx) {
         const low = this.sceneRasterCtx;
-        const scale = this.sceneRasterScale;
         low.save();
         low.setTransform(1, 0, 0, 1, 0, 0);
         low.clearRect(0, 0, this.sceneRasterCanvas.width, this.sceneRasterCanvas.height);
@@ -3015,7 +3058,7 @@ class GameEngine {
         ctx.font = 'bold 11px "Courier New"';
         ctx.fillStyle = '#000000';
         const room = this.rooms[this.currentRoomId];
-        const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta > 0 ? ` +${this.lastScoreDelta}` : '';
+        const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta !== 0 ? ` +${this.lastScoreDelta}` : '';
         ctx.fillText(`Score:${this.score} of ${this.maxScore}${delta}`, 8, 12);
         ctx.textAlign = 'center';
         ctx.fillText(room ? room.name.toUpperCase() : this.game.shortTitle.toUpperCase(), this.WIDTH / 2, 12);
@@ -3038,7 +3081,7 @@ class GameEngine {
         ctx.fillText(actionLabel, 8, 12);
         ctx.fillStyle = '#FFFF55';
         ctx.textAlign = 'right';
-        const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta > 0 ? `  +${this.lastScoreDelta}` : '';
+        const delta = this.animTimer < this.scoreFlashUntil && this.lastScoreDelta !== 0 ? `  +${this.lastScoreDelta}` : '';
         ctx.fillText(`Score: ${this.score} / ${this.maxScore}${delta}`, this.WIDTH - 8, 12);
         ctx.textAlign = 'left';
     }
@@ -3412,14 +3455,22 @@ class GameEngine {
      *  so ceiling strips, fires and glowing props actually spill onto the ground. */
     lightPool(ctx, x, y, radius, color, alpha) {
         if (radius <= 0) return;
-        const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
         const rgb = color || '255,235,180';
-        g.addColorStop(0, `rgba(${rgb},${alpha == null ? 0.18 : alpha})`);
-        g.addColorStop(0.55, `rgba(${rgb},${(alpha == null ? 0.18 : alpha) * 0.35})`);
-        g.addColorStop(1, `rgba(${rgb},0)`);
+        const a = alpha == null ? 0.18 : alpha;
+        // Gradients are immutable once built; rooms call this every frame.
+        const key = `${radius}|${rgb}|${a}`;
+        let g = this._lightPoolCache.get(key);
+        if (!g) {
+            g = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+            g.addColorStop(0, `rgba(${rgb},${a})`);
+            g.addColorStop(0.55, `rgba(${rgb},${a * 0.35})`);
+            g.addColorStop(1, `rgba(${rgb},0)`);
+            this._lightPoolCache.set(key, g);
+        }
         ctx.save();
+        ctx.translate(x, y);
         ctx.fillStyle = g;
-        ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+        ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
         ctx.restore();
     }
 
@@ -3429,10 +3480,15 @@ class GameEngine {
         const s = strength == null ? 0.35 : strength;
         if (s <= 0) return;
         const W = this.WIDTH, H = this.HEIGHT, top = 17;
-        const g = ctx.createRadialGradient(W / 2, H * 0.58, H * 0.28, W / 2, H * 0.58, H * 0.95);
-        g.addColorStop(0, 'rgba(0,0,0,0)');
-        g.addColorStop(0.6, `rgba(${color || '0,0,0'},${s * 0.35})`);
-        g.addColorStop(1, `rgba(${color || '0,0,0'},${s})`);
+        const key = `${s}|${color || '0,0,0'}`;
+        let g = this._vignetteCache.get(key);
+        if (!g) {
+            g = ctx.createRadialGradient(W / 2, H * 0.58, H * 0.28, W / 2, H * 0.58, H * 0.95);
+            g.addColorStop(0, 'rgba(0,0,0,0)');
+            g.addColorStop(0.6, `rgba(${color || '0,0,0'},${s * 0.35})`);
+            g.addColorStop(1, `rgba(${color || '0,0,0'},${s})`);
+            this._vignetteCache.set(key, g);
+        }
         ctx.save();
         ctx.beginPath();
         ctx.rect(0, top, W, H - top);
@@ -3503,6 +3559,205 @@ class GameEngine {
         return Math.round(s * 20) / 20;
     }
 
+    /** Front-facing ego cel. Shared by the in-room sprite and every cutscene
+     *  mini-animation so the character can never drift between them.
+     *  o: { leftLeg, rightLeg, leftBoot, rightBoot, idleFootTap, idleHeadOfs,
+     *      shrugPhase, as, armAngle } — all optional. */
+    drawEgoFront(ctx, x, y, s, o) {
+        o = o || {};
+        const leftLeg = o.leftLeg || 0, rightLeg = o.rightLeg || 0;
+        const leftBoot = o.leftBoot == null ? leftLeg : o.leftBoot;
+        const rightBoot = o.rightBoot == null ? rightLeg : o.rightBoot;
+        const idleFootTap = o.idleFootTap || 0;
+        const idleHeadOfs = o.idleHeadOfs || 0;
+        const as = o.as || 0;
+        // Cutscene poses raise the arms; the shrug cel doubles as the raised pose.
+        const armAngle = o.armAngle || 0;
+        const shrugPhase = o.shrugPhase != null ? o.shrugPhase : (armAngle >= 0.7 ? 1 : 0);
+        const armOut = armAngle >= 0.25 && armAngle < 0.7 ? Math.round(1.4 * s) : 0;
+        // SCI/VGA-era proportions (Space Quest 4-6): a ~5.5-head figure with
+        // a small head, long legs and three tones per material, rather than
+        // the 4-head AGI chunk this started as.
+        // Legs — thigh tapers into calf, dark seam between them
+        ctx.fillStyle = '#AAAAAA';
+        ctx.fillRect(x - 3.6 * s, y - 3 * s, 3.2 * s, 12 * s + leftLeg);
+        ctx.fillRect(x + 0.4 * s, y - 3 * s, 3.2 * s, 12 * s + rightLeg);
+        ctx.fillStyle = '#CCCCCC';
+        ctx.fillRect(x - 3.2 * s, y - 2 * s, 1 * s, 10 * s + leftLeg);
+        ctx.fillRect(x + 0.8 * s, y - 2 * s, 1 * s, 10 * s + rightLeg);
+        ctx.fillStyle = '#3A3628';
+        ctx.fillRect(x - 0.6 * s, y - 3 * s, 1 * s, 12 * s);
+        // A badly matched knee patch: competent sewing was apparently not
+        // part of janitorial orientation.
+        ctx.fillStyle = '#77775f';
+        ctx.fillRect(x - 3.6 * s, y + 2 * s, 3.2 * s, 2.6 * s);
+        ctx.fillStyle = '#c6bf9f';
+        ctx.fillRect(x - 3.2 * s, y + 2.4 * s, 2 * s, 0.5 * s);
+        // Boots
+        ctx.fillStyle = '#222222';
+        // Left boot (full, uses walk offset)
+        ctx.fillRect(x - 4.2 * s, y + 9 * s + leftBoot, 4 * s, 3 * s);
+        ctx.fillStyle = '#111111';
+        ctx.fillRect(x - 4.4 * s, y + 11 * s + leftBoot, 4.4 * s, 1 * s);
+        ctx.fillStyle = '#555555';
+        ctx.fillRect(x - 3.8 * s, y + 9 * s + leftBoot, 2 * s, 0.8 * s);
+        // Right boot — heel fixed, toe rotates up for foot tap
+        {
+            const heelX = x + 0.2 * s, heelY = y + 9 * s + rightLeg;
+            const toeRise = idleFootTap > 0 ? idleFootTap : (rightBoot - rightLeg);
+            ctx.fillStyle = '#222222';
+            ctx.fillRect(heelX, heelY, 2 * s, 3 * s);
+            ctx.save();
+            ctx.transform(1, 0, -toeRise / (2 * s), 1, heelX + 2 * s, heelY);
+            ctx.fillRect(0, 0, 2 * s, 3 * s);
+            ctx.restore();
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(heelX, heelY + 2 * s, 2 * s, 1 * s);
+            ctx.save();
+            ctx.transform(1, 0, -toeRise / (2 * s), 1, heelX + 2 * s, heelY);
+            ctx.fillRect(0, 2 * s, 2 * s, 1 * s);
+            ctx.restore();
+            ctx.fillStyle = '#555555';
+            ctx.fillRect(heelX + 0.4 * s, heelY, 2 * s, 0.8 * s);
+        }
+        // Torso — narrower than the old block, with a shaded right flank
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(x - 4 * s, y - 15 * s, 8 * s, 12 * s);
+        // Chest highlight and flank shadow give a rounded, lit body.
+        ctx.fillStyle = '#EEEEEE';
+        ctx.fillRect(x - 3.4 * s, y - 14.4 * s, 2.6 * s, 10.8 * s);
+        ctx.fillStyle = '#CCCCCC';
+        ctx.fillRect(x + 2 * s, y - 15 * s, 2 * s, 12 * s);
+        // Dark edge columns read as a Sierra sprite outline and keep the ego
+        // legible against both pale sand and dark hull plating.
+        ctx.fillStyle = '#3A3628';
+        ctx.fillRect(x - 4 * s, y - 15 * s, 0.8 * s, 12 * s);
+        ctx.fillRect(x + 3.2 * s, y - 15 * s, 0.8 * s, 12 * s);
+        // Sloped shoulders, the right one dropped by years of mop bucket.
+        ctx.fillStyle = '#EEEEEE';
+        ctx.fillRect(x - 3.4 * s, y - 15.8 * s, 3 * s, 1 * s);
+        ctx.fillRect(x + 0.4 * s, y - 15.4 * s, 3 * s, 1 * s);
+        ctx.fillStyle = '#3A3628';
+        ctx.fillRect(x - 3.4 * s, y - 16.4 * s, 3 * s, 0.7 * s);
+        ctx.fillRect(x + 0.4 * s, y - 16 * s, 3 * s, 0.7 * s);
+        // Collar
+        ctx.fillStyle = '#555555';
+        ctx.fillRect(x - 2.6 * s, y - 15.6 * s, 5.2 * s, 1 * s);
+        // Crooked breast pocket and one escaped cleaning rag reinforce the
+        // rumpled, trying-his-best silhouette.
+        ctx.fillStyle = '#c6bf9f';
+        ctx.fillRect(x - 2.8 * s, y - 12.6 * s, 2.4 * s, 2.2 * s);
+        ctx.fillStyle = '#8c8568';
+        ctx.fillRect(x - 2.4 * s, y - 12.2 * s, 1.6 * s, 0.5 * s);
+        // Belt
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(x - 4 * s, y - 4 * s, 8 * s, 1.8 * s);
+        ctx.fillStyle = '#B9BAC6';
+        ctx.fillRect(x - 1.2 * s, y - 3.8 * s, 2.4 * s, 1.6 * s);
+        // Janitorial utility pouches and cyan maintenance badge make the
+        // hero readable as crew support rather than a generic astronaut.
+        ctx.fillStyle = '#AA5500';
+        ctx.fillRect(x - 5.2 * s, y - 4.2 * s, 1.8 * s, 3 * s);
+        ctx.fillStyle = '#5555FF';
+        ctx.fillRect(x + 3.4 * s, y - 3.8 * s, 1.8 * s, 2.4 * s);
+        ctx.fillStyle = '#55FFFF';
+        ctx.fillRect(x + 1 * s, y - 13 * s, 2.2 * s, 1.8 * s);
+        ctx.fillStyle = '#007777';
+        ctx.fillRect(x + 1.8 * s, y - 12.6 * s, 0.9 * s, 0.9 * s);
+        // Arms. During his signature shrug they unfold in stepped cels,
+        // ending in mismatched palms-up work gloves.
+        if (shrugPhase > 0.35) {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(x - 5.8 * s, y - 14.6 * s, 1.8 * s, 5 * s);
+            ctx.fillRect(x - 9 * s, y - 10.6 * s, 3.4 * s, 1.8 * s);
+            ctx.fillRect(x + 4 * s, y - 14.2 * s, 1.8 * s, 5 * s);
+            ctx.fillRect(x + 5.6 * s, y - 10.2 * s, 3.4 * s, 1.8 * s);
+            ctx.fillStyle = '#66CCCC';
+            ctx.fillRect(x - 11 * s, y - 11.2 * s, 2.2 * s, 2 * s);
+            ctx.fillStyle = '#55aaaa';
+            ctx.fillRect(x + 8.8 * s, y - 10.8 * s, 2.2 * s, 2 * s);
+            ctx.fillStyle = '#227777';
+            ctx.fillRect(x - 11 * s, y - 9.6 * s, 2.2 * s, 0.6 * s);
+            ctx.fillRect(x + 8.8 * s, y - 9.2 * s, 2.2 * s, 0.6 * s);
+        } else {
+            // Upper arm and forearm as separate blocks with a shaded outer
+            // edge, so the limb reads as rounded rather than as a slab.
+            ctx.fillStyle = '#3A3628';
+            ctx.fillRect(x - 6 * s, y - 14.8 * s, 2.2 * s, 10.8 * s);
+            ctx.fillRect(x + 3.8 * s, y - 14.4 * s, 2.2 * s, 10.4 * s);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(x - 5.8 * s, y - 14.6 * s, 1.8 * s, 10.4 * s);
+            ctx.fillRect(x + 4 * s, y - 14.2 * s, 1.8 * s, 10 * s);
+            ctx.fillStyle = '#CCCCCC';
+            ctx.fillRect(x - 5.8 * s, y - 14.6 * s, 0.7 * s, 10.4 * s);
+            ctx.fillRect(x + 5.1 * s, y - 14.2 * s, 0.7 * s, 10 * s);
+            ctx.fillStyle = '#555555';
+            ctx.fillRect(x - 5.8 * s, y - 5 * s, 1.8 * s, 0.9 * s);
+            ctx.fillRect(x + 4 * s, y - 4.6 * s, 1.8 * s, 0.9 * s);
+            ctx.fillStyle = '#66CCCC';
+            ctx.fillRect(x - 5.9 * s + as - armOut, y - 4.1 * s, 2 * s, 2.2 * s);
+            // His right glove has faded after too many industrial solvents.
+            ctx.fillStyle = '#55aaaa';
+            ctx.fillRect(x + 3.9 * s - as + armOut, y - 3.7 * s, 2 * s, 2.2 * s);
+            ctx.fillStyle = '#227777';
+            ctx.fillRect(x - 5.9 * s + as - armOut, y - 2.4 * s, 2 * s, 0.9 * s);
+            ctx.fillRect(x + 3.9 * s - as + armOut, y - 2 * s, 2 * s, 0.9 * s);
+        }
+        // Neck
+        ctx.fillStyle = '#EEBB77';
+        ctx.fillRect(x - 1.1 * s, y - 17 * s, 2.2 * s, 1.6 * s);
+        // Head: a small VGA-scale skull with stepped cheeks and a soft jaw.
+        ctx.fillStyle = '#FFCC88';
+        ctx.fillRect(x - 2 * s, y - 22.6 * s, 4 * s, 0.8 * s);
+        ctx.fillRect(x - 2.5 * s, y - 21.8 * s, 5 * s, 3.6 * s);
+        ctx.fillRect(x - 2 * s, y - 18.2 * s, 4 * s, 1.2 * s);
+        ctx.fillStyle = '#EEBB77';
+        ctx.fillRect(x - 2 * s, y - 17.2 * s, 4 * s, 0.8 * s);
+        ctx.fillRect(x - 2.5 * s, y - 20.2 * s, 0.8 * s, 1.8 * s);
+        ctx.fillStyle = '#FFE0B0';
+        ctx.fillRect(x - 1.6 * s, y - 21.6 * s, 1.6 * s, 1 * s);
+        // Tousled hair and a stubborn cowlick form a memorable silhouette.
+        ctx.fillStyle = '#BB7733';
+        ctx.fillRect(x - 1.8 * s, y - 24.4 * s, 1.6 * s, 1.4 * s);
+        ctx.fillRect(x - 2.5 * s, y - 23.4 * s, 5 * s, 1.9 * s);
+        ctx.fillRect(x + 2 * s, y - 22.4 * s, 0.8 * s, 2.4 * s);
+        ctx.fillStyle = '#774411';
+        ctx.fillRect(x - 2.5 * s, y - 22.4 * s, 0.8 * s, 2.4 * s);
+        ctx.fillStyle = '#DD9944';
+        ctx.fillRect(x - 0.8 * s, y - 24.2 * s, 2 * s, 0.8 * s);
+        ctx.fillRect(x - 1.6 * s, y - 23.2 * s, 2.6 * s, 0.6 * s);
+        // Expressive brows tilt upward at the centre: worried but game.
+        ctx.fillStyle = '#774411';
+        ctx.fillRect(x - 1.9 * s, y - 21.1 * s, 1.4 * s, 0.5 * s);
+        ctx.fillRect(x + 0.5 * s, y - 21.1 * s, 1.4 * s, 0.5 * s);
+        // Eyes: small VGA eyes — a lash line, a sliver of white, a pupil.
+        ctx.fillStyle = '#F2F0E2';
+        ctx.fillRect(x - 1.9 * s, y - 20.3 * s, 1.4 * s, 1.2 * s);
+        ctx.fillRect(x + 0.5 * s, y - 20.3 * s, 1.4 * s, 1.2 * s);
+        ctx.fillStyle = '#4477CC';
+        ctx.fillRect(x - 1.5 * s + idleHeadOfs * 0.5, y - 20.2 * s, 0.8 * s, 1.1 * s);
+        ctx.fillRect(x + 0.7 * s + idleHeadOfs * 0.5, y - 20.2 * s, 0.8 * s, 1.1 * s);
+        ctx.fillStyle = '#2A2018';
+        ctx.fillRect(x - 1.9 * s, y - 20.4 * s, 1.4 * s, 0.3 * s);
+        ctx.fillRect(x + 0.5 * s, y - 20.4 * s, 1.4 * s, 0.3 * s);
+        // Nose, freckles and crooked half-smile add personality at rest.
+        ctx.fillStyle = '#EEBB77';
+        ctx.fillRect(x - 0.4 * s, y - 19.6 * s, 0.8 * s, 1.4 * s);
+        ctx.fillStyle = '#BB7733';
+        ctx.fillRect(x - 1.8 * s, y - 18.8 * s, 0.5 * s, 0.5 * s);
+        ctx.fillRect(x + 1.3 * s, y - 18.8 * s, 0.5 * s, 0.5 * s);
+        ctx.fillStyle = '#994422';
+        ctx.fillRect(x - 1.1 * s, y - 18 * s, 2.2 * s, 0.5 * s);
+        ctx.fillRect(x + 0.8 * s, y - 18.4 * s, 0.8 * s, 0.5 * s);
+        if (shrugPhase > 0.35) {
+            // The smile collapses into a tiny "who, me?" mouth.
+            ctx.fillStyle = '#FFCC88';
+            ctx.fillRect(x - 1.5 * s, y - 18.4 * s, 3 * s, 1.2 * s);
+            ctx.fillStyle = '#994422';
+            ctx.fillRect(x - 0.4 * s, y - 18 * s, 0.8 * s, 0.8 * s);
+        }
+    }
+
     drawPlayer(ctx0) {
         const ctx = this._suitCtx(this._pixelCtx(ctx0));
         const x = Math.round(this.playerX);
@@ -3560,7 +3815,8 @@ class GameEngine {
             rightLeg = Math.min(0, -walkCycle);
         }
         // Boot offset — foot tap only moves the boot, not the leg
-        let leftBoot = leftLeg, rightBoot = rightLeg;
+        const leftBoot = leftLeg;
+        let rightBoot = rightLeg;
         if (idleFootTap > 0) rightBoot = -idleFootTap;
         // Hand swing: the shoulders stay put and only the hands travel, so the
         // arms read as swinging rather than sliding up and down the torso.
@@ -3568,247 +3824,97 @@ class GameEngine {
 
         if (facing === 'toward') {
             // ---- FRONT VIEW (facing camera) ----
-            // Legs
-            ctx.fillStyle = '#BBBBBB';
-            ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + leftLeg);
-            ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s + rightLeg);
-            ctx.fillStyle = '#DDDDDD';
-            ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + leftLeg);
-            ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s + rightLeg);
-            // A badly matched knee patch: competent sewing was apparently not
-            // part of janitorial orientation.
-            ctx.fillStyle = '#77775f';
-            ctx.fillRect(x - 4 * s, y + 4 * s, 3 * s, 3 * s);
-            ctx.fillStyle = '#c6bf9f';
-            ctx.fillRect(x - 3.5 * s, y + 4.5 * s, 2 * s, 0.5 * s);
-            // Boots
-            ctx.fillStyle = '#222222';
-            // Left boot (full, uses walk offset)
-            ctx.fillRect(x - 5 * s, y + 9 * s + leftBoot, 4 * s, 3 * s);
-            ctx.fillStyle = '#111111';
-            ctx.fillRect(x - 5 * s, y + 11 * s + leftBoot, 5 * s, 1 * s);
-            ctx.fillStyle = '#555555';
-            ctx.fillRect(x - 4 * s, y + 9 * s + leftBoot, 2 * s, 1 * s);
-            // Right boot — heel fixed, toe rotates up for foot tap
-            {
-                const heelX = x, heelY = y + 9 * s + rightLeg; // heel anchored to leg
-                const toeRise = idleFootTap > 0 ? idleFootTap : (rightBoot - rightLeg); // upward offset of toe tip
-                ctx.fillStyle = '#222222';
-                // Heel half (fixed)
-                ctx.fillRect(heelX, heelY, 2 * s, 3 * s);
-                // Toe half — shear so heel edge stays put, toe edge rises
-                ctx.save();
-                ctx.transform(1, 0, -toeRise / (2 * s), 1, heelX + 2 * s, heelY);
-                ctx.fillRect(0, 0, 2 * s, 3 * s);
-                ctx.restore();
-                // Sole line across full boot bottom at heel height
-                ctx.fillStyle = '#111111';
-                ctx.fillRect(heelX - 1 * s, heelY + 2 * s, 2 * s, 1 * s); // heel sole
-                ctx.save();
-                ctx.transform(1, 0, -toeRise / (2 * s), 1, heelX + 2 * s, heelY);
-                ctx.fillRect(0, 2 * s, 2 * s, 1 * s);
-                ctx.restore();
-            }
-            // Body
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
-            // Dark edge columns read as a Sierra sprite outline and keep the ego
-            // legible against both pale sand and dark hull plating.
-            ctx.fillStyle = '#3A3628';
-            ctx.fillRect(x - 5 * s, y - 10 * s, 1 * s, 11 * s);
-            ctx.fillRect(x + 4 * s, y - 10 * s, 1 * s, 11 * s);
-            ctx.fillStyle = '#DDDDDD';
-            ctx.fillRect(x - 1 * s, y - 6 * s, 2 * s, 4 * s);
-            // Asymmetric shoulders: a lifetime of dragging a mop bucket drops the
-            // right side, which gives the silhouette a readable slouch.
-            ctx.fillStyle = '#EEEEEE';
-            ctx.fillRect(x - 5 * s, y - 11 * s, 4 * s, 1 * s);
-            ctx.fillRect(x - 6 * s, y - 9 * s, 1 * s, 3 * s);
-            ctx.fillRect(x + 5 * s, y - 8 * s, 1 * s, 2 * s);
-            ctx.fillStyle = '#3A3628';
-            ctx.fillRect(x - 5 * s, y - 12 * s, 4 * s, 1 * s);
-            ctx.fillRect(x + 1 * s, y - 10 * s, 4 * s, 1 * s);
-            // Gold collar
-            ctx.fillStyle = '#555555';
-            ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
-            // Crooked breast pocket and one escaped cleaning rag reinforce the
-            // rumpled, trying-his-best silhouette.
-            ctx.fillStyle = '#c6bf9f';
-            ctx.fillRect(x - 3.5 * s, y - 7.5 * s, 3 * s, 2.5 * s);
-            ctx.fillStyle = '#8c8568';
-            ctx.fillRect(x - 3 * s, y - 7 * s, 2 * s, 0.5 * s);
-            // Belt
-            ctx.fillStyle = '#333333';
-            ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
-            ctx.fillStyle = '#B9BAC6';
-            ctx.fillRect(x - 1.5 * s, y - 0.5 * s, 3 * s, 2.5 * s);
-            // Janitorial utility pouches and cyan maintenance badge make the
-            // hero readable as crew support rather than a generic astronaut.
-            ctx.fillStyle = '#AA5500';
-            ctx.fillRect(x - 6 * s, y - 0.5 * s, 2 * s, 3 * s);
-            ctx.fillStyle = '#5555FF';
-            ctx.fillRect(x + 4 * s, y, 2 * s, 2.5 * s);
-            ctx.fillStyle = '#55FFFF';
-            ctx.fillRect(x + 1.5 * s, y - 8 * s, 2.5 * s, 2 * s);
-            ctx.fillStyle = '#007777';
-            ctx.fillRect(x + 2.5 * s, y - 7.5 * s, 1 * s, 1 * s);
-            // Arms. During his signature shrug they unfold in stepped cels,
-            // ending in mismatched palms-up work gloves.
-            if (shrugPhase > 0.35) {
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(x - 7 * s, y - 8 * s, 2 * s, 4 * s);
-                ctx.fillRect(x - 10 * s, y - 5 * s, 4 * s, 2 * s);
-                ctx.fillRect(x + 5 * s, y - 8 * s, 2 * s, 4 * s);
-                ctx.fillRect(x + 6 * s, y - 5 * s, 4 * s, 2 * s);
-                ctx.fillStyle = '#66CCCC';
-                ctx.fillRect(x - 12 * s, y - 6 * s, 2.5 * s, 2 * s);
-                ctx.fillStyle = '#55aaaa';
-                ctx.fillRect(x + 9.5 * s, y - 6 * s, 2.5 * s, 2 * s);
-                ctx.fillStyle = '#227777';
-                ctx.fillRect(x - 12 * s, y - 4.5 * s, 2.5 * s, 0.5 * s);
-                ctx.fillRect(x + 9.5 * s, y - 4.5 * s, 2.5 * s, 0.5 * s);
-            } else {
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(x - 7 * s, y - 8 * s, 2 * s, 7 * s);
-                ctx.fillRect(x + 5 * s, y - 8 * s, 2 * s, 7 * s);
-                ctx.fillStyle = '#555555';
-                ctx.fillRect(x - 7 * s, y - 2 * s, 2 * s, 1 * s);
-                ctx.fillRect(x + 5 * s, y - 2 * s, 2 * s, 1 * s);
-                ctx.fillStyle = '#66CCCC';
-                ctx.fillRect(x - 7 * s + as, y - 1 * s, 2 * s, 2.5 * s);
-                // His right glove has faded after too many industrial solvents.
-                ctx.fillStyle = '#55aaaa';
-                ctx.fillRect(x + 5 * s - as, y - 1 * s, 2 * s, 2.5 * s);
-                ctx.fillStyle = '#227777';
-                ctx.fillRect(x - 7 * s + as, y + 0.5 * s, 2 * s, 1 * s);
-                ctx.fillRect(x + 5 * s - as, y + 0.5 * s, 2 * s, 1 * s);
-            }
-            // Head: stepped cheeks and jaw make a friendly face rather than a box.
-            ctx.fillStyle = '#FFCC88';
-            ctx.fillRect(x - 3 * s, y - 18 * s, 6 * s, 1 * s);
-            ctx.fillRect(x - 4 * s, y - 17 * s, 8 * s, 5 * s);
-            ctx.fillRect(x - 3 * s, y - 12 * s, 6 * s, 2 * s);
-            ctx.fillStyle = '#EEBB77';
-            ctx.fillRect(x - 3 * s, y - 11 * s, 6 * s, 1 * s);
-            ctx.fillRect(x - 4 * s, y - 14 * s, 1 * s, 2 * s);
-            // Tousled hair and a stubborn cowlick form a memorable silhouette.
-            ctx.fillStyle = '#BB7733';
-            ctx.fillRect(x - 3 * s, y - 20 * s, 2 * s, 2 * s);
-            ctx.fillRect(x - 4 * s, y - 19 * s, 7 * s, 3 * s);
-            ctx.fillRect(x + 3 * s, y - 18 * s, 1 * s, 3 * s);
-            ctx.fillStyle = '#774411';
-            ctx.fillRect(x - 4 * s, y - 18 * s, 1 * s, 3 * s);
-            ctx.fillStyle = '#DD9944';
-            ctx.fillRect(x - 1 * s, y - 20 * s, 3 * s, 1 * s);
-            // Expressive brows tilt upward at the centre: worried but game.
-            ctx.fillStyle = '#774411';
-            ctx.fillRect(x - 3 * s, y - 16 * s, 2 * s, 0.5 * s);
-            ctx.fillRect(x + 1 * s, y - 16 * s, 2 * s, 0.5 * s);
-            // Eyes (both visible!)
-            // Left eye
-            ctx.fillStyle = '#F2F0E2';
-            ctx.fillRect(x - 3 * s, y - 15 * s, 2.5 * s, 2 * s);
-            ctx.fillStyle = '#4477CC';
-            ctx.fillRect(x - 2.5 * s + idleHeadOfs, y - 15 * s, 1.5 * s, 2 * s);
-            // Right eye
-            ctx.fillStyle = '#F2F0E2';
-            ctx.fillRect(x + 0.5 * s, y - 15 * s, 2.5 * s, 2 * s);
-            ctx.fillStyle = '#4477CC';
-            ctx.fillRect(x + 1 * s + idleHeadOfs, y - 15 * s, 1.5 * s, 2 * s);
-            // Nose, freckles and crooked half-smile add personality at rest.
-            ctx.fillStyle = '#EEBB77';
-            ctx.fillRect(x - 0.5 * s, y - 14 * s, 1 * s, 2 * s);
-            ctx.fillStyle = '#BB7733';
-            ctx.fillRect(x - 2.5 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
-            ctx.fillRect(x + 2 * s, y - 12.5 * s, 0.5 * s, 0.5 * s);
-            ctx.fillStyle = '#994422';
-            ctx.fillRect(x - 1.5 * s, y - 11.5 * s, 3 * s, 0.5 * s);
-            ctx.fillRect(x + 1 * s, y - 12 * s, 1 * s, 0.5 * s);
-            if (shrugPhase > 0.35) {
-                // The smile collapses into a tiny "who, me?" mouth.
-                ctx.fillStyle = '#FFCC88';
-                ctx.fillRect(x - 2 * s, y - 12 * s, 4 * s, 1.5 * s);
-                ctx.fillStyle = '#994422';
-                ctx.fillRect(x - 0.5 * s, y - 11.5 * s, 1 * s, 1 * s);
-            }
+            this.drawEgoFront(ctx, x, y, s, {
+                leftLeg, rightLeg, leftBoot, rightBoot,
+                idleFootTap, idleHeadOfs, shrugPhase, as
+            });
 
         } else if (facing === 'away') {
             // ---- BACK VIEW (facing away from camera) ----
-            // Legs
-            ctx.fillStyle = '#BBBBBB';
-            ctx.fillRect(x - 4 * s, y + 1 * s, 3 * s, 8 * s + leftLeg);
-            ctx.fillRect(x + 1 * s, y + 1 * s, 3 * s, 8 * s + rightLeg);
+            // Same VGA proportions as the front view, seen from behind.
             ctx.fillStyle = '#AAAAAA';
-            ctx.fillRect(x - 3 * s, y + 2 * s, 1 * s, 6 * s + leftLeg);
-            ctx.fillRect(x + 2 * s, y + 2 * s, 1 * s, 6 * s + rightLeg);
+            ctx.fillRect(x - 3.6 * s, y - 3 * s, 3.2 * s, 12 * s + leftLeg);
+            ctx.fillRect(x + 0.4 * s, y - 3 * s, 3.2 * s, 12 * s + rightLeg);
+            ctx.fillStyle = '#BBBBBB';
+            ctx.fillRect(x - 3.2 * s, y - 2 * s, 1 * s, 10 * s + leftLeg);
+            ctx.fillRect(x + 0.8 * s, y - 2 * s, 1 * s, 10 * s + rightLeg);
+            ctx.fillStyle = '#3A3628';
+            ctx.fillRect(x - 0.6 * s, y - 3 * s, 1 * s, 12 * s);
             // Boots
             ctx.fillStyle = '#222222';
-            ctx.fillRect(x - 5 * s, y + 9 * s + leftLeg, 4 * s, 3 * s);
-            ctx.fillRect(x, y + 9 * s + rightLeg, 4 * s, 3 * s);
+            ctx.fillRect(x - 4.2 * s, y + 9 * s + leftLeg, 4 * s, 3 * s);
+            ctx.fillRect(x + 0.2 * s, y + 9 * s + rightLeg, 4 * s, 3 * s);
             ctx.fillStyle = '#111111';
-            ctx.fillRect(x - 5 * s, y + 11 * s + leftLeg, 5 * s, 1 * s);
-            ctx.fillRect(x, y + 11 * s + rightLeg, 5 * s, 1 * s);
+            ctx.fillRect(x - 4.4 * s, y + 11 * s + leftLeg, 4.4 * s, 1 * s);
+            ctx.fillRect(x + 0.2 * s, y + 11 * s + rightLeg, 4.4 * s, 1 * s);
             ctx.fillStyle = '#555555';
-            ctx.fillRect(x + 1 * s, y + 9 * s + rightLeg, 2 * s, 1 * s);
+            ctx.fillRect(x + 0.8 * s, y + 9 * s + rightLeg, 2 * s, 0.8 * s);
             // Body (back of uniform, darker)
             ctx.fillStyle = '#EEEEEE';
-            ctx.fillRect(x - 5 * s, y - 10 * s, 10 * s, 11 * s);
+            ctx.fillRect(x - 4 * s, y - 15 * s, 8 * s, 12 * s);
+            ctx.fillStyle = '#CCCCCC';
+            ctx.fillRect(x + 2 * s, y - 15 * s, 2 * s, 12 * s);
             ctx.fillStyle = '#3A3628';
-            ctx.fillRect(x - 5 * s, y - 10 * s, 1 * s, 11 * s);
-            ctx.fillRect(x + 4 * s, y - 10 * s, 1 * s, 11 * s);
-            ctx.fillRect(x + 1 * s, y - 10 * s, 4 * s, 1 * s);
+            ctx.fillRect(x - 4 * s, y - 15 * s, 0.8 * s, 12 * s);
+            ctx.fillRect(x + 3.2 * s, y - 15 * s, 0.8 * s, 12 * s);
             ctx.fillStyle = '#EEEEEE';
-            ctx.fillRect(x - 5 * s, y - 11 * s, 4 * s, 1 * s);
+            ctx.fillRect(x - 3.4 * s, y - 15.8 * s, 3 * s, 1 * s);
+            ctx.fillRect(x + 0.4 * s, y - 15.4 * s, 3 * s, 1 * s);
             ctx.fillStyle = '#3A3628';
-            ctx.fillRect(x - 5 * s, y - 12 * s, 4 * s, 1 * s);
+            ctx.fillRect(x - 3.4 * s, y - 16.4 * s, 3 * s, 0.7 * s);
+            ctx.fillRect(x + 0.4 * s, y - 16 * s, 3 * s, 0.7 * s);
             // Back seam
             ctx.fillStyle = '#BBBBBB';
-            ctx.fillRect(x - 0.5 * s, y - 9 * s, 1 * s, 10 * s);
-            // Gold collar (back)
+            ctx.fillRect(x - 0.4 * s, y - 14 * s, 0.8 * s, 10 * s);
+            // Collar (back)
             ctx.fillStyle = '#555555';
-            ctx.fillRect(x - 4 * s, y - 10 * s, 8 * s, 1 * s);
+            ctx.fillRect(x - 2.6 * s, y - 15.6 * s, 5.2 * s, 1 * s);
             // Belt
             ctx.fillStyle = '#333333';
-            ctx.fillRect(x - 5 * s, y, 10 * s, 2 * s);
+            ctx.fillRect(x - 4 * s, y - 4 * s, 8 * s, 1.8 * s);
             ctx.fillStyle = '#AA5500';
-            ctx.fillRect(x - 6 * s, y - 0.5 * s, 2 * s, 3 * s);
+            ctx.fillRect(x - 5.2 * s, y - 4.2 * s, 1.8 * s, 3 * s);
             ctx.fillStyle = '#5555FF';
-            ctx.fillRect(x + 4 * s, y, 2 * s, 2.5 * s);
+            ctx.fillRect(x + 3.4 * s, y - 3.8 * s, 1.8 * s, 2.4 * s);
             // Maintenance stripe remains recognizable when walking away.
             ctx.fillStyle = '#007777';
-            ctx.fillRect(x - 3 * s, y - 8 * s, 6 * s, 2 * s);
+            ctx.fillRect(x - 2.6 * s, y - 12.6 * s, 5.2 * s, 1.8 * s);
             ctx.fillStyle = '#55FFFF';
-            ctx.fillRect(x - 2 * s, y - 8 * s, 4 * s, 1 * s);
+            ctx.fillRect(x - 1.8 * s, y - 12.6 * s, 3.6 * s, 0.9 * s);
             // Arms
             ctx.fillStyle = '#EEEEEE';
-            ctx.fillRect(x - 7 * s, y - 8 * s, 2 * s, 7 * s);
-            ctx.fillRect(x + 5 * s, y - 8 * s, 2 * s, 7 * s);
+            ctx.fillRect(x - 5.8 * s, y - 14.6 * s, 1.8 * s, 10.4 * s);
+            ctx.fillRect(x + 4 * s, y - 14.2 * s, 1.8 * s, 10 * s);
+            ctx.fillStyle = '#CCCCCC';
+            ctx.fillRect(x - 5.8 * s, y - 14.6 * s, 0.7 * s, 10.4 * s);
+            ctx.fillRect(x + 5.1 * s, y - 14.2 * s, 0.7 * s, 10 * s);
             ctx.fillStyle = '#555555';
-            ctx.fillRect(x - 7 * s, y - 2 * s, 2 * s, 1 * s);
-            ctx.fillRect(x + 5 * s, y - 2 * s, 2 * s, 1 * s);
+            ctx.fillRect(x - 5.8 * s, y - 5 * s, 1.8 * s, 0.9 * s);
+            ctx.fillRect(x + 4 * s, y - 4.6 * s, 1.8 * s, 0.9 * s);
             // Hands
             ctx.fillStyle = '#66CCCC';
-            ctx.fillRect(x - 7 * s + as, y - 1 * s, 2 * s, 2.5 * s);
-            ctx.fillRect(x + 5 * s - as, y - 1 * s, 2 * s, 2.5 * s);
+            ctx.fillRect(x - 5.9 * s + as, y - 4.1 * s, 2 * s, 2.2 * s);
+            ctx.fillStyle = '#55aaaa';
+            ctx.fillRect(x + 3.9 * s - as, y - 3.7 * s, 2 * s, 2.2 * s);
+            // Neck
+            ctx.fillStyle = '#EEBB77';
+            ctx.fillRect(x - 1.1 * s, y - 17 * s, 2.2 * s, 1.6 * s);
             // Head (back of head, all hair)
             ctx.fillStyle = '#BB7733';
-            ctx.fillRect(x - 3 * s, y - 20 * s, 2 * s, 2 * s);
-            ctx.fillRect(x - 4 * s, y - 19 * s, 8 * s, 9 * s);
+            ctx.fillRect(x - 1.8 * s, y - 24.4 * s, 1.6 * s, 1.4 * s);
+            ctx.fillRect(x - 2.5 * s, y - 23.4 * s, 5 * s, 6.6 * s);
             // Hair texture lines
             ctx.fillStyle = '#AA6622';
-            ctx.fillRect(x - 3 * s, y - 18 * s, 1 * s, 7 * s);
-            ctx.fillRect(x, y - 17 * s, 1 * s, 6 * s);
-            ctx.fillRect(x + 2 * s, y - 18 * s, 1 * s, 7 * s);
+            ctx.fillRect(x - 1.8 * s, y - 22.6 * s, 0.8 * s, 5.4 * s);
+            ctx.fillRect(x + 0.2 * s, y - 22.2 * s, 0.8 * s, 5 * s);
             // Hair highlight
-            ctx.fillStyle = '#CC8844';
-            ctx.fillRect(x - 1 * s, y - 19 * s, 3 * s, 1 * s);
+            ctx.fillStyle = '#DD9944';
+            ctx.fillRect(x - 0.8 * s, y - 24.2 * s, 2 * s, 0.8 * s);
+            ctx.fillRect(x - 1.6 * s, y - 23.2 * s, 2.6 * s, 0.6 * s);
             // Ears peeking out
             ctx.fillStyle = '#EEBB77';
-            ctx.fillRect(x - 5 * s, y - 15 * s, 1 * s, 2 * s);
-            ctx.fillRect(x + 4 * s, y - 15 * s, 1 * s, 2 * s);
-            // Neck
-            ctx.fillStyle = '#FFCC88';
-            ctx.fillRect(x - 2 * s, y - 10.5 * s, 4 * s, 1 * s);
+            ctx.fillRect(x - 3.1 * s, y - 20.4 * s, 0.8 * s, 1.4 * s);
+            ctx.fillRect(x + 2.3 * s, y - 20.4 * s, 0.8 * s, 1.4 * s);
 
         } else {
             // ---- SIDE VIEW (left or right) ----
@@ -3824,116 +3930,121 @@ class GameEngine {
 
             // Far leg (back) — the planted leg: its foot stays on the ground
             // line while the body bobs, so the leg lengthens instead.
-            ctx.fillStyle = '#AAAAAA';
-            ctx.fillRect(x - 0.5 * d, py + 1 * s, 2 * d, (y + 9 * s) - (py + 1 * s));
+            ctx.fillStyle = '#999999';
+            ctx.fillRect(x - 0.6 * d, py - 3 * s, 2.2 * d, (y + 9 * s) - (py - 3 * s));
             ctx.fillStyle = '#1A1A1A';
-            ctx.fillRect(x - 1.5 * d - stridePix * 0.4, y + 9 * s, 4 * d, 3 * s);
+            ctx.fillRect(x - 1.4 * d - stridePix * 0.4, y + 9 * s, 3.8 * d, 3 * s);
             ctx.fillStyle = '#0A0A0A';
-            ctx.fillRect(x - 1.5 * d - stridePix * 0.4, y + 11 * s, 4 * d, 1 * s);
+            ctx.fillRect(x - 1.4 * d - stridePix * 0.4, y + 11 * s, 3.8 * d, 1 * s);
 
             // Far arm (back) — peeks behind torso, swings opposite the near leg
-            ctx.fillStyle = '#EEEEEE';
-            ctx.fillRect(x - 0.5 * d, py - 8 * s, 2 * d, 6 * s);
-            ctx.fillStyle = '#EEBB77';
-            ctx.fillRect(x - 0.5 * d - armPix * 0.6, py - 2 * s, 2 * d, 2 * s);
+            ctx.fillStyle = '#CCCCCC';
+            ctx.fillRect(x - 0.6 * d, py - 14.4 * s, 2 * d, 10 * s);
+            ctx.fillStyle = '#55aaaa';
+            ctx.fillRect(x - 0.6 * d - armPix * 0.6, py - 4.4 * s, 2 * d, 2.2 * s);
 
             // Body (white suit) — same proportions as the front view but
             // narrower because we see the torso edge-on.
             ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x - 3 * d, py - 10 * s, 7 * d, 11 * s);
+            ctx.fillRect(x - 2.6 * d, py - 15 * s, 6 * d, 12 * s);
             // Shading on the back side of the suit
             ctx.fillStyle = '#3A3628';
-            ctx.fillRect(x - 3 * d, py - 10 * s, 1 * d, 11 * s);
+            ctx.fillRect(x - 2.6 * d, py - 15 * s, 0.9 * d, 12 * s);
             // Front-edge highlight
-            ctx.fillStyle = '#DDDDDD';
-            ctx.fillRect(x + 3 * d, py - 9 * s, 1 * d, 9 * s);
+            ctx.fillStyle = '#EEEEEE';
+            ctx.fillRect(x + 2.4 * d, py - 14 * s, 1 * d, 10 * s);
             // Slumped rear shoulder — matches the front view's asymmetry.
             ctx.fillStyle = '#EEEEEE';
-            ctx.fillRect(x - 3 * d, py - 11 * s, 3 * d, 1 * s);
+            ctx.fillRect(x - 2.6 * d, py - 15.8 * s, 3 * d, 1 * s);
             ctx.fillStyle = '#3A3628';
-            ctx.fillRect(x - 3 * d, py - 12 * s, 3 * d, 1 * s);
+            ctx.fillRect(x - 2.6 * d, py - 16.4 * s, 3 * d, 0.7 * s);
             // Collar
             ctx.fillStyle = '#555555';
-            ctx.fillRect(x - 3 * d, py - 10 * s, 7 * d, 1 * s);
+            ctx.fillRect(x - 2.6 * d, py - 15.6 * s, 6 * d, 1 * s);
             // Belt
             ctx.fillStyle = '#333333';
-            ctx.fillRect(x - 3 * d, py, 7 * d, 2 * s);
+            ctx.fillRect(x - 2.6 * d, py - 4 * s, 6 * d, 1.8 * s);
             // Belt buckle (front of belt only)
             ctx.fillStyle = '#B9BAC6';
-            ctx.fillRect(x + 1.5 * d, py - 0.5 * s, 2 * d, 2.5 * s);
+            ctx.fillRect(x + 1.2 * d, py - 3.8 * s, 1.8 * d, 1.6 * s);
             // Profile badge and tool pouch preserve the janitor silhouette.
             ctx.fillStyle = '#55FFFF';
-            ctx.fillRect(x + 1.5 * d, py - 8 * s, 2 * d, 2 * s);
+            ctx.fillRect(x + 1 * d, py - 13 * s, 2 * d, 1.8 * s);
             ctx.fillStyle = '#007777';
-            ctx.fillRect(x + 2 * d, py - 7.5 * s, 1 * d, 1 * s);
+            ctx.fillRect(x + 1.5 * d, py - 12.6 * s, 0.9 * d, 0.9 * s);
             ctx.fillStyle = '#AA5500';
-            ctx.fillRect(x - 3.5 * d, py - 0.5 * s, 2 * d, 3 * s);
+            ctx.fillRect(x - 3.2 * d, py - 4.2 * s, 1.8 * d, 3 * s);
             ctx.fillStyle = '#5555FF';
-            ctx.fillRect(x - 4 * d, py + 1.5 * s, 1.5 * d, 2.5 * s);
+            ctx.fillRect(x - 3.6 * d, py - 1.4 * s, 1.5 * d, 2.4 * s);
 
             // Near leg (front) — strides forward/back with the cycle. Anchored to
             // the ground reference so the foot plants whenever it is not lifted.
-            ctx.fillStyle = '#BBBBBB';
-            ctx.fillRect(x + 1.5 * d, py + 1 * s, 2 * d, (y + 9 * s - liftPix) - (py + 1 * s));
+            ctx.fillStyle = '#AAAAAA';
+            ctx.fillRect(x + 1.2 * d, py - 3 * s, 2.2 * d, (y + 9 * s - liftPix) - (py - 3 * s));
+            ctx.fillStyle = '#CCCCCC';
+            ctx.fillRect(x + 1.6 * d, py - 2 * s, 0.9 * d, (y + 8 * s - liftPix) - (py - 2 * s));
             // Near boot
             ctx.fillStyle = '#222222';
-            ctx.fillRect(x + 0.5 * d + stridePix, y + 9 * s - liftPix, 4 * d, 3 * s);
+            ctx.fillRect(x + 0.4 * d + stridePix, y + 9 * s - liftPix, 3.8 * d, 3 * s);
             ctx.fillStyle = '#111111';
-            ctx.fillRect(x + 0.5 * d + stridePix, y + 11 * s - liftPix, 4 * d, 1 * s);
+            ctx.fillRect(x + 0.4 * d + stridePix, y + 11 * s - liftPix, 3.8 * d, 1 * s);
+            ctx.fillStyle = '#555555';
+            ctx.fillRect(x + 1 * d + stridePix, y + 9 * s - liftPix, 1.8 * d, 0.8 * s);
 
             // Near arm — swings opposite the near leg
             ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(x + 2.5 * d + armPix * 0.4, py - 8 * s, 2 * d, 6 * s);
+            ctx.fillRect(x + 2 * d + armPix * 0.4, py - 14.4 * s, 2 * d, 10 * s);
             // Cuff
             ctx.fillStyle = '#555555';
-            ctx.fillRect(x + 2.5 * d + armPix * 0.4, py - 2 * s, 2 * d, 1 * s);
+            ctx.fillRect(x + 2 * d + armPix * 0.4, py - 5 * s, 2 * d, 0.9 * s);
             // Hand
             ctx.fillStyle = '#66CCCC';
-            ctx.fillRect(x + 2.5 * d + armPix, py - 1 * s, 2 * d, 2.5 * s);
+            ctx.fillRect(x + 2 * d + armPix, py - 4.1 * s, 2 * d, 2.2 * s);
 
             // Neck
             ctx.fillStyle = '#EEBB77';
-            ctx.fillRect(x - 1 * d, py - 11 * s, 3 * d, 1 * s);
-            // Head — 7s in profile plus a 1s neck, so the silhouette reaches the
-            // same height as the front view's 8s head
+            ctx.fillRect(x - 0.8 * d, py - 17 * s, 2.6 * d, 1.6 * s);
+            // Head — small VGA skull in profile, matching the front view's height
             ctx.fillStyle = '#FFCC88';
-            ctx.fillRect(x - 2 * d, py - 18 * s, 6 * d, 1 * s);
-            ctx.fillRect(x - 3 * d, py - 17 * s, 7 * d, 5 * s);
-            ctx.fillRect(x - 2 * d, py - 12 * s, 6 * d, 1 * s);
+            ctx.fillRect(x - 1.6 * d, py - 22.6 * s, 4.4 * d, 0.8 * s);
+            ctx.fillRect(x - 2.2 * d, py - 21.8 * s, 5.4 * d, 3.6 * s);
+            ctx.fillRect(x - 1.6 * d, py - 18.2 * s, 4.4 * d, 1.2 * s);
             // Subtle nose bump on the forward side
             ctx.fillStyle = '#FFCC88';
-            ctx.fillRect(x + 4 * d, py - 15 * s, 1 * d, 2 * s);
+            ctx.fillRect(x + 3.2 * d, py - 20 * s, 0.9 * d, 1.6 * s);
+            ctx.fillStyle = '#EEBB77';
+            ctx.fillRect(x - 1.6 * d, py - 17.2 * s, 4.4 * d, 0.8 * s);
             // Hair cap (matches front view's hair shape, just in profile)
             ctx.fillStyle = '#BB7733';
-            ctx.fillRect(x - 2 * d, py - 20 * s, 2 * d, 2 * s);
-            ctx.fillRect(x - 3 * d, py - 19 * s, 7 * d, 4 * s);
+            ctx.fillRect(x - 1.4 * d, py - 24.4 * s, 1.6 * d, 1.4 * s);
+            ctx.fillRect(x - 2.2 * d, py - 23.4 * s, 5.4 * d, 1.9 * s);
             // Hair behind ear (longer at the back)
-            ctx.fillRect(x - 4 * d, py - 17 * s, 1 * d, 4 * s);
+            ctx.fillRect(x - 2.8 * d, py - 22.4 * s, 0.9 * d, 3.4 * s);
             // Hair highlight
-            ctx.fillStyle = '#CC8844';
-            ctx.fillRect(x - 1 * d, py - 19 * s, 3 * d, 1 * s);
+            ctx.fillStyle = '#DD9944';
+            ctx.fillRect(x - 0.8 * d, py - 24.2 * s, 2 * d, 0.8 * s);
             // Ear
             ctx.fillStyle = '#EEBB77';
-            ctx.fillRect(x - 1 * d, py - 14 * s, 1 * d, 2 * s);
+            ctx.fillRect(x - 0.6 * d, py - 20.2 * s, 0.9 * d, 1.4 * s);
             // Forward-facing eye
             ctx.fillStyle = '#F2F0E2';
-            ctx.fillRect(x + 1.5 * d, py - 15 * s, 2 * d, 2 * s);
+            ctx.fillRect(x + 1.1 * d, py - 20.3 * s, 1.7 * d, 1.5 * s);
             ctx.fillStyle = '#4477CC';
-            ctx.fillRect(x + 2 * d, py - 15 * s, 1.5 * d, 2 * s);
+            ctx.fillRect(x + 1.5 * d, py - 20.3 * s, 1.1 * d, 1.5 * s);
             // Profile brow and crooked grin retain his expression while walking.
             ctx.fillStyle = '#774411';
-            ctx.fillRect(x + 1.5 * d, py - 16 * s, 2 * d, 0.5 * s);
+            ctx.fillRect(x + 1.1 * d, py - 21 * s, 1.8 * d, 0.5 * s);
             ctx.fillStyle = '#994422';
-            ctx.fillRect(x + 1.5 * d, py - 12 * s, 2 * d, 0.5 * s);
+            ctx.fillRect(x + 1.1 * d, py - 18.2 * s, 1.6 * d, 0.5 * s);
 
             // A loose lace trails from the forward boot. It is tiny, harmless,
             // and exactly the sort of thing Wilkins never gets around to fixing.
             ctx.strokeStyle = '#111111';
             ctx.lineWidth = Math.max(1, Math.round(0.45 * s));
             ctx.beginPath();
-            ctx.moveTo(x + 3.5 * d + stridePix, y + 10 * s - liftPix);
-            ctx.lineTo(x + 5 * d + stridePix, y + 11.5 * s - liftPix);
-            ctx.lineTo(x + 6 * d + stridePix, y + 11 * s - liftPix);
+            ctx.moveTo(x + 3.2 * d + stridePix, y + 10 * s - liftPix);
+            ctx.lineTo(x + 4.6 * d + stridePix, y + 11.5 * s - liftPix);
+            ctx.lineTo(x + 5.6 * d + stridePix, y + 11 * s - liftPix);
             ctx.stroke();
             ctx.lineWidth = 1;
         }
@@ -4148,6 +4259,7 @@ class GameEngine {
     saveGame(slot) {
         if (this.titleScreen) { this.showMessage('Start the game before saving.'); return; }
         if (this.dead) { this.showMessage('You can\'t save when you\'re dead!'); return; }
+        if (this.won) { this.showMessage('Your adventure is already complete. Start a new game to save.'); return; }
         try {
             const data = this.getSaveData();
             const ok = this.safeStorageSet(this.getSaveKey(slot), JSON.stringify(data));
@@ -4201,8 +4313,9 @@ class GameEngine {
             this.playerTargetX = null;
             this.playerTargetY = null;
             this.pendingAction = null;
-            this.playerDir = data.playerDir || 1;
-            this.playerFacing = data.playerFacing || 'toward';
+            this.playerDir = data.playerDir === -1 ? -1 : 1;
+            this.playerFacing = ['toward', 'away', 'left', 'right'].includes(data.playerFacing)
+                ? data.playerFacing : 'toward';
             this.crtEffects = data.crtEffects !== false;
             this.screenShake = 0;
             // Restore modified item names/descriptions
@@ -4247,6 +4360,13 @@ class GameEngine {
     }
 
     openSaveModal(mode) {
+        // Refuse at the entry point rather than after a slot is chosen, so the
+        // player is never walked into a modal that cannot do anything.
+        if (mode === 'save') {
+            if (this.titleScreen) { this.showMessage('Start the game before saving.'); return; }
+            if (this.dead) { this.showMessage('You can\'t save when you\'re dead!'); return; }
+            if (this.won) { this.showMessage('Your adventure is already complete. Start a new game to save.'); return; }
+        }
         const modal = this.dom.saveModal;
         this.dom.modalTitle.textContent = mode === 'save' ? 'Save Game' : 'Load Game';
         const list = this.dom.slotList;
@@ -4327,11 +4447,15 @@ class GameEngine {
 
     // ---- Game Loop ----
     start() {
+        // A second start() would run two rAF loops against one lastTime.
+        if (this._loopRunning) return;
+        this._loopRunning = true;
         // Initialize VR support if available
         this.initVR();
         this.updateLayoutScale();
 
         const loop = (timestamp) => {
+            if (!this._loopRunning) return;
             // When VR is active, the XR frame loop handles update+render
             if (!this.vrActive) {
                 const dt = Math.min(timestamp - this.lastTime, 100);
@@ -4372,7 +4496,7 @@ class AnimatedNPC {
      * @param {boolean} [def.ignoreHorizon] - If true, can go above horizon
      * @param {Object} [def.motionParams] - Parameters for motion type
      */
-    constructor(def, engine) {
+    constructor(def, _engine) {
         this.id = def.id;
         this.x = def.x || 0;
         this.y = def.y || 310;

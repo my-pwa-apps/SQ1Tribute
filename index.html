@@ -473,7 +473,8 @@
     </style>
 </head>
 <body class="classic-mode title-screen">
-    <div id="game-container">
+    <h1 class="sr-only">Star Sweeper: A Space Adventure</h1>
+    <main id="game-container">
         <div id="title-bar">
             <span id="game-title">&#9733; STAR SWEEPER: A Space Adventure</span>
         </div>
@@ -487,7 +488,7 @@
         </div>
         <div id="inventory-bar">
             <span id="inv-label">Inventory:</span>
-            <div id="inventory-items"></div>
+            <div id="inventory-items" role="list" aria-labelledby="inv-label"></div>
         </div>
         <div id="save-load-bar">
             <button class="save-btn" type="button" id="btn-save" title="Save Game (F5)">Save</button>
@@ -512,7 +513,7 @@
         <div id="message-area" aria-live="polite">
             <p id="message-text">Choose Classic Parser or Enhanced Click to begin.</p>
         </div>
-    </div>
+    </main>
     <div id="canvas-accessibility" class="sr-only" role="status" aria-live="polite" aria-atomic="true">Choose Classic Parser or Enhanced Click to begin.</div>
     <section id="dialog-accessibility" class="sr-only" aria-label="Conversation choices">
         <div id="dialog-accessibility-options"></div>
@@ -529,6 +530,12 @@
     <script src="js/engine.js"></script>
     <script src="js/vr.js"></script>
     <script src="js/content.js"></script>
+    <script src="js/registry.js"></script>
+    <script src="js/art.js"></script>
+    <script src="js/rooms/ship.js"></script>
+    <script src="js/rooms/engine-room.js"></script>
+    <script src="js/rooms/kerona.js"></script>
+    <script src="js/rooms/endgame.js"></script>
     <script src="js/game.js"></script>
     <script src="js/register-sw.js"></script>
 </body>

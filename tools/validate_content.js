@@ -10,7 +10,24 @@ function read(file) {
     return fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 }
 
-const game = read('js/game.js');
+// Content is split across a bootstrap, shared art and per-act room modules.
+// Every cross-reference check runs over the concatenation of all of them.
+const CONTENT_FILES = [
+    'js/game.js',
+    'js/art.js',
+    'js/rooms/ship.js',
+    'js/rooms/engine-room.js',
+    'js/rooms/kerona.js',
+    'js/rooms/endgame.js'
+];
+
+for (const file of CONTENT_FILES) {
+    if (!fs.existsSync(path.join(__dirname, '..', file))) {
+        fail(`Content module is missing: ${file}`);
+    }
+}
+
+const game = CONTENT_FILES.map(read).join('\n');
 const html = read('index.html');
 const sw = read('serviceworker.js');
 const headers = read('_headers');
@@ -34,6 +51,16 @@ if (html.indexOf('js/content.js') > html.indexOf('js/game.js')) {
     fail('js/content.js must load before js/game.js.');
 }
 
+// Room modules queue themselves against the registry and are drained by the
+// bootstrap, so every module must be loaded before game.js and cached offline.
+for (const file of CONTENT_FILES.concat('js/registry.js')) {
+    if (!html.includes(file)) fail(`Content module is not loaded by index.html: ${file}`);
+    if (!sw.includes(file)) fail(`Content module is not cached by the service worker: ${file}`);
+    if (file !== 'js/game.js' && html.indexOf(file) > html.indexOf('js/game.js')) {
+        fail(`${file} must load before js/game.js.`);
+    }
+}
+
 for (const directive of ['frame-ancestors', 'X-Content-Type-Options', 'Referrer-Policy']) {
     if (!headers.includes(directive)) fail(`Missing production security header: ${directive}`);
 }
@@ -50,4 +77,27 @@ for (const asset of assetMatches) {
     if (!fs.existsSync(path.join(__dirname, '..', asset))) {
         fail(`Service worker asset does not exist: ${asset}`);
     }
+}
+
+// A misspelt flag name is invisible at runtime: getFlag returns false forever and
+// the puzzle silently never opens. Cross-reference every literal flag name.
+const engine = read('js/engine.js');
+const flagSources = game + engine;const collectFlags = (fn) => new Set(
+    [...flagSources.matchAll(new RegExp(`${fn}\\('([^']+)'`, 'g'))].map((m) => m[1])
+);
+const written = collectFlags('setFlag');
+const read_ = collectFlags('getFlag');
+for (const flag of read_) {
+    if (!written.has(flag)) fail(`Flag is read but never set (typo or dead gate): ${flag}`);
+}
+for (const flag of written) {
+    if (!read_.has(flag)) fail(`Flag is set but never read (dead state): ${flag}`);
+}
+
+// maxScore is the published contract for the status bar and the rank thresholds.
+// The walkthrough proves it is reachable; this proves the awards still fund it.
+const awarded = [...game.matchAll(/addScore\((\d+)\)/g)]
+    .reduce((sum, m) => sum + Number(m[1]), 0);
+if (awarded < content.maxScore) {
+    fail(`Score awards total ${awarded} but maxScore is ${content.maxScore}; the bar advertises unreachable points.`);
 }

@@ -21,7 +21,15 @@ async function clearState(page) {
 
 async function startClassicGame(page) {
     await page.keyboard.press('c');
-    for (let index = 0; index < 18; index++) {
+    await page.waitForFunction(
+        () => !!window.engine && !window.engine.titleScreen && !!window.engine.cutscene,
+        null,
+        { timeout: 10000 }
+    );
+    // Advance until the intro actually ends rather than pressing a fixed number
+    // of times, so adding or removing an intro beat cannot break every test.
+    for (let index = 0; index < 40; index++) {
+        if (await page.evaluate(() => !window.engine.cutscene)) break;
         await page.keyboard.press('Space');
         await page.waitForTimeout(80);
     }
@@ -120,8 +128,9 @@ async function talk(page, hotspotName, patterns) {
 /** Skip whatever cutscene is playing and wait for the game to settle. */
 async function settleCutscenes(page) {
     await page.waitForTimeout(300);
+    let busy = false;
     for (let i = 0; i < 40; i++) {
-        const busy = await page.evaluate(() => {
+        busy = await page.evaluate(() => {
             const e = window.engine;
             if (e.cutscene) { e.skipCutscene(); return true; }
             return false;
@@ -129,6 +138,9 @@ async function settleCutscenes(page) {
         if (!busy) break;
         await page.waitForTimeout(200);
     }
+    // A cutscene that refuses to end is exactly the regression this walkthrough
+    // exists to catch, so surface it here instead of failing later and elsewhere.
+    expect(busy, 'cutscene did not settle after repeated skips').toBe(false);
     await page.waitForTimeout(200);
 }
 

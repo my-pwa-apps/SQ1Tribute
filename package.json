@@ -5,9 +5,15 @@
     "private": true,
     "scripts": {
         "serve": "node tools/serve.js",
-        "check:static": "node -c js/engine.js && node -c js/palette.js && node -c js/content.js && node -c js/game.js && node -c js/sound.js && node -c js/vr.js && node -c js/register-sw.js && node -c serviceworker.js && node -c tools/serve.js && node tools/validate_content.js",
+        "lint": "eslint .",
+        "check:sw": "node tools/check_sw_version.js",
+        "check:static": "npm run lint && node -c js/engine.js && node -c js/palette.js && node -c js/content.js && node -c js/registry.js && node -c js/art.js && node -c js/game.js && node -c js/rooms/ship.js && node -c js/rooms/engine-room.js && node -c js/rooms/kerona.js && node -c js/rooms/endgame.js && node -c js/sound.js && node -c js/vr.js && node -c js/register-sw.js && node -c serviceworker.js && node -c tools/serve.js && node tools/validate_content.js",
         "test:e2e": "playwright test",
-        "check": "npm run check:static && npm run test:e2e"
+        "test:functional": "playwright test tests/game.spec.js tests/full-game.spec.js",
+        "test:visual": "playwright test tests/visual.spec.js",
+        "test:visual:update": "playwright test tests/visual.spec.js --update-snapshots",
+        "check": "npm run check:static && npm run test:e2e",
+        "check:ci": "npm run check:static && npm run test:functional"
     },
     "keywords": [
         "game",
@@ -19,6 +25,8 @@
     ],
     "license": "MIT",
     "devDependencies": {
-        "@playwright/test": "^1.61.1"
+        "@playwright/test": "1.61.1",
+        "eslint": "^9.39.5",
+        "globals": "^17.11.0"
     }
 }

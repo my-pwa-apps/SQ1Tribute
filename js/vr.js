@@ -173,7 +173,7 @@ class VRSystem {
     // --- Shaders ---
 
     _buildShaders() {
-        const gl = this.gl;
+
 
         // Textured surface (backdrop, floor)
         this.texProg = this._prog(
@@ -841,8 +841,8 @@ class VRSystem {
         const disc = b*b - 4*a*c;
         if (disc < 0) return null;
         const sq = Math.sqrt(disc);
-        let t1 = (-b - sq) / (2*a), t2 = (-b + sq) / (2*a);
-        let t = (t1 > 0.01 && t1 < t2) ? t1 : t2;
+        const t1 = (-b - sq) / (2*a), t2 = (-b + sq) / (2*a);
+        const t = (t1 > 0.01 && t1 < t2) ? t1 : t2;
         if (t <= 0.01) return null;
 
         const hx = o[0]+t*d[0], hy = o[1]+t*d[1], hz = o[2]+t*d[2];

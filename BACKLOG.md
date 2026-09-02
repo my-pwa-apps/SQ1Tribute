@@ -10,8 +10,10 @@ Open items only (resolved items from prior reviews are retained below for histor
 |---|---:|
 | Critical | 0 |
 | High | 0 |
-| Medium | 0 |
-| Low | 0 |
+| Medium | 5 |
+| Low | 5 |
+
+Open items are all from the 2026-09-02 reviews; see the two dated sections at the end of this file for detail.
 
 ---
 
@@ -572,3 +574,301 @@ Verification: `npm run check` — all static checks pass; 34 Playwright tests pa
 The two Medium aesthetic-consistency defects found in this review were fixed in the `v1.0.35` release candidate: floor perspective-grid lines removed across corridor/cave/desert, desert black outlines replaced with tonal shading, twin suns redrawn as round discs, the outpost wanted poster lowered to eye level, the landing pad rebuilt as a detailed raised platform, and all outpost building names converted to mounted signboards. One new Low continuity item (liftoff-cutscene pad) was logged and left open. Carry-over open items are unchanged (1 Medium testing gap; Low: text-window flag refactor, Enhanced two-click dismiss, maskable PWA icon).
 
 Verification: `npm run check` — all static checks pass; 27 Playwright tests pass, 3 skipped. Visual baselines for `desert` (desktop) and `outpost` (mobile) regenerated after reviewing the rendered changes.
+
+
+---
+
+## Dated Findings — Principal Engineering Review (2026-09-02)
+
+Scope: a full-stack review acting as principal engineer, QE, architect, security, performance, UX and tech lead. Every source file, the test suite, the dev server, the content validator, the CI workflow, the PWA shell and the accessibility surface were examined. Findings marked RESOLVED were fixed and verified in this pass; the remainder are open and actionable.
+
+Verification for this pass: `npm run check` — static checks and the extended content validator pass; **57 Playwright tests pass, 7 skipped** (up from 47 passing, because five new regression tests and their mobile projections were added).
+
+### Resolved in this pass
+
+- [x] [Priority: Critical] **Canvas save-stack leak on the title screen** — `render()` pushed `ctx.save()` for screen shake but returned from the `titleScreen` branch without `ctx.restore()`, unlike the cutscene branch directly above it. A title backdrop that calls `shake()` leaks one save-state entry per frame until the stack limit silently corrupts canvas state. *(RESOLVED: added the matching `restore()`.)*
+- [x] [Priority: High] **`start()` could run two render loops** — no reentry guard, so a second call produced two `requestAnimationFrame` loops sharing `lastTime`, double-stepping `update()` and firing sound events twice. *(RESOLVED: `_loopRunning` guard.)*
+- [x] [Priority: High] **Text measurement corrupted the live render context** — `showTextWindow()` and `_getDialogBoxRect()` set `this.ctx.font` on the visible context, and both run outside the render pass (word wrap on `showMessage`, hit-testing on click). Any later draw that did not set its own font silently inherited `13px Courier New`. *(RESOLVED: measurement moved to a dedicated offscreen `_measureCtx`.)*
+- [x] [Priority: High] **Dev server served fonts as `application/octet-stream`** — `tools/serve.js` had no `.woff2` MIME entry. Firefox refuses `@font-face` resources with a wrong type, so the VT323 pixel font silently failed in Firefox dev sessions. *(RESOLVED: added woff2, png, ico, txt and webmanifest types.)*
+- [x] [Priority: High] **Flag typos were undetectable** — nothing cross-referenced `setFlag`/`getFlag`. A misspelt name yields a gate that is false forever and a puzzle that silently never opens. *(RESOLVED: `tools/validate_content.js` now fails on any flag read-but-never-set or set-but-never-read. It immediately found five real defects, listed below.)*
+- [x] [Priority: Medium] **Broom closet lock LED never cleared** — the blinking red "locked" indicator was gated on `door_unlocked`, a flag that does not exist; the real flag is `closet_door_open`. The door read as permanently locked even after the player opened it and walked out. *(RESOLVED: reads the correct flag. Found by the new validator.)*
+- [x] [Priority: Medium] **The alternate flagship solution had no payoff** — `field_bypassed_without_cartridge` was set on both no-cartridge branches and never read anywhere. Players who solved the console the hard way got the identical ending. *(RESOLVED: the ending narration now acknowledges the improvised solve.)*
+- [x] [Priority: Low] **Three dead flags** — `examined_crew` and `talked_bartender` were written and never read; `pipz_left` was read in two places and never written. *(RESOLVED: removed.)*
+- [x] [Priority: Medium] **Escape left phantom screen-reader buttons** — closing a dialog with Escape cleared `activeDialog` but not `#dialog-accessibility-options`, leaving actionable-looking buttons whose handlers now no-op. Every other dialog-ending path cleared them. *(RESOLVED.)*
+- [x] [Priority: Medium] **Walk targets could be unreachable** — the click handler clamped `playerTargetY` to `280` while the movement code clamped to `max(horizon, 280)`. In any room with a raised horizon the ego stopped short of the click. *(RESOLVED: both clamps agree.)*
+- [x] [Priority: Medium] **A finished game could overwrite a save** — neither `saveGame` nor the F5 handler checked `won`, so a player could save a completed run and reload straight into the win overlay. *(RESOLVED: guarded at `openSaveModal` so the refusal is immediate rather than after a slot is chosen.)*
+- [x] [Priority: Medium] **Per-frame allocations in the render path** — `update()` built a `URLSearchParams` every frame; `lightPool()` and `vignette()` built a fresh `CanvasGradient` on every room draw call; the depth sort allocated a comparator closure per frame. *(RESOLVED: query string cached at construction, gradients memoised, comparator hoisted.)*
+- [x] [Priority: Medium] **Missing accessibility landmarks** — no `<main>`, no `<h1>` (the first heading on the page was `<h3>` inside the save modal), and the inventory list had no programmatic label. WCAG 1.3.1. *(RESOLVED: `<main>` element, screen-reader-only `<h1>`, `aria-labelledby` on the inventory list.)*
+- [x] [Priority: Low] **Score penalties were invisible** — both status bars gated the delta on `lastScoreDelta > 0` while the cutscene toast used `!== 0`, so negative awards showed in one HUD and not the other. *(RESOLVED: consistent `!== 0`.)*
+- [x] [Priority: Low] **Restart left a stale sound caption** on screen. *(RESOLVED.)*
+- [x] [Priority: Low] **Loaded saves trusted `playerDir`/`playerFacing`** — `data.playerDir || 1` accepts any truthy value, including a non-numeric one used later in sprite arithmetic. *(RESOLVED: whitelisted.)*
+- [x] [Priority: High] **CI could not have been green** — the workflow ran the full `npm run check` on `ubuntu-latest`, but every visual baseline is committed with a `-win32` suffix. On Linux Playwright finds no baseline, writes the actual and fails. *(RESOLVED: CI now runs `check:ci`, which is the static gate plus the platform-independent functional suite; the visual suite is a local, pre-release step with dedicated `test:visual` / `test:visual:update` scripts.)*
+- [x] [Priority: High] **CI re-downloaded ~150 MB of Chromium on every push** and discarded all diff images and traces on failure. *(RESOLVED: browser cache keyed on the resolved Playwright version, plus a failure artifact upload.)*
+- [x] [Priority: High] **Tests hardcoded "press Space 18 times" to skip the intro** — in three places. Adding or removing one intro beat would break most of the suite with an unrelated-looking error. *(RESOLVED: both helpers now wait for the intro cutscene to start, then advance until it ends.)*
+- [x] [Priority: High] **`settleCutscenes()` swallowed the exact failure it existed to catch** — after 40 unsuccessful skip attempts it fell through silently and the walkthrough continued in the wrong state, surfacing later as a misleading "hotspot not found". *(RESOLVED: asserts the cutscene settled.)*
+- [x] [Priority: Medium] **Documented features had zero tests** — parser snark, `F2`, `F3`, `F9`, save-after-victory and corrupt-save rejection. *(RESOLVED: five new tests in `regression coverage for documented features`, including an `aria-pressed` assertion that catches a screen-reader-only regression.)*
+- [x] [Priority: Low] **`@playwright/test` used a caret range** — a minor bump can change Chromium rendering and silently invalidate every visual baseline. *(RESOLVED: pinned exactly.)*
+- [x] [Priority: Low] **README pointed at `localhost:8080`** while the server binds `127.0.0.1` explicitly, which fails on IPv6-first hosts. *(RESOLVED.)*
+
+### Open items
+
+- [ ] **Add ESLint with a browser-globals flat config**
+
+  Priority: High
+  Category: Developer Experience
+  Area: Tooling
+  Affected files: `package.json`, new `eslint.config.js`
+  Problem: `check:static` runs `node -c`, which is a syntax-only parse. Nothing detects an undefined global, an unused variable left after a refactor, a shadowed binding, or a `const` reassignment. The codebase is ~14,000 lines of framework-free JavaScript spread across files that share an implicit `engine` global.
+  Impact: Refactors leave dead code and typo'd identifiers that only surface at runtime, in a specific room, on a specific branch. This review found five such defects by hand-rolling one narrow check.
+  Recommended solution: Add `eslint` as a devDependency with a flat config declaring browser globals and the cross-file `engine`/`StarSweeperContent` globals. Enable `no-undef`, `no-unused-vars`, `no-implicit-globals`. Fix the resulting findings in a dedicated commit, then add `lint` as the first step of `check:static`.
+  Acceptance criteria: `npm run lint` exits zero and is part of the release gate.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: High
+
+- [ ] **Split `js/game.js` (8,900 lines / 488 KB) into per-room modules**
+
+  Priority: High
+  Category: Architecture
+  Area: Content layer
+  Affected files: `js/game.js`, `index.html`, `serviceworker.js`
+  Problem: All game content — 13 rooms, every cutscene, every dialog tree, every procedural art helper — lives in one `DOMContentLoaded` closure. The file is 2.4x the size of the engine it drives. Room art, hotspots and puzzle logic for unrelated locations sit thousands of lines apart, and shared drawing helpers are interleaved with content.
+  Impact: Editing one room requires scrolling a half-megabyte file; merge conflicts are near-certain with more than one contributor; nothing can be unit-tested in isolation; the browser parses and compiles the entire content layer before the title screen renders.
+  Recommended solution: Extract shared art helpers into `js/art.js` and each room (or each act: ship, Kerona, flagship) into its own file that registers itself against a global `StarSweeper.rooms` registry. Keep the no-build-step constraint by loading them as ordered `<script>` tags and adding them to the service worker manifest. Migrate incrementally, one act per commit, with the visual baselines as the safety net.
+  Acceptance criteria: No source file exceeds ~1,500 lines; `npm run check` passes unchanged; visual baselines are byte-identical after the move.
+  Estimated effort: Large
+  Business value: Medium
+  Technical debt reduction: High
+
+- [ ] **`drawCrtEffects()` draws the canvas onto itself**
+
+  Priority: Medium
+  Category: Bug
+  Area: Rendering
+  Affected files: `js/engine.js`
+  Problem: `ctx.drawImage(ctx.canvas, -1, -1, ...)` uses the destination canvas as its own source. The HTML specification leaves the result of a same-canvas `drawImage` unspecified.
+  Impact: Works in Chromium and Firefox because they copy-on-read. WebKit has historically produced blank output for this pattern, and any future OffscreenCanvas or worker-based renderer would fail. The CRT toggle is a headline feature, so failure is user-visible.
+  Recommended solution: Blit through the existing `sceneRasterCanvas` as an intermediate, then blit back.
+  Acceptance criteria: The CRT bloom pass never passes `ctx.canvas` as the source; visual baselines unchanged.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **`js/vr.js` (761 lines) and `js/sound.js` (521 lines) have no test coverage**
+
+  Priority: Medium
+  Category: Testing
+  Area: Optional subsystems
+  Affected files: `tests/`, `js/vr.js`, `js/sound.js`
+  Problem: Both modules ship to production and are loaded unconditionally by `index.html`, but `check:static` only parses them. No test constructs the sound engine, asserts that a missing `AudioContext` degrades gracefully, or verifies the WebXR entry point does not throw on a non-XR browser.
+  Impact: A runtime error in either module is invisible to the release gate. A throw during module evaluation would break the whole page.
+  Recommended solution: Add a smoke spec that loads the page with `navigator.xr` undefined and asserts no uncaught page errors; drive `engine.sound` through mute/unmute and one cue; assert the VR launch affordance is absent rather than broken when WebXR is unavailable.
+  Acceptance criteria: Page-error listener stays empty across both scenarios.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **Only one of several death states is tested**
+
+  Priority: Medium
+  Category: Testing
+  Area: Failure paths
+  Affected files: `tests/game.spec.js`
+  Problem: `DRINK PUDDLE` is the sole death covered. Approaching the Draknoid guard unarmed, the desert exposure timer and the reactor deaths are all untested, as is `R`-to-restart from each.
+  Impact: A regression in `die()`, the death overlay renderer or `restart()` would be caught in exactly one scenario.
+  Recommended solution: Add a parameterised test over at least three death triggers asserting the overlay appears, `engine.dead` is true, and `R` restores a clean playable state with score reset.
+  Acceptance criteria: Three distinct deaths and their restarts are covered.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **Visual regression cannot run in CI**
+
+  Priority: Medium
+  Category: Testing
+  Area: CI
+  Affected files: `tests/visual.spec.js-snapshots/`, `.github/workflows/quality.yml`
+  Problem: Baselines exist only for `win32`. This pass removed the visual suite from CI so the pipeline reports honestly, but that means art regressions are now caught only when the maintainer remembers to run `npm run test:visual` locally.
+  Impact: An art regression can reach `main` unnoticed.
+  Recommended solution: Generate and commit a parallel Linux baseline set from the official `mcr.microsoft.com/playwright` container, then re-enable the visual project in CI against those baselines only.
+  Acceptance criteria: CI runs the visual suite on Linux baselines and fails on a deliberate one-pixel art change.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **Visual diff threshold is too permissive for pixel art**
+
+  Priority: Low
+  Category: Testing
+  Area: Visual regression
+  Affected files: `tests/visual.spec.js`
+  Problem: `maxDiffPixelRatio: 0.002` on a 640x400 canvas tolerates 512 differing pixels — enough to hide a missing prop, a recoloured wall panel or an inverted draw order.
+  Impact: Real art regressions can pass.
+  Recommended solution: Switch to an absolute `maxDiffPixels` in the 40–60 range once baselines are platform-stable.
+  Acceptance criteria: A deliberate small art change fails the suite.
+  Estimated effort: Small
+  Business value: Low
+  Technical debt reduction: Low
+
+- [ ] **Death and victory overlays re-run word wrap every frame**
+
+  Priority: Low
+  Category: Performance
+  Area: Rendering
+  Affected files: `js/engine.js`
+  Problem: `drawDeathOverlay` and `drawWinOverlay` split the message and call `measureText` per word on every frame, although the text is fixed when `die()`/`victory()` runs. `drawVrHud` does the same for `this.message`.
+  Impact: `measureText` queries font metrics; at 60 fps this is avoidable work on precisely the screens where the player is idle.
+  Recommended solution: Compute the wrapped lines once in `die()`, `victory()` and `showMessage()` and cache them.
+  Acceptance criteria: No `measureText` call remains inside an overlay draw path.
+  Estimated effort: Small
+  Business value: Low
+  Technical debt reduction: Low
+
+- [ ] **`_drawables` allocates a descriptor object per entity per frame**
+
+  Priority: Low
+  Category: Performance
+  Area: Rendering
+  Affected files: `js/engine.js`
+  Problem: The array is reused but each `push({ y, type, ref })` allocates a fresh literal — roughly 7 objects per frame, 420/second with five NPCs.
+  Impact: Minor GC churn; measurable only on low-end mobile.
+  Recommended solution: Pre-allocate a pool of descriptors and mutate in place.
+  Acceptance criteria: The y-sort path allocates nothing per frame.
+  Estimated effort: Small
+  Business value: Low
+  Technical debt reduction: Low
+
+- [ ] **The engine has no `destroy()`**
+
+  Priority: Low
+  Category: Architecture
+  Area: Engine lifecycle
+  Affected files: `js/engine.js`
+  Problem: `setupInput()` attaches listeners to `document` and `window` that are never removed. The engine advertises itself as reusable across tribute games, but a second instance cannot replace a first without a page reload.
+  Impact: Benign today (one instance per page); blocks any embedding, hot-reload or multi-game shell.
+  Recommended solution: Retain handler references and add `destroy()` that removes listeners and stops the rAF loop.
+  Acceptance criteria: Constructing, destroying and reconstructing an engine leaves no duplicate handlers.
+  Estimated effort: Small
+  Business value: Low
+  Technical debt reduction: Medium
+
+- [ ] **Clicking an exit in a non-walk action gives unhelpful snark**
+
+  Priority: Low
+  Category: UX
+  Area: Input
+  Affected files: `js/engine.js`
+  Problem: Exit hotspots define only `onExit`, so `performAction` falls through to generic fallback text when the player clicks a door while Look/Get/Use/Talk is selected.
+  Impact: The player gets no hint that the thing they clicked is a way out.
+  Recommended solution: Special-case `hotspot.isExit` in non-walk modes with a canned "you would have to walk there" response.
+  Acceptance criteria: Clicking a door in Look mode names it as an exit.
+  Estimated effort: Small
+  Business value: Low
+  Technical debt reduction: Low
+
+- [ ] **`getFlag()` returns `false` for unset counter flags**
+
+  Priority: Low
+  Category: Technical Debt
+  Area: State
+  Affected files: `js/engine.js`
+  Problem: Counter flags rely on `false + 1 === 1` coercion. Any strict comparison against `0` for a never-incremented counter is wrong.
+  Impact: Latent; no current caller does this.
+  Recommended solution: Give `getFlag` an explicit default parameter, or add `getCounter(name)` returning `0`.
+  Acceptance criteria: Counter flags never depend on boolean-to-number coercion.
+  Estimated effort: Small
+  Business value: Low
+  Technical debt reduction: Low
+
+- [ ] **Service worker `VERSION` is bumped by hand**
+
+  Priority: Low
+  Category: Developer Experience
+  Area: Release process
+  Affected files: `serviceworker.js`, `package.json`
+  Problem: Cache correctness depends on a human remembering to edit a constant on every code change. It is documented in the file and in the repo instructions precisely because it is easy to forget.
+  Impact: A missed bump ships a stale cached bundle to returning players, producing bug reports that cannot be reproduced.
+  Recommended solution: Derive the cache name from a build stamp, or add a `check:static` assertion that `VERSION` differs from the value on `main` whenever a cached asset changed.
+  Acceptance criteria: A code change without a version bump fails the gate.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **No automated accessibility audit**
+
+  Priority: Medium
+  Category: Accessibility
+  Area: Testing
+  Affected files: `tests/`
+  Problem: Accessibility is clearly a deliberate design goal — live regions, screen-reader dialog mirrors, sound captions, ARIA state on toolbar buttons — but nothing verifies it automatically. This review found three landmark/heading defects by inspection.
+  Impact: Accessibility regressions are invisible, and the existing investment silently decays.
+  Recommended solution: Add `@axe-core/playwright` and assert zero serious/critical violations on the title screen, in-game, the save modal and an open dialog.
+  Acceptance criteria: An axe scan of four states passes in the release gate.
+  Estimated effort: Small
+  Business value: Medium
+  Technical debt reduction: Medium
+
+### Summary of this pass
+
+| Priority | Resolved | Open |
+|---|---:|---:|
+| Critical | 1 | 0 |
+| High | 7 | 2 |
+| Medium | 9 | 5 |
+| Low | 6 | 6 |
+| **Total** | **23** | **13** |
+
+
+---
+
+## Dated Findings — Architecture, DX, Scalability and Maintainability (2026-09-02, branch `dev/architecture-maintainability`)
+
+Scope: the four dimensions that scored lowest in the principal engineering review — Architecture (7), Maintainability (6), Developer Experience (6) and Scalability (7). All work is on `dev/architecture-maintainability`.
+
+Verification: `npm run check:static` clean, `npm run check` — **57 passed, 7 skipped**, plus a new `tests/architecture.spec.js` (4 tests). Every visual baseline passed **unchanged**, which is the proof that the content split altered no rendering.
+
+### Resolved in this pass
+
+- [x] [Priority: High] **`js/game.js` was an 8,900-line monolith** — 488 KB in one `DOMContentLoaded` closure holding every room, cutscene, dialog and art helper; 2.4x the size of the engine it drove. *(RESOLVED: split behind a registry.)*
+
+  | File | Lines | Responsibility |
+  |---|---:|---|
+  | `js/registry.js` | 24 | Room-module queue and drain |
+  | `js/art.js` | 1,645 | Shared procedural drawing helpers |
+  | `js/game.js` | 813 | Bootstrap: items, dialog trees, intro, install, start |
+  | `js/rooms/ship.js` | 2,005 | Closet, corridor, science lab, pod bay |
+  | `js/rooms/engine-room.js` | 642 | Engine room |
+  | `js/rooms/kerona.js` | 2,644 | Desert, cave, outpost, cantina, shop |
+  | `js/rooms/endgame.js` | 1,597 | Docking bay, brig, flagship |
+
+  Room files cannot import the engine because they are parsed before it exists, so each queues a factory via `StarSweeper.defineRooms((engine) => ...)` which the bootstrap drains after construction. Call sites are unchanged: shared art stays at script scope exactly as `GameEngine` and `SoundEngine` already do.
+
+- [x] [Priority: High] **No static analysis** — `node -c` is a syntax-only parse, so undefined globals, dead identifiers and stale references were invisible. *(RESOLVED: ESLint 9 flat config is now the first step of `check:static`. The art module's exported names are **derived by parsing `js/art.js`** rather than hand-listed, so the globals list cannot drift. The first run found 37 issues; all are fixed and the tree is clean.)*
+
+- [x] [Priority: Medium] **Dead code found by the new linter** — `metalFloor()` was unreferenced, and `cutsceneFreighterCrash()` was a complete, authored cinematic that nothing ever played. *(RESOLVED: `metalFloor` deleted; the crash cinematic is now played once on first arrival at the docking bay, guarded by `saw_freighter_crash`, which explains the wreck and pays off the shared `drawFreighter` intact/wrecked pair.)*
+
+- [x] [Priority: Medium] **The engine had no teardown** — it advertises itself as reusable across tribute games, but `setupInput()` attached 26 listeners to `document`, `window`, the canvas and the toolbar that were never removed, and the rAF loop could not be stopped. *(RESOLVED: `_on()` records every persistent listener; `destroy()` detaches them all, halts the loop, stops ambient audio and releases `window.engine`. Listeners on elements the engine itself creates are deliberately untracked — they die with their element.)*
+
+- [x] [Priority: Medium] **Nothing enforced the service-worker version bump** — cache correctness depended on a human remembering to edit a constant. *(RESOLVED: `tools/check_sw_version.js` diffs the branch against its base, and fails if a cached asset changed while `VERSION` did not. Wired into CI for pull requests with `fetch-depth: 0`.)*
+
+- [x] [Priority: Medium] **The content validator only understood one file** — after any split it would have silently stopped checking most of the game. *(RESOLVED: it now concatenates every module in `CONTENT_FILES`, fails if a module is missing, and additionally asserts each module is loaded by `index.html` *before* `js/game.js* and cached by the service worker. Forgetting any of the three registrations now fails the gate.)*
+
+- [x] [Priority: Medium] **Module boundaries were unverifiable** — the architecture is enforced by load order, which no static check can prove. *(RESOLVED: `tests/architecture.spec.js` asserts every room module registers through the registry, the expected 13 room IDs exist, the shared art helpers are present as functions, **every registered room can be entered and rendered without throwing**, and `destroy()` leaves zero listeners with a stopped loop.)*
+
+- [x] [Priority: Low] **Documentation described the old monolith** — *(RESOLVED: README gains a module-layout table, an "Adding a room" recipe and a script reference table; `.github/copilot-instructions.md` gains a "Where does new code go?" routing table so future contributions do not rebuild the monolith.)*
+
+### Open items carried forward
+
+Unchanged from the 2026-09-02 principal review: Linux visual baselines for CI, `drawCrtEffects()` self-`drawImage`, VR/sound smoke coverage, additional death-state coverage, the visual diff threshold, overlay word-wrap caching, `_drawables` pooling, exit-hotspot snark, `getFlag` counter coercion, and an automated accessibility audit.
+
+The `destroy()` and service-worker items previously listed as open are now resolved above.
+
+### Summary of this pass
+
+| Priority | Resolved | Open |
+|---|---:|---:|
+| Critical | 0 | 0 |
+| High | 2 | 0 |
+| Medium | 5 | 5 |
+| Low | 1 | 5 |
+| **Total** | **8** | **10** |
