@@ -9,11 +9,11 @@ Open items only (resolved items from prior reviews are retained below for histor
 | Priority | Count |
 |---|---:|
 | Critical | 0 |
-| High | 2 |
+| High | 0 |
 | Medium | 5 |
-| Low | 6 |
+| Low | 5 |
 
-Open items are all from the 2026-09-02 principal engineering review; see that section for detail.
+Open items are all from the 2026-09-02 reviews; see the two dated sections at the end of this file for detail.
 
 ---
 
@@ -817,3 +817,58 @@ Verification for this pass: `npm run check` — static checks and the extended c
 | Medium | 9 | 5 |
 | Low | 6 | 6 |
 | **Total** | **23** | **13** |
+
+
+---
+
+## Dated Findings — Architecture, DX, Scalability and Maintainability (2026-09-02, branch `dev/architecture-maintainability`)
+
+Scope: the four dimensions that scored lowest in the principal engineering review — Architecture (7), Maintainability (6), Developer Experience (6) and Scalability (7). All work is on `dev/architecture-maintainability`.
+
+Verification: `npm run check:static` clean, `npm run check` — **57 passed, 7 skipped**, plus a new `tests/architecture.spec.js` (4 tests). Every visual baseline passed **unchanged**, which is the proof that the content split altered no rendering.
+
+### Resolved in this pass
+
+- [x] [Priority: High] **`js/game.js` was an 8,900-line monolith** — 488 KB in one `DOMContentLoaded` closure holding every room, cutscene, dialog and art helper; 2.4x the size of the engine it drove. *(RESOLVED: split behind a registry.)*
+
+  | File | Lines | Responsibility |
+  |---|---:|---|
+  | `js/registry.js` | 24 | Room-module queue and drain |
+  | `js/art.js` | 1,645 | Shared procedural drawing helpers |
+  | `js/game.js` | 813 | Bootstrap: items, dialog trees, intro, install, start |
+  | `js/rooms/ship.js` | 2,005 | Closet, corridor, science lab, pod bay |
+  | `js/rooms/engine-room.js` | 642 | Engine room |
+  | `js/rooms/kerona.js` | 2,644 | Desert, cave, outpost, cantina, shop |
+  | `js/rooms/endgame.js` | 1,597 | Docking bay, brig, flagship |
+
+  Room files cannot import the engine because they are parsed before it exists, so each queues a factory via `StarSweeper.defineRooms((engine) => ...)` which the bootstrap drains after construction. Call sites are unchanged: shared art stays at script scope exactly as `GameEngine` and `SoundEngine` already do.
+
+- [x] [Priority: High] **No static analysis** — `node -c` is a syntax-only parse, so undefined globals, dead identifiers and stale references were invisible. *(RESOLVED: ESLint 9 flat config is now the first step of `check:static`. The art module's exported names are **derived by parsing `js/art.js`** rather than hand-listed, so the globals list cannot drift. The first run found 37 issues; all are fixed and the tree is clean.)*
+
+- [x] [Priority: Medium] **Dead code found by the new linter** — `metalFloor()` was unreferenced, and `cutsceneFreighterCrash()` was a complete, authored cinematic that nothing ever played. *(RESOLVED: `metalFloor` deleted; the crash cinematic is now played once on first arrival at the docking bay, guarded by `saw_freighter_crash`, which explains the wreck and pays off the shared `drawFreighter` intact/wrecked pair.)*
+
+- [x] [Priority: Medium] **The engine had no teardown** — it advertises itself as reusable across tribute games, but `setupInput()` attached 26 listeners to `document`, `window`, the canvas and the toolbar that were never removed, and the rAF loop could not be stopped. *(RESOLVED: `_on()` records every persistent listener; `destroy()` detaches them all, halts the loop, stops ambient audio and releases `window.engine`. Listeners on elements the engine itself creates are deliberately untracked — they die with their element.)*
+
+- [x] [Priority: Medium] **Nothing enforced the service-worker version bump** — cache correctness depended on a human remembering to edit a constant. *(RESOLVED: `tools/check_sw_version.js` diffs the branch against its base, and fails if a cached asset changed while `VERSION` did not. Wired into CI for pull requests with `fetch-depth: 0`.)*
+
+- [x] [Priority: Medium] **The content validator only understood one file** — after any split it would have silently stopped checking most of the game. *(RESOLVED: it now concatenates every module in `CONTENT_FILES`, fails if a module is missing, and additionally asserts each module is loaded by `index.html` *before* `js/game.js* and cached by the service worker. Forgetting any of the three registrations now fails the gate.)*
+
+- [x] [Priority: Medium] **Module boundaries were unverifiable** — the architecture is enforced by load order, which no static check can prove. *(RESOLVED: `tests/architecture.spec.js` asserts every room module registers through the registry, the expected 13 room IDs exist, the shared art helpers are present as functions, **every registered room can be entered and rendered without throwing**, and `destroy()` leaves zero listeners with a stopped loop.)*
+
+- [x] [Priority: Low] **Documentation described the old monolith** — *(RESOLVED: README gains a module-layout table, an "Adding a room" recipe and a script reference table; `.github/copilot-instructions.md` gains a "Where does new code go?" routing table so future contributions do not rebuild the monolith.)*
+
+### Open items carried forward
+
+Unchanged from the 2026-09-02 principal review: Linux visual baselines for CI, `drawCrtEffects()` self-`drawImage`, VR/sound smoke coverage, additional death-state coverage, the visual diff threshold, overlay word-wrap caching, `_drawables` pooling, exit-hotspot snark, `getFlag` counter coercion, and an automated accessibility audit.
+
+The `destroy()` and service-worker items previously listed as open are now resolved above.
+
+### Summary of this pass
+
+| Priority | Resolved | Open |
+|---|---:|---:|
+| Critical | 0 | 0 |
+| High | 2 | 0 |
+| Medium | 5 | 5 |
+| Low | 1 | 5 |
+| **Total** | **8** | **10** |
