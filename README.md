@@ -2,7 +2,7 @@
 
 A modern Sierra-style adventure game — a loving tribute to *Space Quest 1*, not an attempt to masquerade as a lost Sierra release. You play a lowly janitor aboard the starship *Constellation* who must escape a Draknoid raid and recover the stolen Quantum Drive.
 
-Built with **pure JavaScript and HTML5 Canvas**. There is no framework, production dependency, or build step — all art is procedurally drawn and all sound is synthesized via the Web Audio API. Playwright is used only for development tests. The game keeps the parser, score, deaths, inventory puzzles, and dry narrator, while using modern conveniences such as optional point-and-click controls, generous save slots, touch support, and offline caching.
+Built with **JavaScript and HTML5 Canvas**, with a vendored Three.js module for optional immersive VR. There is no build step or runtime install — all art is procedurally drawn and all sound is synthesized via the Web Audio API. The game keeps the parser, score, deaths, inventory puzzles, and dry narrator, while using modern conveniences such as optional point-and-click controls, generous save slots, touch support, and offline caching.
 
 ## Play
 
@@ -40,6 +40,8 @@ Then browse to http://127.0.0.1:8080 (the server binds the loopback address expl
 
 Classic mode is the desktop default: try commands like `LOOK`, `GET MOP`, `DRINK PUDDLE`, `USE KEYCARD ON DOOR`, `TALK TO PILOT`, `INVENTORY`, `SAVE`, and `RESTORE`. Touch-first devices default to Enhanced mode. If Classic is selected on touch hardware, the on-screen parser, D-pad, and save controls remain available. In Enhanced mode, click an inventory item to select it, then click a hotspot to use them together.
 
+On a WebXR headset, choose **Enter VR** to play as Wilkins in first person. The left stick walks relative to your view, the trigger performs the selected action, grip cycles Walk/Look/Get/Use/Talk, B performs a quick Look, A confirms or skips, and the right stick cycles inventory while Use is selected. Physical room-scale movement and head tracking are handled by WebXR; thumbstick movement remains constrained by each room's existing barriers and exits.
+
 ## Story
 
 From your broom closet you'll sneak through a burning ship, launch the last escape pod, crash on a desert planet, hustle your way through a frontier outpost and cantina, and finally board the Draknoid warship to steal back the Quantum Drive. More than thirteen locations, one janitor, galactic stakes.
@@ -49,7 +51,7 @@ From your broom closet you'll sneak through a burning ship, launch the last esca
 - Modern evergreen browser (Chrome, Edge, Firefox, Safari)
 - Canvas 2D, ES6 classes, `requestAnimationFrame`
 - Web Audio API (optional — sound degrades gracefully if unsupported)
-- WebXR (optional — VR mode lights up on supported devices such as Quest)
+- WebXR and WebGL2 for optional first-person VR
 
 ## Features
 
@@ -62,7 +64,7 @@ From your broom closet you'll sneak through a burning ship, launch the last esca
 - Recoverable late-game workaround for players who ignored one important shipboard errand
 - Optional CRT display effects, for players who want either nostalgia or clean pixels
 - Touch-friendly D-pad on small screens in Enhanced mode
-- Optional WebXR immersive mode
+- First-person WebXR mode with head tracking, controller ray interaction, locomotion, and a head-relative Sierra HUD
 
 ## Project Layout
 
@@ -75,7 +77,8 @@ js/
     palette.js      Shared EGA and semantic colour vocabulary
     engine.js       GameEngine class: loop, input, rendering, save/load
     sound.js        Web Audio synthesis
-    vr.js           Optional WebXR integration
+    vr.js           First-person WebXR integration and controller mapping
+    vendor/         Pinned Three.js browser runtime and license
     content.js      Structured game metadata and item definitions
     registry.js     Room-module registry (no bundler, so rooms queue themselves)
     art.js          Procedural drawing helpers shared by rooms and cutscenes
@@ -132,6 +135,8 @@ references, flags that are read but never set (or set but never read), a
 any content module that is not loaded by the page or cached offline.
 `npm run check` performs JavaScript syntax checks, structured room/item/asset validation, and Playwright tests in desktop Chrome and Pixel 5 emulation. The browser suite covers mode selection, the touch parser, save/load, accessibility mirrors, both final-console puzzle routes, offline reload, update UI, and the absence of full-canvas pixel readbacks. It also compares reviewed visual baselines for the title, representative rooms, CRT output, and mobile framing. Update those baselines deliberately with `npx playwright test tests/visual.spec.js --update-snapshots` only after reviewing the rendered changes.
 
+The WebXR test mocks capability discovery and verifies first-person state, room/floor projection, locomotion mapping, desktop restoration, and a nonblank Three.js render. Browser automation cannot validate stereo comfort or physical controller ergonomics; complete the headset check below before release.
+
 Content metadata and items live in [js/content.js](js/content.js) so the validator can consume exact IDs without booting the UI. Room groups remain in [js/game.js](js/game.js); keep production content files below 400 KB and extract the next stable room group before crossing that threshold.
 
 ## Production Deployment
@@ -141,7 +146,7 @@ The repository root is the deploy directory. Publish it unchanged to a static HT
 - Cloudflare Pages and Netlify consume the included [_headers](_headers) file for CSP, framing, MIME, referrer, and permissions policies.
 - GitHub Pages ignores `_headers`; apply equivalent headers through a proxy/CDN if those protections are required.
 - Saves and interface preferences use `localStorage`. They are bound to the exact production origin and do not transfer between preview URLs, domains, or browsers.
-- WebXR requires HTTPS, a compatible browser/device, and physical Quest-class hardware. Desktop emulation does not replace a device smoke test.
+- Immersive VR requires HTTPS, WebXR, WebGL2, `local-floor` reference-space support, and a compatible headset such as Meta Quest.
 
 ### Release Checklist
 
@@ -152,10 +157,12 @@ The repository root is the deploy directory. Publish it unchanged to a static HT
 5. On a touch device, verify Enhanced is the first-run default and Classic exposes its parser and D-pad.
 6. Reload once online, switch the browser offline, and confirm the installed app still starts.
 7. Deploy a second version and confirm the keyboard-accessible update prompt reloads the new worker.
-8. On WebXR hardware, enter and exit VR and verify controller interaction, frame stability, and room textures.
+8. On a physical headset, enter and exit VR; verify stereo comfort, head-relative locomotion, both controllers, every action mode, inventory selection, room exits, death/restart, and cutscene skipping.
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
 
 The bundled pixel typeface **VT323** (by Peter Hull) is licensed under the SIL Open Font License 1.1 — see [fonts/VT323-OFL.txt](fonts/VT323-OFL.txt).
+
+The vendored **Three.js 0.185.1** browser modules are licensed under the MIT License — see [js/vendor/THREE-LICENSE.txt](js/vendor/THREE-LICENSE.txt).

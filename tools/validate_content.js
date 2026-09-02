@@ -61,6 +61,19 @@ for (const file of CONTENT_FILES.concat('js/registry.js')) {
     }
 }
 
+const IMMERSIVE_RUNTIME_FILES = [
+    'js/vr.js',
+    'js/vendor/three.module.min.js',
+    'js/vendor/three.core.min.js'
+];
+if (!html.includes('type="module" src="js/vr.js"')) {
+    fail('The WebXR entry point must load as an ES module.');
+}
+for (const file of IMMERSIVE_RUNTIME_FILES) {
+    if (!fs.existsSync(path.join(__dirname, '..', file))) fail(`Immersive runtime is missing: ${file}`);
+    if (!sw.includes(file)) fail(`Immersive runtime is not cached by the service worker: ${file}`);
+}
+
 for (const directive of ['frame-ancestors', 'X-Content-Type-Options', 'Referrer-Policy']) {
     if (!headers.includes(directive)) fail(`Missing production security header: ${directive}`);
 }

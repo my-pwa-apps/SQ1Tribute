@@ -157,6 +157,29 @@ test('walking out of the closet does not bounce the player straight back in', as
     expect(await room()).toBe('corridor');
 });
 
+test('the broom closet walls are outside the walkable floor', async ({ page }) => {
+    await clearState(page);
+    await finishIntro(page);
+
+    const collision = await page.evaluate(() => ({
+        floor: window.engine.collidesBarrier(500, 350),
+        rightWall: window.engine.collidesBarrier(600, 350),
+        leftWall: window.engine.collidesBarrier(40, 310)
+    }));
+    expect(collision).toEqual({ floor: false, rightWall: true, leftWall: true });
+
+    await page.evaluate(() => {
+        const e = window.engine;
+        e.playerX = 500;
+        e.playerY = 350;
+        e.keysDown.ArrowRight = true;
+        for (let frame = 0; frame < 100; frame++) e.update(16);
+        delete e.keysDown.ArrowRight;
+    });
+    const playerX = await page.evaluate(() => window.engine.playerX);
+    expect(playerX).toBeLessThan(545);
+});
+
 test('using the science lab exit returns to the corridor', async ({ page }) => {
     await clearState(page);
     await finishIntro(page);
@@ -306,6 +329,131 @@ test('death can be recovered with restart', async ({ page }) => {
     await expect(page.locator('#canvas-accessibility')).toContainText(/press r to restart/i);
     await page.keyboard.press('r');
     await expect(page.locator('#message-text')).toContainText('broom closet');
+});
+
+test('distinct reactor and guard deaths restart into a clean game', async ({ page }) => {
+    await clearState(page);
+    await finishIntro(page);
+
+    const deaths = [
+        { room: 'engine_room', hotspot: 'Reactor Core', action: 'get' },
+        { room: 'draknoid_ship', hotspot: 'Draknoid Guard', action: 'walk' }
+    ];
+    for (const death of deaths) {
+        await page.evaluate(({ room, hotspot, action }) => {
+            const e = window.engine;
+            e.goToRoom(room, 320, 330);
+            e.roomTransition = 0;
+            e.currentAction = action;
+            const target = e.rooms[room].hotspots.find((candidate) => candidate.name === hotspot);
+            e.performAction(target);
+        }, death);
+        expect(await page.evaluate(() => window.engine.dead)).toBe(true);
+        await expect(page.locator('#canvas-accessibility')).toContainText(/press r to restart/i);
+
+        await page.keyboard.press('r');
+        const state = await page.evaluate(() => ({
+            dead: window.engine.dead,
+            room: window.engine.currentRoomId,
+            score: window.engine.score,
+            inventory: window.engine.inventory
+        }));
+        expect(state).toEqual({ dead: false, room: 'broom_closet', score: 0, inventory: [] });
+    }
+});
+
+test('sound initialization does not raise page errors', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await clearState(page);
+    await page.waitForTimeout(100);
+
+    const optionalState = await page.evaluate(async () => {
+        await window.engine.sound.init();
+        window.engine.updateSoundUI();
+        return {
+            soundStatus: window.engine.sound.getStatus()
+        };
+    });
+    expect(errors).toEqual([]);
+    expect(['on', 'off', 'paused', 'blocked']).toContain(optionalState.soundStatus);
+});
+
+test('WebXR mode makes Wilkins first-person and maps locomotion into the game world', async ({ page }) => {
+    await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'xr', {
+            configurable: true,
+            value: { isSessionSupported: async () => true }
+        });
+    });
+    await clearState(page);
+    await page.waitForFunction(() => window.engine?.vr?.supported === true);
+    await expect(page.locator('#btn-vr')).toBeVisible();
+
+    const result = await page.evaluate(() => {
+        const engine = window.engine;
+        const vr = engine.vr;
+        const desktopCanvas = engine.canvas;
+        const wallCenter = vr._canvasToWorld(320, 150);
+        const floorFront = vr._canvasToWorld(320, 400);
+        const rendererReady = vr._initScene();
+
+        vr._activateFirstPersonState();
+        const immersive = {
+            canvasChanged: engine.canvas !== desktopCanvas,
+            playerVisible: engine.playerVisible,
+            vrActive: engine.vrActive,
+            immersiveView: engine.immersiveView
+        };
+        vr._setMovementKeys(1, -1);
+        const movement = {
+            right: engine.keysDown.ArrowRight,
+            up: engine.keysDown.ArrowUp,
+            left: engine.keysDown.ArrowLeft,
+            down: engine.keysDown.ArrowDown
+        };
+        engine.titleScreen = false;
+        engine.goToRoom('broom_closet', 320, 310);
+        engine.roomTransition = 0;
+        engine.render();
+        vr._updateRoomTextures();
+        vr.renderer.setSize(320, 200, false);
+        vr.camera.position.set(0, 1.65, 1.1);
+        vr.camera.lookAt(0, 1.55, -3.8);
+        vr.renderer.render(vr.scene, vr.camera);
+        const gl = vr.renderer.getContext();
+        const pixels = new Uint8Array(4 * 16 * 16);
+        gl.readPixels(152, 92, 16, 16, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+        const litChannels = pixels.reduce((count, value, index) =>
+            count + (index % 4 !== 3 && value > 8 ? 1 : 0), 0);
+        vr._clearMovementKeys();
+        vr._restoreDesktopState();
+
+        return {
+            immersive,
+            movement,
+            rendererReady,
+            litChannels,
+            restored: engine.canvas === desktopCanvas && engine.playerVisible &&
+                !engine.vrActive && !engine.immersiveView,
+            wallCenter: { x: wallCenter.x, y: wallCenter.y, z: wallCenter.z },
+            floorFront: { x: floorFront.x, y: floorFront.y, z: floorFront.z }
+        };
+    });
+
+    expect(result.immersive).toEqual({
+        canvasChanged: true,
+        playerVisible: false,
+        vrActive: true,
+        immersiveView: true
+    });
+    expect(result.movement).toEqual({ right: true, up: true, left: false, down: false });
+    expect(result.rendererReady).toBe(true);
+    expect(result.litChannels).toBeGreaterThan(100);
+    expect(result.restored).toBe(true);
+    expect(result.wallCenter.x).toBeCloseTo(0, 5);
+    expect(result.wallCenter.z).toBeLessThan(-3.8);
+    expect(result.floorFront.z).toBeCloseTo(3, 5);
 });
 
 test('save modal traps and restores keyboard focus', async ({ page }) => {

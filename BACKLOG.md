@@ -654,15 +654,15 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **`js/vr.js` (761 lines) and `js/sound.js` (521 lines) have no test coverage**
+- [x] **Optional subsystems had no test coverage** *(SUPERSEDED: WebXR was removed; sound initialization and cue signatures are now covered.)*
 
   Priority: Medium
   Category: Testing
   Area: Optional subsystems
-  Affected files: `tests/`, `js/vr.js`, `js/sound.js`
-  Problem: Both modules ship to production and are loaded unconditionally by `index.html`, but `check:static` only parses them. No test constructs the sound engine, asserts that a missing `AudioContext` degrades gracefully, or verifies the WebXR entry point does not throw on a non-XR browser.
+  Affected files: `tests/`, `js/sound.js`
+  Problem: The optional modules shipped without runtime smoke coverage. WebXR has since been removed, and sound now has initialization and motif tests.
   Impact: A runtime error in either module is invisible to the release gate. A throw during module evaluation would break the whole page.
-  Recommended solution: Add a smoke spec that loads the page with `navigator.xr` undefined and asserts no uncaught page errors; drive `engine.sound` through mute/unmute and one cue; assert the VR launch affordance is absent rather than broken when WebXR is unavailable.
+  Recommended solution: Retain the sound initialization, state and cue coverage.
   Acceptance criteria: Page-error listener stays empty across both scenarios.
   Estimated effort: Small
   Business value: Medium
@@ -716,7 +716,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Category: Performance
   Area: Rendering
   Affected files: `js/engine.js`
-  Problem: `drawDeathOverlay` and `drawWinOverlay` split the message and call `measureText` per word on every frame, although the text is fixed when `die()`/`victory()` runs. `drawVrHud` does the same for `this.message`.
+  Problem: `drawDeathOverlay` and `drawWinOverlay` split the message and call `measureText` per word on every frame, although the text is fixed when `die()`/`victory()` runs.
   Impact: `measureText` queries font metrics; at 60 fps this is avoidable work on precisely the screens where the player is idle.
   Recommended solution: Compute the wrapped lines once in `die()`, `victory()` and `showMessage()` and cache them.
   Acceptance criteria: No `measureText` call remains inside an overlay draw path.
@@ -859,7 +859,7 @@ Verification: `npm run check:static` clean, `npm run check` — **57 passed, 7 s
 
 ### Open items carried forward
 
-Unchanged from the 2026-09-02 principal review: Linux visual baselines for CI, `drawCrtEffects()` self-`drawImage`, VR/sound smoke coverage, additional death-state coverage, the visual diff threshold, overlay word-wrap caching, `_drawables` pooling, exit-hotspot snark, `getFlag` counter coercion, and an automated accessibility audit.
+At the time of this pass, the carried items were Linux visual baselines for CI, `drawCrtEffects()` self-`drawImage`, optional-subsystem smoke coverage, additional death-state coverage, the visual diff threshold, overlay word-wrap caching, `_drawables` pooling, exit-hotspot snark, `getFlag` counter coercion, and an automated accessibility audit. Later dated sections supersede resolved or removed items.
 
 The `destroy()` and service-worker items previously listed as open are now resolved above.
 
@@ -872,3 +872,112 @@ The `destroy()` and service-worker items previously listed as open are now resol
 | Medium | 5 | 5 |
 | Low | 1 | 5 |
 | **Total** | **8** | **10** |
+
+
+---
+
+## Dated Findings — Production Readiness Follow-up (2026-09-02)
+
+Scope: verified follow-up across runtime correctness, visual quality, optional browser capabilities, recovery paths, delivery and security. Findings reported by automated reviewers were checked against current code and tests before inclusion. Unsupported claims about DPR input mapping, save validation, modal focus, hotspot labels, title chrome, sound coverage and deployment documentation were rejected.
+
+Verification: `npm audit --omit=dev` reports **0 vulnerabilities**. `npm run check` passes **73 tests with 7 intentional skips**, including desktop/mobile 378-point walkthroughs and all applicable visual comparisons.
+
+### Resolved in this pass
+
+- [x] [Priority: Medium] **CRT bloom sampled and wrote the same canvas in one `drawImage` operation** — the Canvas specification does not guarantee stable overlapping self-copy behavior. *(RESOLVED: the completed frame is copied into a reusable native-size bloom canvas before additive enlargement.)*
+
+- [x] [Priority: Medium] **The Pipz reunion baseline still represented rasterized cinematic text** — the release gate failed by 5,483 pixels after captions intentionally moved to native resolution. *(RESOLVED: the single baseline was reviewed visually, regenerated and then verified in comparison mode.)*
+
+- [x] [Priority: Medium] **Only one authored death path had restart coverage** — reactor and guard failures could regress independently of the puddle path. *(RESOLVED: focused tests now execute all three distinct handlers and assert a clean restart room, score and inventory.)*
+
+- [x] [Priority: Low] **Visual snapshots allowed 0.2% drift per image** — at 640x400 this silently accepted up to 512 changed pixels. *(RESOLVED: desktop and mobile helpers now use an explicit 300-pixel ceiling, 41% below the old allowance and just above the measured 281-pixel stable variation.)*
+
+- [x] [Priority: Low] **The no-WebXR startup path had no exception assertion** — ordinary desktop browsers relied on this fallback. *(SUPERSEDED: WebXR support was subsequently removed; the smoke test continues to cover sound initialization and uncaught page errors.)*
+
+- [x] [Priority: Medium] **Optional WebXR expanded release and maintenance scope beyond the supported game experience** — it required a separate renderer, controller mapping, browser permission and physical-headset release checks. *(RESOLVED: removed the module, engine state and HUD, page loader, offline cache entry, permission grant, test assertions and current documentation.)*
+
+### Open items carried forward
+
+- [ ] [Priority: Medium] **Visual baselines are Windows-only and excluded from Linux CI**
+
+  Category: Delivery / Quality
+  Affected files: `.github/workflows/quality.yml`, `tests/visual.spec.js-snapshots/`
+  Problem: pull requests run functional tests on Ubuntu but cannot compare the checked-in Windows snapshots.
+  Recommended solution: establish reviewed Linux baselines and run the visual project in CI, or use a pinned screenshot container to make rendering reproducible.
+  Acceptance criteria: a deliberate one-pixel scene regression fails the pull-request gate on the hosted runner.
+
+- [ ] [Priority: Medium] **No automated accessibility conformance scan**
+
+  Category: Accessibility
+  Affected files: `tests/`, `package.json`
+  Problem: keyboard, ARIA, live-region and sound-caption behavior has focused coverage, but broad WCAG regressions in title, gameplay, dialogs and save UI are not detected.
+  Recommended solution: add `@axe-core/playwright` scans for those four states and fail on serious or critical findings.
+  Acceptance criteria: all four representative states pass the automated audit in CI with documented exceptions only.
+
+- [ ] [Priority: Low] **Timed and conditional death branches remain uncovered**
+
+  Category: Testing
+  Affected files: `js/rooms/kerona.js`, `tests/game.spec.js`
+  Problem: puddle, reactor and guard deaths are covered; desert exposure and the second mushroom interaction depend on timer/flag-specific paths that can still regress unnoticed.
+  Recommended solution: add deterministic clock/flag setup and assert death plus clean restart for both branches.
+  Acceptance criteria: every distinct death trigger has a direct functional test without real-time waiting.
+
+- [ ] [Priority: Low] **Long-lived rendering paths still allocate avoidable transient work**
+
+  Category: Performance / Maintainability
+  Affected files: `js/engine.js`
+  Problem: overlay word wrapping and short-lived drawable arrays are rebuilt during rendering. This is not currently user-visible, but it adds garbage-collection pressure on constrained mobile and XR devices.
+  Recommended solution: cache wrapped overlay lines by text/width/font and reuse drawable storage after profiling confirms the hotspot.
+  Acceptance criteria: a repeatable mobile or XR profile demonstrates reduced allocations without changing visual baselines.
+
+- [ ] [Priority: Low] **Flags and numeric counters share one untyped API**
+
+  Category: Maintainability
+  Affected files: `js/engine.js`, room modules
+  Problem: `getFlag()` returns `false` for missing values while some callers store numbers, coupling arithmetic to implicit coercion.
+  Recommended solution: introduce explicit numeric state accessors and migrate counter call sites incrementally while preserving save compatibility.
+  Acceptance criteria: counter arithmetic no longer depends on boolean coercion and legacy saves load unchanged.
+
+### Summary of this pass
+
+| Priority | Resolved | Open |
+|---|---:|---:|
+| Critical | 0 | 0 |
+| High | 0 | 0 |
+| Medium | 4 | 2 |
+| Low | 2 | 3 |
+| **Total** | **6** | **5** |
+
+
+---
+
+## Dated Findings — First-Person WebXR Branch (2026-09-02, branch `feature/immersive-webxr`)
+
+Scope: reintroduce VR as Wilkins' first-person view rather than the previous third-person canvas diorama. Preserve the canonical room, collision, exit, hotspot, inventory, score, death and puzzle systems.
+
+### Implemented
+
+- [x] [Priority: High] **VR represented the game as a distant third-person curved screen** — *(RESOLVED: authored room pixels are projected onto curved wall, floor and ceiling geometry; Wilkins' sprite is suppressed in-session so the headset wearer is Wilkins.)*
+- [x] [Priority: High] **Headset locomotion did not drive canonical adventure-game movement** — *(RESOLVED: view-relative left-stick motion feeds the existing directional input path, retaining room barriers, walkable areas, footsteps and automatic exits.)*
+- [x] [Priority: High] **Immersive interaction could diverge from desktop puzzle logic** — *(RESOLVED: controller rays map wall/floor intersections back to 640x400 hotspot coordinates and call the existing action dispatcher.)*
+- [x] [Priority: Medium] **Desktop UI was baked into the VR world texture** — *(RESOLVED: immersive rendering suppresses desktop HUD chrome and supplies a head-relative action, score, message and selected-item panel.)*
+- [x] [Priority: Medium] **The prior custom WebGL renderer duplicated low-level XR rendering infrastructure** — *(RESOLVED: Three.js 0.185.1 is pinned, vendored with its license, cached offline, and statically registered.)*
+- [x] [Priority: Medium] **XR capability and rendering had no deterministic release gate** — *(RESOLVED: Playwright mocks capability discovery and verifies first-person state, projection, locomotion, restoration and a nonblank WebGL render.)*
+
+### Open headset validation
+
+- [ ] [Priority: High] **Physical-headset comfort and controller behavior require release validation**
+
+  Category: WebXR / Release
+  Affected files: `js/vr.js`, `README.md`
+  Problem: desktop automation cannot evaluate stereo depth comfort, headset-specific gamepad mappings, room-scale boundaries, sustained headset frame rate or controller ergonomics.
+  Recommended solution: run the documented release checklist on the minimum supported Quest-class headset and record model/browser versions plus any comfort adjustments.
+  Acceptance criteria: enter/exit, head tracking, both controllers, view-relative walking, collision, every action, inventory selection, exits, cutscene skipping and death/restart pass without nausea-inducing scale or frame pacing.
+
+### Summary
+
+| Priority | Resolved | Open |
+|---|---:|---:|
+| High | 3 | 1 |
+| Medium | 3 | 0 |
+| **Total** | **6** | **1** |

@@ -153,6 +153,10 @@ class GameEngine {
         this.scanlineCanvas = document.createElement('canvas');
         this.scanlineCanvas.width = this.WIDTH;
         this.scanlineCanvas.height = this.HEIGHT;
+        this.crtBloomCanvas = document.createElement('canvas');
+        this.crtBloomCanvas.width = this.WIDTH;
+        this.crtBloomCanvas.height = this.HEIGHT;
+        this.crtBloomCtx = this.crtBloomCanvas.getContext('2d');
         const slCtx = this.scanlineCanvas.getContext('2d');
         // Horizontal scanlines
         slCtx.fillStyle = 'rgba(0,0,0,0.16)';
@@ -202,6 +206,9 @@ class GameEngine {
             new URLSearchParams(window.location.search).has('visual-test');
         this._loopRunning = false;
         this._listeners = [];
+        this.vrActive = false;
+        this.immersiveView = false;
+        this.vr = null;
         this._lightPoolCache = new Map();
         this._vignetteCache = new Map();
         // Text measurement happens outside the render pass (word wrap, dialog
@@ -211,10 +218,6 @@ class GameEngine {
         // Screen shake (intensity decays over time)
         this.screenShake = 0;
         this.screenShakeDecay = 0.003; // per ms
-
-        // VR state
-        this.vrActive = false;
-        this.vr = null;
 
         // === AGI-INSPIRED SYSTEMS ===
 
@@ -234,6 +237,7 @@ class GameEngine {
         // Walkable area barriers (AGI priority 0/1 control lines)
         // Rooms can define rectangular barriers the player can't cross
         this.barriers = []; // { x, y, w, h }
+        this.walkableArea = null;
 
         // Edge transitions (AGI EGOEDGE / NEWROOM)
         // Rooms can define what happens when ego hits screen edges
@@ -334,6 +338,7 @@ class GameEngine {
      *  replacing one engine instance with another on the same page. */
     destroy() {
         this._loopRunning = false;
+        if (this.vr) this.vr.destroy();
         for (const { target, type, handler, options } of this._listeners) {
             target.removeEventListener(type, handler, options);
         }
@@ -1589,11 +1594,20 @@ class GameEngine {
         this.barriers = [];
     }
 
+    /** Limit the player's baseline to a room-defined floor shape. */
+    setWalkableArea(containsPoint) {
+        this.walkableArea = containsPoint;
+    }
+
     /** Check if a position collides with any barrier (AGI CanBHere).
      *  Tests the player's baseline (feet position). */
     collidesBarrier(px, py) {
         // Player baseline is roughly a 14px-wide line at foot level
         const halfW = 7;
+        if (this.walkableArea &&
+            (!this.walkableArea(px - halfW, py) || !this.walkableArea(px + halfW, py))) {
+            return true;
+        }
         for (const b of this.barriers) {
             if (px + halfW > b.x && px - halfW < b.x + b.w &&
                 py >= b.y && py <= b.y + b.h) {
@@ -2213,6 +2227,7 @@ class GameEngine {
     clearRoomState() {
         this.clearForegroundLayers();
         this.clearBarriers();
+        this.walkableArea = null;
         this.clearEdgeTransitions();
         this.clearNPCs();
         this.sceneLight = null;
@@ -2755,7 +2770,7 @@ class GameEngine {
 
         const room = this.rooms[this.currentRoomId];
         this.drawScene(ctx, room);
-        this.drawHud(ctx, room);
+        if (!this.immersiveView) this.drawHud(ctx, room);
 
         // Room transition (fade / iris / wipe)
         if (this.roomTransition > 0) {
@@ -2901,53 +2916,6 @@ class GameEngine {
 
         if (this.dead) this.drawDeathOverlay(ctx);
         if (this.won) this.drawWinOverlay(ctx);
-
-        if (this.vrActive && !this.dead && !this.won && !this.cutscene && !this.titleScreen) {
-            this.drawVrHud(ctx);
-        }
-    }
-
-    /** VR HUD: message + inventory drawn on canvas so they appear on the panorama. */
-    drawVrHud(ctx) {
-        // Message area background
-        ctx.fillStyle = 'rgba(0, 0, 100, 0.85)';
-        ctx.fillRect(0, 350, this.WIDTH, 50);
-        ctx.strokeStyle = '#5555FF';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(0, 350, this.WIDTH, 50);
-        // Message text (word-wrapped)
-        ctx.fillStyle = PAL.TEXT_PRIMARY;
-        ctx.font = '12px "Courier New"';
-        ctx.textAlign = 'left';
-        const maxW = this.WIDTH - 20;
-        const words = (this.message || '').split(' ');
-        let line = '', textY = 365;
-        for (const w of words) {
-            const test = line + w + ' ';
-            if (ctx.measureText(test).width > maxW && line) {
-                ctx.fillText(line.trim(), 10, textY);
-                line = w + ' ';
-                textY += 14;
-                if (textY > 395) break;
-            } else {
-                line = test;
-            }
-        }
-        if (line.trim() && textY <= 395) ctx.fillText(line.trim(), 10, textY);
-        // Inventory strip
-        if (this.inventory.length > 0) {
-            ctx.fillStyle = 'rgba(0, 0, 60, 0.85)';
-            ctx.fillRect(0, 332, this.WIDTH, 18);
-            ctx.strokeStyle = '#333388';
-            ctx.strokeRect(0, 332, this.WIDTH, 18);
-            ctx.fillStyle = PAL.TEXT_MUTED;
-            ctx.font = '10px "Courier New"';
-            const invStr = 'INV: ' + this.inventory.map(id => {
-                const nm = this.items[id]?.name || id;
-                return this.selectedItem === id ? '[' + nm + ']' : nm;
-            }).join(' | ');
-            ctx.fillText(invStr, 10, 345);
-        }
     }
 
     /** Sparkle burst when an item is picked up (steady, unaffected by shake). */
@@ -2974,10 +2942,13 @@ class GameEngine {
         if (!this.crtEffects) return;
         // Phosphor bloom: re-composite the frame additively and slightly enlarged so
         // bright pixels glow softly, then lay down scanlines, aperture grille and vignette.
+        const bloom = this.crtBloomCtx;
+        bloom.clearRect(0, 0, this.WIDTH, this.HEIGHT);
+        bloom.drawImage(ctx.canvas, 0, 0);
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         ctx.globalAlpha = 0.12;
-        ctx.drawImage(ctx.canvas, -1, -1, this.WIDTH + 2, this.HEIGHT + 2);
+        ctx.drawImage(this.crtBloomCanvas, -1, -1, this.WIDTH + 2, this.HEIGHT + 2);
         ctx.restore();
         ctx.drawImage(this.scanlineCanvas, 0, 0);
         ctx.drawImage(this.vignetteCanvas, 0, 0);
@@ -4440,11 +4411,14 @@ class GameEngine {
         }
     }
 
-    // ---- VR Setup ----
+    // ---- Immersive VR ----
     initVR() {
-        if (typeof VRSystem !== 'undefined') {
-            this.vr = new VRSystem(this);
+        if (this.vr || typeof window === 'undefined') return;
+        if (window.VRSystem) {
+            this.vr = new window.VRSystem(this);
+            return;
         }
+        this._on(window, 'starsweeper-vr-ready', () => this.initVR(), { once: true });
     }
 
     // ---- Game Loop ----
@@ -4452,13 +4426,11 @@ class GameEngine {
         // A second start() would run two rAF loops against one lastTime.
         if (this._loopRunning) return;
         this._loopRunning = true;
-        // Initialize VR support if available
         this.initVR();
         this.updateLayoutScale();
 
         const loop = (timestamp) => {
             if (!this._loopRunning) return;
-            // When VR is active, the XR frame loop handles update+render
             if (!this.vrActive) {
                 const dt = Math.min(timestamp - this.lastTime, 100);
                 this.lastTime = timestamp;

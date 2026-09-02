@@ -49,7 +49,7 @@ async function expectCanvas(page, name) {
     await page.evaluate(() => document.fonts.ready);
     await expect(page.locator('#game-canvas')).toHaveScreenshot(name, {
         animations: 'disabled',
-        maxDiffPixelRatio: 0.002,
+        maxDiffPixels: 300,
         timeout: 10000
     });
 }
@@ -119,7 +119,7 @@ test.describe('visual regression', () => {
             await page.evaluate(() => document.fonts.ready);
             await expect(page.locator('#game-container')).toHaveScreenshot(`${room}-mobile.png`, {
                 animations: 'disabled',
-                maxDiffPixelRatio: 0.002,
+                maxDiffPixels: 300,
                 timeout: 10000
             });
         }

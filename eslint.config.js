@@ -24,18 +24,16 @@ const gameGlobals = {
     GameEngine: 'readonly',
     SoundEngine: 'readonly',
     AnimatedObject: 'readonly',
-    VRSystem: 'readonly',
     StarSweeper: 'readonly',
     StarSweeperContent: 'readonly',
     SS_PALETTE: 'readonly',
-    StarSweeperVR: 'readonly',
     PAL: 'readonly',
     engine: 'readonly'
 };
 
 // Classes are declared in one script and consumed by another, so the
 // declaration itself always looks unused to a per-file linter.
-const crossFileDeclarations = '^(GameEngine|SoundEngine|AnimatedObject|VRSystem)$';
+const crossFileDeclarations = '^(GameEngine|SoundEngine|AnimatedObject)$';
 
 const sharedRules = {
     'no-undef': 'error',
@@ -66,7 +64,7 @@ const sharedRules = {
 
 module.exports = [
     {
-        ignores: ['node_modules/**', 'test-results/**', 'playwright-report/**', 'screenshots/**']
+        ignores: ['node_modules/**', 'js/vendor/**', 'test-results/**', 'playwright-report/**', 'screenshots/**']
     },
     {
         files: ['js/**/*.js', 'serviceworker.js'],
@@ -78,6 +76,15 @@ module.exports = [
                 ...globals.serviceworker,
                 ...gameGlobals
             }
+        },
+        rules: sharedRules
+    },
+    {
+        files: ['js/vr.js'],
+        languageOptions: {
+            ecmaVersion: 2022,
+            sourceType: 'module',
+            globals: { ...globals.browser, XRRigidTransform: 'readonly' }
         },
         rules: sharedRules
     },

@@ -14,6 +14,13 @@ StarSweeper.defineRooms((engine) => {
             e.setFlag('alarm_active');
             // Sierra pseudo-3D: floor runs 275..400, so scale gently across it.
             e.setDepthScaling(282, 378, 0.85, 1.0);
+            e.setWalkableArea((x, y) => {
+                if (y < 275 || y > 400) return false;
+                const depth = (y - 275) / 125;
+                const leftEdge = 220 * (1 - depth);
+                const rightEdge = 420 + 220 * depth;
+                return x >= leftEdge && x <= rightEdge;
+            });
             // AGI-inspired barriers: shelves, mop bucket, door area
             e.addBarrier(25, 280, 195, 10);   // Lower shelf base blocks walking through it
             e.addBarrier(465, 306, 65, 22);    // Mop bucket

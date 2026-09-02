@@ -2,13 +2,14 @@
 
 ## Architecture Overview
 
-A Sierra-style point-and-click adventure game (Space Quest 1 tribute) built with **pure JavaScript and HTML5 Canvas** (640×400, `image-rendering: pixelated`). No frameworks, no build system, no runtime dependencies.
+A Sierra-style point-and-click adventure game (Space Quest 1 tribute) built with **JavaScript and HTML5 Canvas** (640×400, `image-rendering: pixelated`), plus a vendored Three.js browser module for optional first-person WebXR. No build system or runtime install.
 
 - [index.html](../index.html) — UI shell: canvas, action buttons (Walk/Look/Get/Use/Talk), inventory bar, save/load modal, message area
 - [js/engine.js](../js/engine.js) — reusable `GameEngine` class: rendering loop, input handling, player sprite, click-to-walk + arrow key movement, cutscene system, save/load (localStorage, 5 slots), room transitions, title/victory overlays driven by a game definition object
 - [js/registry.js](../js/registry.js) — room-module registry. Rooms are parsed before the engine exists, so each room file queues a factory via `StarSweeper.defineRooms(fn)` and the bootstrap drains the queue.
 - [js/art.js](../js/art.js) — procedural drawing helpers shared by every room and cutscene, declared at script scope so rooms call them unqualified
 - [js/game.js](../js/game.js) — bootstrap only: items, dialog trees, the intro cutscene, `installRooms`, `start`
+- [js/vr.js](../js/vr.js) — first-person WebXR scene projection, head-relative HUD, controller interaction and locomotion mapping
 - [js/rooms/*.js](../js/rooms) — the rooms themselves, grouped by act
 
 ### Where does new code go?
@@ -20,6 +21,7 @@ A Sierra-style point-and-click adventure game (Space Quest 1 tribute) built with
 | A room's art, hotspots and puzzle logic | the matching `js/rooms/*.js` |
 | Items, dialog trees, the intro | `js/game.js` |
 | Score contract, item metadata, victory ranks | `js/content.js` |
+| WebXR scene, headset lifecycle and controller mapping | `js/vr.js` |
 
 Adding a room file requires three registrations — `index.html`, the
 `ASSETS` list in `serviceworker.js`, and `CONTENT_FILES` in
