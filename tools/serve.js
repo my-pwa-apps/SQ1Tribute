@@ -42,17 +42,25 @@ http.createServer((request, response) => {
         response.writeHead(403).end('Forbidden');
         return;
     }
-    const sendFile = () => fs.readFile(filePath, (error, data) => {
-        if (error) {
-            response.writeHead(error.code === 'ENOENT' ? 404 : 500).end('Not found');
+    const sendFile = () => fs.realpath(filePath, (realError, realPath) => {
+        // Resolve symlinks before serving: the prefix test above is a string
+        // check and a link inside the repo can still point outside it.
+        if (realError || !(realPath === root || realPath.startsWith(root + path.sep))) {
+            response.writeHead(realError && realError.code === 'ENOENT' ? 404 : 403).end('Not found');
             return;
         }
-        response.writeHead(200, {
-            ...securityHeaders,
-            'Content-Type': mimeTypes[path.extname(filePath)] || 'application/octet-stream',
-            'Cache-Control': 'no-cache'
+        fs.readFile(realPath, (error, data) => {
+            if (error) {
+                response.writeHead(error.code === 'ENOENT' ? 404 : 500).end('Not found');
+                return;
+            }
+            response.writeHead(200, {
+                ...securityHeaders,
+                'Content-Type': mimeTypes[path.extname(realPath)] || 'application/octet-stream',
+                'Cache-Control': 'no-cache'
+            });
+            response.end(data);
         });
-        response.end(data);
     });
     const delay = Math.min(10000, Math.max(0, Number(requestUrl.searchParams.get('delay')) || 0));
     if (delay) setTimeout(sendFile, delay);

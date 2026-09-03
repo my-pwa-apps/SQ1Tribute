@@ -40,7 +40,7 @@ Then browse to http://127.0.0.1:8080 (the server binds the loopback address expl
 
 Classic mode is the desktop default: try commands like `LOOK`, `GET MOP`, `DRINK PUDDLE`, `USE KEYCARD ON DOOR`, `TALK TO PILOT`, `INVENTORY`, `SAVE`, and `RESTORE`. Touch-first devices default to Enhanced mode. If Classic is selected on touch hardware, the on-screen parser, D-pad, and save controls remain available. In Enhanced mode, click an inventory item to select it, then click a hotspot to use them together.
 
-On a WebXR headset, choose **Enter VR** to play as Wilkins in first person. The left stick walks relative to your view, the trigger performs the selected action, grip cycles Walk/Look/Get/Use/Talk, B performs a quick Look, A confirms or skips, and the right stick cycles inventory while Use is selected. Physical room-scale movement and head tracking are handled by WebXR; thumbstick movement remains constrained by each room's existing barriers and exits.
+On a WebXR headset, choose **Enter VR** to play as Wilkins in first person. The left stick walks relative to your view, the trigger performs the selected action (and selects dialog options or dismisses narration, exactly as a desktop click does), grip cycles Walk/Look/Get/Use/Talk, clicking a thumbstick asks for a hint, B performs a quick Look, A confirms or skips, and the right stick cycles inventory while Use is selected. The head-relative HUD mirrors the desktop status bar: current action, score, the latest message, the selected item and everything you are carrying. Physical room-scale movement and head tracking are handled by WebXR; thumbstick movement remains constrained by each room's existing barriers and exits. Saving and loading stay on the desktop interface — exit VR to reach the slot manager, then re-enter.
 
 ## Story
 
@@ -119,7 +119,7 @@ npm run check
 |---|---|
 | `npm run lint` | ESLint over every source and test file |
 | `npm run check:static` | Lint, parse every module, and validate content cross-references |
-| `npm run test:functional` | Playwright gameplay and PWA tests (platform-independent) |
+| `npm run test:functional` | Playwright gameplay, architecture, and accessibility tests (platform-independent) |
 | `npm run test:visual` | Visual regression against committed baselines |
 | `npm run test:visual:update` | Re-record visual baselines after an intentional art change |
 | `npm run check` | Full local gate: static checks, the cache-version guard, and every Playwright test |

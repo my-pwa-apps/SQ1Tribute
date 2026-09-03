@@ -16,7 +16,7 @@ function git(args) {
 }
 
 function readVersion(source) {
-    const match = source.match(/const VERSION = '([^']+)'/);
+    const match = source.match(/const VERSION\s*=\s*['"]([^'"]+)['"]/);
     return match ? match[1] : null;
 }
 
@@ -30,9 +30,9 @@ try {
 }
 
 const swSource = fs.readFileSync(path.join(root, 'serviceworker.js'), 'utf8');
-const cachedAssets = [...swSource.matchAll(/'\.\/([^']+)'/g)]
-    .map((m) => m[1])
-    .filter(Boolean);
+const assetList = (source) => [...source.matchAll(/['"]\.\/([^'"]+)['"]/g)].map((m) => m[1]).filter(Boolean);
+const cachedAssets = assetList(swSource);
+const baseAssets = assetList(baseSw);
 
 let changed;
 try {
@@ -43,8 +43,14 @@ try {
 }
 
 // index.html is cached as the app shell but is not listed by name in ASSETS.
-const touchedCachedAsset = changed.some(
-    (file) => file === 'index.html' || cachedAssets.includes(file)
+// A removed or renamed asset only appears in the base list, and editing the list
+// itself changes cache contents even when no listed file was touched.
+const assetListChanged =
+    baseAssets.length !== cachedAssets.length ||
+    baseAssets.some((asset, index) => asset !== cachedAssets[index]);
+const trackedAssets = new Set([...cachedAssets, ...baseAssets]);
+const touchedCachedAsset = assetListChanged || changed.some(
+    (file) => file === 'index.html' || trackedAssets.has(file)
 );
 
 if (!touchedCachedAsset) {

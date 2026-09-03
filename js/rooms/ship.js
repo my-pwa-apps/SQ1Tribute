@@ -1929,7 +1929,7 @@ StarSweeper.defineRooms((engine) => {
                         return;
                     }
                     if (!e.hasItem('cartridge') && !e.getFlag('pod_warn_cartridge')) {
-                        e.showMessage('Some uncharacteristically merciful instinct stops you. The science lab still has the sort of vital shipboard business that becomes a terrible problem three planets later.');
+                        e.showMessage('Some uncharacteristically merciful instinct stops you. The science lab still holds the drive specs — you can improvise without them later, but it will be considerably harder.');
                         e.setFlag('pod_warn_cartridge');
                         return;
                     }

@@ -17,7 +17,7 @@ StarSweeper.defineRooms((engine) => {
     engine.registerRoom({
         id: 'engine_room',
         hint: (e) => {
-            if (!e.getFlag('cabinet_opened')) return 'The fire suppression cabinet on the left wall is locked. Plasma cutters are good at locks. Korvak has one.';
+            if (!e.getFlag('cabinet_opened')) return 'The fire suppression cabinet on the left wall is sealed. There is an emergency override behind its side panel — or a plasma cutter will do it faster.';
             if (!e.hasItem('medkit') && !e.getFlag('korvak_freed')) return 'Open the cabinet and take the medkit. Then use it on Korvak.';
             if (!e.getFlag('korvak_freed')) return 'Use the medkit on Korvak.';
             if (!e.getFlag('fire_suppressed')) return 'That conduit fire is still burning on the right wall. The cabinet holds a suppression canister — use the fire itself to grab it and put the flames out.';
@@ -497,15 +497,7 @@ StarSweeper.defineRooms((engine) => {
                 talk: (e) => e.startDialog('korvak'),
                 useItem: (e, id) => {
                     if (id === 'medkit' && !e.getFlag('korvak_freed')) {
-                        e.removeFromInventory('medkit');
-                        e.setFlag('korvak_freed');
-                        e.setFlag('korvak_left');
-                        e.addScore(20);
-                        // Award cutter only if Korvak hasn't already given it via dialog
-                        if (!e.getFlag('korvak_gave_cutter')) {
-                            e.addToInventory('plasma_cutter');
-                            e.setFlag('korvak_gave_cutter');
-                        }
+                        StarSweeperContent.rules.healKorvak(e);
                         e.showMessage('You use the medkit to stabilize Korvak\'s wounds. He grits his teeth as you patch him up, then helps you lever the beam aside. "Thank you," he rasps. He hands you a battered plasma cutter from his belt.');
                     } else if (id === 'medkit' && e.getFlag('korvak_freed')) {
                         e.showMessage('Korvak is already patched up as best as possible.');

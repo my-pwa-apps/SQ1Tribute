@@ -33,14 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         text: 'I\'d like a Keronian Ale. (10 buckazoids)',
                         response: '"Sure thing, smoothskin." The bartender pours you a shimmering green Keronian Ale and slides it across the bar. "Don\'t drink it all at once."',
                         action: (eng) => {
-                            const cr = eng.getFlag('credits_amount') || 0;
-                            eng.sound.sell();
-                            eng.setFlag('credits_amount', cr - 10);
-                            eng.items['credits'].name = 'Buckazoids (' + (cr - 10) + ')';
-                            eng.items['credits'].description = 'A credit chip with ' + (cr - 10) + ' buckazoids remaining.';
-                            if (cr - 10 <= 0) eng.removeFromInventory('credits');
-                            eng.addToInventory('drink');
-                            eng.updateInventoryUI();
+                            StarSweeperContent.rules.buyDrink(eng);
                         },
                         condition: (eng) => eng.hasItem('credits') && !eng.hasItem('drink') && (eng.getFlag('credits_amount') || 0) >= 10
                     },
@@ -109,10 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         response: '"For ME?! You\'re a saint among smoothskins!"',
                         condition: (eng) => eng.hasItem('drink') && !eng.getFlag('pilot_has_drink'),
                         action: (eng) => {
-                            eng.sound.drink();
-                            eng.removeFromInventory('drink');
-                            eng.setFlag('pilot_has_drink');
-                            eng.updateInventoryUI();
+                            StarSweeperContent.rules.givePilotDrink(eng);
                         },
                         nextTopic: 'after_drink'
                     },
@@ -136,10 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         text: 'Tell me everything about the Draknoids.',
                         response: '"Those Draknoid thugs... I did a cargo run near their flagship last month. Got the coordinates logged before they chased me off. Here — take this nav chip. It\'ll get you right to \'em." He slides a chip across the table.',
                         action: (eng) => {
-                            eng.addToInventory('nav_chip');
-                            eng.setFlag('pilot_left');
-                            eng.addScore(20);
-                            eng.updateInventoryUI();
+                            StarSweeperContent.rules.grantNavChip(eng);
                         },
                         endDialog: true
                     },
@@ -192,14 +179,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     {
                         text: 'I found a medkit.',
                         response: '"You beautiful, beautiful janitor. Hand it over... ah. That\'s better. I can get myself out now. I\'ll try to make for the life rafts on deck two. Go — I\'ll slow you down. And Wilkins? Don\'t let those reptiles win."',
-                        condition: (eng) => eng.hasItem('medkit') && !eng.getFlag('korvak_healed'),
+                        condition: (eng) => eng.hasItem('medkit') && !eng.getFlag('korvak_freed'),
                         action: (eng) => {
-                            eng.removeFromInventory('medkit');
-                            eng.setFlag('korvak_healed');
-                            eng.setFlag('korvak_freed');
-                            eng.setFlag('korvak_left');
-                            eng.addScore(20);
-                            eng.updateInventoryUI();
+                            StarSweeperContent.rules.healKorvak(eng);
                         },
                         once: true,
                         endDialog: true

@@ -43,8 +43,12 @@ jobs:
       - run: npm run check:ci
 
       - name: Service worker cache version
-        if: github.event_name == 'pull_request'
-        run: npm run check:sw -- origin/${{ github.base_ref }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            npm run check:sw -- "origin/${{ github.base_ref }}"
+          else
+            npm run check:sw -- "${{ github.event.before }}"
+          fi
 
       - uses: actions/upload-artifact@v4
         if: failure()

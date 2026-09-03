@@ -85,7 +85,7 @@ class SoundEngine {
         g.gain.setValueAtTime(Math.min(vol || 0.3, 1), start);
         g.gain.exponentialRampToValueAtTime(0.001, start + dur);
         o.connect(g);
-        g.connect(this.master);
+        g.connect(this._ambientDest || this.master);
         o.start(start);
         o.stop(start + dur + 0.01);
         o.onended = () => { g.disconnect(); };
@@ -117,7 +117,7 @@ class SoundEngine {
             src.connect(g);
             src.onended = () => { g.disconnect(); };
         }
-        g.connect(this.master);
+        g.connect(this._ambientDest || this.master);
         src.start(start);
     }
 
@@ -419,11 +419,23 @@ class SoundEngine {
             clearInterval(this._ambientTimer);
             this._ambientTimer = null;
         }
-        if (this._ambientNodes) {
-            this._ambientNodes.forEach(n => { try { n.stop(); } catch(e) {} });
-            this._ambientNodes = [];
+        // Disconnecting the bus silences tones that were already scheduled;
+        // clearing the interval alone only stops future ones.
+        if (this._ambientBus) {
+            try { this._ambientBus.disconnect(); } catch { /* already detached */ }
+            this._ambientBus = null;
         }
+        this._ambientDest = null;
         this._ambientType = null;
+    }
+
+    /** Run an ambient loop with every source it creates routed to the ambient bus. */
+    _startAmbientLoop(body, intervalMs) {
+        this._ambientTimer = setInterval(() => {
+            if (this.muted || !this.ctx || !this._ambientBus) return;
+            this._ambientDest = this._ambientBus;
+            try { body(); } finally { this._ambientDest = null; }
+        }, intervalMs);
     }
 
     /** Start a looping ambient sound for the given room type */
@@ -431,13 +443,13 @@ class SoundEngine {
         if (!this.ctx) return;
         this.stopAmbient();
         this._ambientType = type;
-        this._ambientNodes = [];
+        this._ambientBus = this.ctx.createGain();
+        this._ambientBus.connect(this.master);
 
         switch (type) {
             case 'ship_alarm':
                 // Ship interior: low engine hum + periodic alarm klaxon
-                this._ambientTimer = setInterval(() => {
-                    if (this.muted || !this.ctx) return;
+                this._startAmbientLoop(() => {
                     const t = this._t();
                     // Low engine rumble
                     this._osc('sine', 45 + Math.random() * 5, t, 1.8, 0.025);
@@ -452,8 +464,7 @@ class SoundEngine {
 
             case 'cantina_music':
                 // Alien jazz: repeating pattern of funky notes + rhythm
-                this._ambientTimer = setInterval(() => {
-                    if (this.muted || !this.ctx) return;
+                this._startAmbientLoop(() => {
                     const t = this._t();
                     // Bass line
                     const bassNotes = [110, 130, 147, 110, 165, 130, 147, 123];
@@ -478,8 +489,7 @@ class SoundEngine {
 
             case 'desert_wind':
                 // Desert: wind howls + sand rustling
-                this._ambientTimer = setInterval(() => {
-                    if (this.muted || !this.ctx) return;
+                this._startAmbientLoop(() => {
                     const t = this._t();
                     this._noise(t, 2.5, 0.02, 400 + Math.random() * 200);
                     // Occasional stronger gust
@@ -491,8 +501,7 @@ class SoundEngine {
 
             case 'cave_drip':
                 // Cave: echoing drips + distant rumble
-                this._ambientTimer = setInterval(() => {
-                    if (this.muted || !this.ctx) return;
+                this._startAmbientLoop(() => {
                     const t = this._t();
                     // Low cavern resonance
                     this._osc('sine', 55, t, 2.0, 0.012);
@@ -507,8 +516,7 @@ class SoundEngine {
 
             case 'outpost_crowd':
                 // Outpost: crowd murmur + alien chatter
-                this._ambientTimer = setInterval(() => {
-                    if (this.muted || !this.ctx) return;
+                this._startAmbientLoop(() => {
                     const t = this._t();
                     // Crowd murmur (low noise)
                     this._noise(t, 2.0, 0.015, 300);
@@ -523,8 +531,7 @@ class SoundEngine {
 
             case 'ship_hum':
                 // Generic ship interior: just engine hum, no alarm
-                this._ambientTimer = setInterval(() => {
-                    if (this.muted || !this.ctx) return;
+                this._startAmbientLoop(() => {
                     const t = this._t();
                     this._osc('sine', 48, t, 2.0, 0.02);
                     this._osc('sine', 96, t + 0.2, 1.5, 0.01);
@@ -538,8 +545,7 @@ class SoundEngine {
             case 'draknoid_ship':
                 // Alien ship: deep ominous drone + electronic pulses
                 this.draknoidMotif();
-                this._ambientTimer = setInterval(() => {
-                    if (this.muted || !this.ctx) return;
+                this._startAmbientLoop(() => {
                     const t = this._t();
                     this._osc('sawtooth', 38, t, 2.2, 0.02);
                     this._osc('sine', 76, t + 0.1, 1.8, 0.015);

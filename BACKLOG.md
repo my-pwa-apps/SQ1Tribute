@@ -9,12 +9,13 @@ Open items only (resolved items from prior reviews are retained below for histor
 | Priority | Count |
 |---|---:|
 | Critical | 0 |
-| High | 4 |
-| Medium | 19 |
-| Low | 8 |
+| High | 1 |
+| Medium | 5 |
+| Low | 0 |
 
 See the dated sections at the end of this file for detail; the most recent is the
-Principal Engineering Review of 2026-09-02 (second pass).
+Backlog Burn-Down of 2026-09-02. The single open High item requires physical VR
+hardware. Checkboxes in older sections were reconciled during that pass.
 
 ---
 
@@ -613,7 +614,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
 
 ### Open items
 
-- [ ] **Add ESLint with a browser-globals flat config**
+- [x] **Add ESLint with a browser-globals flat config** *(RESOLVED: delivered in the architecture pass; `eslint.config.js` derives art globals from `js/art.js` and `lint` is the first step of `check:static`.)*
 
   Priority: High
   Category: Developer Experience
@@ -627,7 +628,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Medium
   Technical debt reduction: High
 
-- [ ] **Split `js/game.js` (8,900 lines / 488 KB) into per-room modules**
+- [x] **Split `js/game.js` (8,900 lines / 488 KB) into per-room modules** *(RESOLVED: content now lives in `js/rooms/*.js` behind the `StarSweeper.defineRooms` registry.)*
 
   Priority: High
   Category: Architecture
@@ -641,7 +642,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Medium
   Technical debt reduction: High
 
-- [ ] **`drawCrtEffects()` draws the canvas onto itself**
+- [x] **`drawCrtEffects()` draws the canvas onto itself** *(RESOLVED: the frame is copied into a reusable bloom canvas before the additive pass.)*
 
   Priority: Medium
   Category: Bug
@@ -669,7 +670,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **Only one of several death states is tested**
+- [x] **Only one of several death states is tested** *(RESOLVED: puddle, reactor, guard and desert-exposure deaths all have restart coverage.)*
 
   Priority: Medium
   Category: Testing
@@ -683,7 +684,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **Visual regression cannot run in CI**
+- [x] **Visual regression cannot run in CI** *(SUPERSEDED: tracked as a single open item in the 2026-09-02 burn-down section.)*
 
   Priority: Medium
   Category: Testing
@@ -697,7 +698,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **Visual diff threshold is too permissive for pixel art**
+- [x] **Visual diff threshold is too permissive for pixel art** *(RESOLVED: replaced with an absolute 300-pixel ceiling.)*
 
   Priority: Low
   Category: Testing
@@ -711,7 +712,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Low
   Technical debt reduction: Low
 
-- [ ] **Death and victory overlays re-run word wrap every frame**
+- [x] **Death and victory overlays re-run word wrap every frame** *(RESOLVED: `_wrapLines()` memoises wrapped overlay text.)*
 
   Priority: Low
   Category: Performance
@@ -725,7 +726,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Low
   Technical debt reduction: Low
 
-- [ ] **`_drawables` allocates a descriptor object per entity per frame**
+- [x] **`_drawables` allocates a descriptor object per entity per frame** *(RESOLVED: descriptors are pooled and mutated in place.)*
 
   Priority: Low
   Category: Performance
@@ -739,7 +740,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Low
   Technical debt reduction: Low
 
-- [ ] **The engine has no `destroy()`**
+- [x] **The engine has no `destroy()`** *(RESOLVED: `_on()` tracks listeners; `destroy()` detaches them, stops the loop and disposes audio.)*
 
   Priority: Low
   Category: Architecture
@@ -753,7 +754,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Low
   Technical debt reduction: Medium
 
-- [ ] **Clicking an exit in a non-walk action gives unhelpful snark**
+- [x] **Clicking an exit in a non-walk action gives unhelpful snark** *(RESOLVED: exits now name themselves as a way out.)*
 
   Priority: Low
   Category: UX
@@ -767,7 +768,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Low
   Technical debt reduction: Low
 
-- [ ] **`getFlag()` returns `false` for unset counter flags**
+- [x] **`getFlag()` returns `false` for unset counter flags** *(RESOLVED: added `getCounter(name)`.)*
 
   Priority: Low
   Category: Technical Debt
@@ -781,7 +782,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Low
   Technical debt reduction: Low
 
-- [ ] **Service worker `VERSION` is bumped by hand**
+- [x] **Service worker `VERSION` is bumped by hand** *(RESOLVED: `check:sw` is wired into `npm run check` and runs in CI on pushes and pull requests.)*
 
   Priority: Low
   Category: Developer Experience
@@ -795,7 +796,7 @@ Verification for this pass: `npm run check` — static checks and the extended c
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **No automated accessibility audit**
+- [x] **No automated accessibility audit** *(RESOLVED: `tests/accessibility.spec.js` runs axe over four states in the functional suite.)*
 
   Priority: Medium
   Category: Accessibility
@@ -899,7 +900,7 @@ Verification: `npm audit --omit=dev` reports **0 vulnerabilities**. `npm run che
 
 ### Open items carried forward
 
-- [ ] [Priority: Medium] **Visual baselines are Windows-only and excluded from Linux CI**
+- [x] [Priority: Medium] **Visual baselines are Windows-only and excluded from Linux CI** *(SUPERSEDED: tracked as a single open item in the 2026-09-02 burn-down section.)*
 
   Category: Delivery / Quality
   Affected files: `.github/workflows/quality.yml`, `tests/visual.spec.js-snapshots/`
@@ -907,7 +908,7 @@ Verification: `npm audit --omit=dev` reports **0 vulnerabilities**. `npm run che
   Recommended solution: establish reviewed Linux baselines and run the visual project in CI, or use a pinned screenshot container to make rendering reproducible.
   Acceptance criteria: a deliberate one-pixel scene regression fails the pull-request gate on the hosted runner.
 
-- [ ] [Priority: Medium] **No automated accessibility conformance scan**
+- [x] [Priority: Medium] **No automated accessibility conformance scan** *(RESOLVED: axe scans cover title, gameplay, save modal and dialog states.)*
 
   Category: Accessibility
   Affected files: `tests/`, `package.json`
@@ -915,7 +916,7 @@ Verification: `npm audit --omit=dev` reports **0 vulnerabilities**. `npm run che
   Recommended solution: add `@axe-core/playwright` scans for those four states and fail on serious or critical findings.
   Acceptance criteria: all four representative states pass the automated audit in CI with documented exceptions only.
 
-- [ ] [Priority: Low] **Timed and conditional death branches remain uncovered**
+- [x] [Priority: Low] **Timed and conditional death branches remain uncovered** *(RESOLVED: desert exposure death and restart are covered deterministically.)*
 
   Category: Testing
   Affected files: `js/rooms/kerona.js`, `tests/game.spec.js`
@@ -923,7 +924,7 @@ Verification: `npm audit --omit=dev` reports **0 vulnerabilities**. `npm run che
   Recommended solution: add deterministic clock/flag setup and assert death plus clean restart for both branches.
   Acceptance criteria: every distinct death trigger has a direct functional test without real-time waiting.
 
-- [ ] [Priority: Low] **Long-lived rendering paths still allocate avoidable transient work**
+- [x] [Priority: Low] **Long-lived rendering paths still allocate avoidable transient work** *(RESOLVED: overlay wrapping is memoised and drawable descriptors are pooled.)*
 
   Category: Performance / Maintainability
   Affected files: `js/engine.js`
@@ -931,7 +932,7 @@ Verification: `npm audit --omit=dev` reports **0 vulnerabilities**. `npm run che
   Recommended solution: cache wrapped overlay lines by text/width/font and reuse drawable storage after profiling confirms the hotspot.
   Acceptance criteria: a repeatable mobile or XR profile demonstrates reduced allocations without changing visual baselines.
 
-- [ ] [Priority: Low] **Flags and numeric counters share one untyped API**
+- [x] [Priority: Low] **Flags and numeric counters share one untyped API** *(RESOLVED: `getCounter()` added for numeric state.)*
 
   Category: Maintainability
   Affected files: `js/engine.js`, room modules
@@ -971,7 +972,7 @@ Scope: reintroduce VR as Wilkins' first-person view rather than the previous thi
 
 ### Open headset validation
 
-- [ ] [Priority: High] **Physical-headset comfort and controller behavior require release validation**
+- [x] [Priority: High] **Physical-headset comfort and controller behavior require release validation** *(SUPERSEDED: tracked as the single open High item in the 2026-09-02 burn-down section.)*
 
   Category: WebXR / Release
   Affected files: `js/vr.js`, `README.md`
@@ -1024,7 +1025,7 @@ walkthrough still completes at 378/378.
 
 ### Open items
 
-- [ ] **VR title-screen confirm bypasses `startNewGame()`**
+- [x] **VR title-screen confirm bypasses `startNewGame()`** *(RESOLVED in the 2026-09-02 burn-down.)*
 
   Priority: High
   Category: Bug
@@ -1038,7 +1039,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **The test suite drives engine internals instead of real input paths**
+- [x] **The test suite drives engine internals instead of real input paths** *(PARTIALLY RESOLVED: a real canvas-click room transition test was added; broader conversion of the walkthrough remains covered by the open test-reliability item.)*
 
   Priority: High
   Category: Testing
@@ -1052,7 +1053,7 @@ walkthrough still completes at 378/378.
   Business value: High
   Technical debt reduction: High
 
-- [ ] **The content validator is regex-based and both over- and under-matches**
+- [x] **The content validator is regex-based and both over- and under-matches** *(PARTIALLY RESOLVED: patterns are now quote- and whitespace-tolerant and `js/content.js` is analysed; the AST rewrite stays open in the burn-down section.)*
 
   Priority: High
   Category: Developer Experience
@@ -1066,7 +1067,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: High
 
-- [ ] **`check_sw_version` misses deletions, renames and ASSETS-list edits**
+- [x] **`check_sw_version` misses deletions, renames and ASSETS-list edits** *(RESOLVED in the 2026-09-02 burn-down.)*
 
   Priority: Medium
   Category: Developer Experience
@@ -1080,7 +1081,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **Ambient audio nodes are never tracked, so `stopAmbient()` cannot stop them**
+- [x] **Ambient audio nodes are never tracked, so `stopAmbient()` cannot stop them** *(RESOLVED: ambient sources route through a disconnectable bus.)*
 
   Priority: Medium
   Category: Bug
@@ -1094,7 +1095,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **The game loop keeps running while the save/load modal is open**
+- [x] **The game loop keeps running while the save/load modal is open** *(RESOLVED in the 2026-09-02 burn-down.)*
 
   Priority: Medium
   Category: Bug
@@ -1108,7 +1109,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **VR scene resources are not disposed**
+- [x] **VR scene resources are not disposed** *(RESOLVED in the 2026-09-02 burn-down.)*
 
   Priority: Medium
   Category: Performance
@@ -1122,7 +1123,7 @@ walkthrough still completes at 378/378.
   Business value: Low
   Technical debt reduction: Medium
 
-- [ ] **The desert survival-kit route is a one-way death trap**
+- [x] **The desert survival-kit route is a one-way death trap** *(RESOLVED: the crashed pod yields an emergency water ration.)*
 
   Priority: Medium
   Category: UX
@@ -1136,7 +1137,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: Low
 
-- [ ] **The engine-room hint contradicts the implemented puzzle**
+- [x] **The engine-room hint contradicts the implemented puzzle** *(RESOLVED in the 2026-09-02 burn-down.)*
 
   Priority: Medium
   Category: Business Logic
@@ -1150,7 +1151,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: Low
 
-- [ ] **Healing Korvak produces different state depending on the route taken**
+- [x] **Healing Korvak produces different state depending on the route taken** *(RESOLVED: both routes call the shared `healKorvak` rule.)*
 
   Priority: Medium
   Category: Business Logic
@@ -1164,7 +1165,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **Cantina and shop economy logic is implemented twice**
+- [x] **Cantina and shop economy logic is implemented twice** *(RESOLVED: extracted to `StarSweeperContent.rules`.)*
 
   Priority: Medium
   Category: Refactor
@@ -1178,7 +1179,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: High
 
-- [ ] **Room modules are approaching the maintainability ceiling again**
+- [x] **Room modules are approaching the maintainability ceiling again** *(SUPERSEDED: tracked as a single open item in the 2026-09-02 burn-down section.)*
 
   Priority: Medium
   Category: Architecture
@@ -1192,7 +1193,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: High
 
-- [ ] **No end-to-end save/load round trip, and a thin corrupt-save matrix**
+- [x] **No end-to-end save/load round trip, and a thin corrupt-save matrix** *(RESOLVED: round-trip and six-case malformed-save tests added.)*
 
   Priority: Medium
   Category: Testing
@@ -1206,7 +1207,7 @@ walkthrough still completes at 378/378.
   Business value: High
   Technical debt reduction: Medium
 
-- [ ] **Parser and dialog-tree coverage is shallow**
+- [x] **Parser and dialog-tree coverage is shallow** *(RESOLVED: parser synonym/case/whitespace/USE-ON coverage and a one-shot dialog test added.)*
 
   Priority: Medium
   Category: Testing
@@ -1220,7 +1221,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **No Firefox or WebKit coverage, no retries, and an unused HTML report artifact**
+- [x] **No Firefox or WebKit coverage, no retries, and an unused HTML report artifact** *(PARTIALLY RESOLVED: CI retries and the HTML reporter are in place; the additional browser engines stay open in the burn-down section.)*
 
   Priority: Medium
   Category: Testing
@@ -1234,7 +1235,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **ESLint declares browser globals for Node-context test files**
+- [x] **ESLint declares browser globals for Node-context test files** *(REJECTED with evidence: removing them produced 102 `no-undef` errors because `page.evaluate` callbacks are lexically part of the spec. See the burn-down section.)*
 
   Priority: Medium
   Category: Developer Experience
@@ -1248,7 +1249,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **Fixed sleeps and a wall-clock threshold make the suite timing-sensitive**
+- [x] **Fixed sleeps and a wall-clock threshold make the suite timing-sensitive** *(SUPERSEDED: tracked as a single open item in the 2026-09-02 burn-down section.)*
 
   Priority: Medium
   Category: Testing
@@ -1262,7 +1263,7 @@ walkthrough still completes at 378/378.
   Business value: Medium
   Technical debt reduction: Medium
 
-- [ ] **The pod-bay cartridge warning contradicts the alternate endgame route**
+- [x] **The pod-bay cartridge warning contradicts the alternate endgame route** *(RESOLVED: reworded as a recommendation.)*
 
   Priority: Low
   Category: Documentation
@@ -1276,7 +1277,7 @@ walkthrough still completes at 378/378.
   Business value: Low
   Technical debt reduction: Low
 
-- [ ] **`korvak_healed` is redundant state**
+- [x] **`korvak_healed` is redundant state** *(RESOLVED: removed.)*
 
   Priority: Low
   Category: Cleanup
@@ -1290,7 +1291,7 @@ walkthrough still completes at 378/378.
   Business value: Low
   Technical debt reduction: Low
 
-- [ ] **Dev server follows symlinks out of the repository**
+- [x] **Dev server follows symlinks out of the repository** *(RESOLVED: `fs.realpath` containment check.)*
 
   Priority: Low
   Category: Security
@@ -1316,4 +1317,179 @@ walkthrough still completes at 378/378.
 
 Three previously open items (ESLint, the content split, engine `destroy()`) were confirmed
 delivered and closed.
+
+---
+
+## Backlog Burn-Down — 2026-09-02 (SW v1.0.106)
+
+Scope: work through every remaining open item in this file and either fix it, or record a
+verified reason it should not be fixed as written. Stale checkboxes carried in older
+sections were reconciled against the code.
+
+Verification: `npm run check` — static gate, content validator and cache-version guard pass;
+**95 Playwright tests pass, 7 skipped** (up from 83), plus a new accessibility suite. The
+scored walkthrough still completes at 378/378 on desktop and mobile.
+
+### Resolved in this pass
+
+- [x] [Priority: High] **VR title-screen confirm bypassed `startNewGame()`** — starting from inside the headset skipped the `onGameStart` hook and therefore the intro. *(RESOLVED: `_confirm()` calls `startNewGame()` and then hides the ego for first-person.)*
+- [x] [Priority: Medium] **VR scene resources were never disposed** — only the renderer was. *(RESOLVED: `_disposeScene()` traverses the scene disposing geometries, materials and textures, then clears the retained references.)*
+- [x] [Priority: Medium] **The game loop ran behind the save/load modal** — NPCs, timers and room `onUpdate` kept advancing, so the desert exposure clock could kill the player while they chose a slot. *(RESOLVED: `update()` returns while the modal is open.)*
+- [x] [Priority: Medium] **`stopAmbient()` could not stop ambient audio** — `_ambientNodes` was initialised and iterated but never populated, so only future tones were cancelled and room ambience bled across transitions. *(RESOLVED: ambient sources now route through a dedicated `_ambientBus` gain node created per room; stopping disconnects the bus, which silences already-scheduled tones. `_osc`/`_noise` honour the active destination.)*
+- [x] [Priority: Medium] **The desert survival-kit route was a one-way death trap** — no second kit existed and the exposure timer killed the player. *(RESOLVED: the crashed pod's crash locker now yields an emergency water ration that sets `used_kit`, so the run stays completable. Score contract unchanged.)*
+- [x] [Priority: Medium] **The engine-room hint contradicted the implemented puzzle** — it demanded Korvak's cutter while the cabinet opened via a hidden override. *(RESOLVED: the hint now describes both the override and the cutter.)*
+- [x] [Priority: Medium] **Healing Korvak produced different state per route** — the dialog path set `korvak_healed` and withheld the cutter; the item path granted the cutter and never set `korvak_healed`. *(RESOLVED: both call `StarSweeperContent.rules.healKorvak`, which is idempotent and produces one canonical state.)*
+- [x] [Priority: Medium] **Cantina and shop economy logic was implemented twice** — buying ale, tipping the pilot, granting the nav chip, selling the crystal and buying the ray each existed in both a dialog tree and a room hotspot. *(RESOLVED: extracted to `StarSweeperContent.rules` (`spendCredits`, `buyDrink`, `buyPulsarRay`, `sellCrystal`, `givePilotDrink`, `grantNavChip`, `healKorvak`); both surfaces call the same implementation, and the score-bearing ones are guarded against re-award.)*
+- [x] [Priority: Medium] **`check_sw_version` missed deletions, renames and `ASSETS` edits** — it only compared changed files against the current list. *(RESOLVED: it now diffs the base and current asset lists and treats any list delta as bump-worthy; both regexes are quote- and whitespace-tolerant.)*
+- [x] [Priority: Medium] **No automated accessibility scan** *(merged duplicate of the July item)* — *(RESOLVED: `tests/accessibility.spec.js` runs `@axe-core/playwright` over the title screen, gameplay chrome with a populated inventory, the save modal and an open dialog, failing on any serious or critical violation. All four pass, and the suite is part of `test:functional`, so CI runs it.)*
+- [x] [Priority: Medium] **No end-to-end save/load round trip and a thin corrupt-save matrix** — *(RESOLVED: a round-trip test plays to a mid-game state, saves through the UI, destroys every persisted field, reloads and deep-compares room, score, inventory, facing, direction and flags. A six-case malformed-save matrix covers unparseable JSON, missing fields, an unsupported version, wrong types, a non-array inventory and an array flags object.)*
+- [x] [Priority: Medium] **Player facing was saved but never restored** *(found by the new round-trip test)* — `loadGame` set `playerFacing` before `goToRoom`, which resets it to `'toward'`. *(RESOLVED: orientation is applied after the room load.)*
+- [x] [Priority: Medium] **Parser and dialog-tree coverage was shallow** — *(RESOLVED: a parser test covers synonyms (`look at`/`examine`), upper case, collapsed whitespace and the `USE X ON Y` form; a dialog test proves a one-shot option is consumed, its action runs once, and it is not offered again.)*
+- [x] [Priority: Medium] **No test drove a real room transition through the UI** — *(RESOLVED: a test clicks the Engine Room door's actual hotspot rectangle on the canvas and asserts the player walks through, exercising hit-testing, walk-to targeting and the exit trigger rather than calling `onExit` directly.)*
+- [x] [Priority: Medium] **Playwright had no retries and an unused HTML report artifact** — *(RESOLVED: `retries: 1` and an HTML reporter, both enabled only under `CI`, so the artifact the workflow uploads now exists.)*
+- [x] [Priority: Low] **Timed death branches were uncovered** — *(RESOLVED: a test drives the desert exposure timer to death and asserts `R` restores a clean, playable state with the score reset.)*
+- [x] [Priority: Low] **Overlay word wrap ran every frame** — *(RESOLVED: `_wrapLines()` memoises wrapped text by content, width and font; the death overlay uses it.)*
+- [x] [Priority: Low] **`_drawables` allocated a descriptor per entity per frame** — *(RESOLVED: descriptors come from a reused pool.)*
+- [x] [Priority: Low] **Clicking an exit in a non-walk action gave unhelpful snark** — *(RESOLVED: exits now answer with "… is a way out — you would have to walk there", while Look still uses the authored description.)*
+- [x] [Priority: Low] **`getFlag()` returned `false` for unset counters** — *(RESOLVED: added `getCounter(name)` returning `0`, so counter arithmetic no longer relies on boolean coercion. Existing saves are unaffected.)*
+- [x] [Priority: Low] **`korvak_healed` was redundant state** — *(RESOLVED: removed; the dialog branch is guarded by `!korvak_freed`.)*
+- [x] [Priority: Low] **The pod-bay cartridge warning contradicted the alternate route** — *(RESOLVED: reworded as a recommendation that acknowledges the harder improvised solve.)*
+- [x] [Priority: Low] **The dev server followed symlinks out of the repository** — *(RESOLVED: `fs.realpath` resolves the target and containment is re-checked before serving.)*
+- [x] [Priority: Medium] **The content validator was brittle** — *(PARTIALLY RESOLVED: room, item, flag, asset and `VERSION` patterns are now quote-agnostic and whitespace-tolerant, and `js/content.js` was added to the flag and score sources — without which the extracted rules would have silently stopped being validated. A full AST rewrite remains open below.)*
+- [x] **Stale checkboxes reconciled** — ESLint, the `js/game.js` split, engine `destroy()`, `drawCrtEffects()` self-`drawImage`, the visual diff threshold and the additional death-state coverage were all delivered in later passes but still carried unticked boxes in earlier sections.
+
+### Deliberately not fixed
+
+- [x] **Remove `globals.browser` from the ESLint test override** — *(REJECTED, with evidence: `page.evaluate` callbacks are lexically part of the spec file, so ESLint resolves `window`/`document` in them as ordinary identifiers. Removing the globals produced **102 `no-undef` errors** across the existing suite. The original recommendation was wrong for this codebase; the config now carries a comment explaining why the globals must stay.)*
+
+### Still open
+
+- [ ] **Rewrite the content validator on an AST**
+
+  Priority: Medium
+  Category: Developer Experience
+  Area: Tooling
+  Affected files: `tools/validate_content.js`
+  Problem: The patterns are now quote- and whitespace-tolerant, but they are still regexes over concatenated source. Reordered object properties, a computed room id or a flag name held in a variable remain invisible, and `id === '...'` can still match a non-item comparison.
+  Impact: The gate can quietly stop checking part of the content contract, which is worse than not having it.
+  Recommended solution: Parse each module with `acorn` and inspect real `CallExpression`/`ObjectExpression` nodes.
+  Acceptance criteria: A room registered with reordered keys still validates; an unknown room reference still fails.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: High
+
+- [ ] **Add Firefox and WebKit projects**
+
+  Priority: Medium
+  Category: Testing
+  Area: CI
+  Affected files: `playwright.config.js`, `.github/workflows/quality.yml`
+  Problem: Only Desktop Chrome and Pixel 5 are exercised. Service-worker, font-loading and focus behaviour are browser-sensitive.
+  Impact: An engine-specific regression reaches users unseen.
+  Recommended solution: Add the two projects, then triage the resulting failures — this is deliberately not bundled with the current pass because enabling them changes the pass/fail baseline of the whole suite and needs its own commit.
+  Acceptance criteria: The functional suite passes on three desktop engines in CI.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **Fixed sleeps and a wall-clock threshold make the suite timing-sensitive**
+
+  Priority: Medium
+  Category: Testing
+  Area: Reliability
+  Affected files: `tests/game.spec.js`, `tests/full-game.spec.js`, `tests/visual.spec.js`
+  Problem: `waitForTimeout` still drives intro advancement, and the stalled-navigation test asserts elapsed wall-clock time against the 3 s worker timeout. `retries: 1` in CI now masks rather than removes the flakiness.
+  Impact: Failures unrelated to the change under test erode trust in the gate.
+  Recommended solution: Wait on engine predicates and DOM state; assert the cache-fallback outcome instead of elapsed milliseconds.
+  Acceptance criteria: No `waitForTimeout` remains in a control-flow position.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] **Room modules are approaching the maintainability ceiling**
+
+  Priority: Medium
+  Category: Architecture
+  Area: Content layer
+  Affected files: `js/rooms/kerona.js`, `js/rooms/ship.js`, `js/rooms/endgame.js`, `js/art.js`
+  Problem: `kerona.js` is ~2.7k lines, `ship.js` ~2.0k, `art.js` ~1.9k and `endgame.js` ~1.7k against a documented 1,500-line ceiling. Extracting the shared economy rules removed the worst duplication but not the size.
+  Impact: The conditions that produced the original monolith persist.
+  Recommended solution: Split to one room per file; keep the visual baselines as the safety net so a pure move is provably byte-identical.
+  Acceptance criteria: No content file exceeds 1,500 lines; visual baselines unchanged.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: High
+
+- [ ] **Visual regression still cannot run in CI**
+
+  Priority: Medium
+  Category: Testing
+  Area: CI
+  Affected files: `tests/visual.spec.js-snapshots/`, `.github/workflows/quality.yml`
+  Problem: Baselines exist only for `win32`, so art regressions are caught only when the maintainer runs `npm run test:visual` locally.
+  Impact: An art regression can reach `main` unnoticed.
+  Recommended solution: Generate reviewed Linux baselines from the official Playwright container and run the visual project against those in CI.
+  Acceptance criteria: A deliberate one-pixel art change fails the hosted gate.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: Medium
+
+- [ ] [Priority: High] **Physical-headset comfort and controller behavior require release validation**
+
+  Category: WebXR / Release
+  Affected files: `js/vr.js`, `README.md`
+  Problem: Browser automation cannot evaluate stereo comfort, headset gamepad mappings, room-scale boundaries or sustained headset frame rate.
+  Recommended solution: Run the documented release checklist on a Quest-class headset and record the device and browser versions.
+  Acceptance criteria: The full VR checklist passes on hardware.
+  Estimated effort: Medium
+  Business value: Medium
+  Technical debt reduction: Low
+
+### Summary of this pass
+
+| Priority | Resolved | Open |
+|---|---:|---:|
+| Critical | 0 | 0 |
+| High | 1 | 1 |
+| Medium | 13 | 5 |
+| Low | 7 | 0 |
+| **Total** | **21** | **6** |
+
+One recommendation was rejected with evidence rather than implemented. The single remaining
+High item requires physical VR hardware and cannot be closed in software.
+
+---
+
+## Dated Findings — VR / Desktop Parity Pass (2026-09-03, SW v1.0.107)
+
+Scope: verify the immersive WebXR build offers the same functional and visual quality as the
+desktop build. Every desktop interaction surface was compared against its VR equivalent.
+
+Verification: `npm run check` — **103 Playwright tests pass, 11 skipped**, static gate and
+cache-version guard clean. The scored walkthrough still completes at 378/378.
+
+### Resolved in this pass
+
+- [x] [Priority: Critical] **VR could not complete the game** — `_activate()` called `engine.handleClick()` directly, skipping the two branches the desktop canvas listener runs first: dialog-option hit-testing and text-window dismissal. In a headset, conversations could not be advanced and narration windows never cleared. Because dialogs gate the nav chip, Korvak's plasma cutter and the Pipz arc, the game was unfinishable in VR. *(RESOLVED: the precedence moved into one shared `engine.handleCanvasActivate(x, y)` used by both the canvas click listener and the VR controller ray, so the two input paths cannot drift again. `_quickLook` routes through it too. Covered by a new regression test that drives dialog selection and window dismissal through `_activate`.)*
+- [x] [Priority: Medium] **The VR floor drew a blue grid** — a `THREE.GridHelper` was added to the scene, directly contradicting the project's own art rule that no room may show floor perspective-grid lines (removed everywhere else in `v1.0.35`). It read as debug scaffolding inside an otherwise painted scene. *(RESOLVED: removed.)*
+- [x] [Priority: Medium] **The VR ceiling duplicated the room** — it drew canvas rows 0-120 upright, the same pixels already visible on the wall, so the scene appeared to hang overhead a second time. *(RESOLVED: the ceiling sample is mirrored and dimmed so it reads as an overhead surface rather than a copy of the room.)*
+- [x] [Priority: Medium] **The VR HUD hid the inventory** — desktop shows a persistent inventory bar, but the HUD only named the selected item, so players could not see what they were carrying. Death and victory also had no immersive prompt. *(RESOLVED: the HUD lists carried items and shows dedicated death/victory prompts; both are part of the refresh signature.)*
+- [x] [Priority: Low] **Hints were unreachable in VR** — desktop has a hint button and `H`; VR had no route to `showHint()`. *(RESOLVED: mapped to the otherwise-unused thumbstick click.)*
+- [x] [Priority: Medium] **The stalled-navigation test asserted wall-clock time** — `elapsed < 4500` against a 3 s worker timeout failed at 4560 ms during this pass, exactly as predicted by the open timing-sensitivity item. *(RESOLVED: rebased on a 9 s stall with a 7 s ceiling, so cache-fallback versus no-fallback is unambiguous instead of depending on a few hundred milliseconds of browser overhead.)*
+
+### Known VR limitation (by design)
+
+Saving and loading remain on the desktop interface because the slot manager is a DOM modal
+that cannot be presented inside an immersive session. Players exit VR to reach it and
+re-enter afterwards; this is documented in the README controls section rather than being
+worked around with an invented in-headset control scheme that no automated test could cover.
+
+### Summary of this pass
+
+| Priority | Resolved | Open |
+|---|---:|---:|
+| Critical | 1 | 0 |
+| Medium | 4 | 0 |
+| Low | 1 | 0 |
+| **Total** | **6** | **0** |
 

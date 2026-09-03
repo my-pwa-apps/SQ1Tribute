@@ -218,6 +218,8 @@ class GameEngine {
         // Text measurement happens outside the render pass (word wrap, dialog
         // hit-testing). Measuring on the visible context leaves ctx.font dirty.
         this._measureCtx = document.createElement('canvas').getContext('2d');
+        this._wrapCache = new Map();
+        this._drawablePool = [];
 
         // Screen shake (intensity decays over time)
         this.screenShake = 0;
@@ -367,33 +369,8 @@ class GameEngine {
                 this.handleTitleInput(coords.x, coords.y);
                 return;
             }
-            if (this.dead || this.won) return;
-            // AGS-inspired: dialog options click handling
-            if (this.activeDialog && this.activeDialog.phase === 'options') {
-                const coords = this.getCanvasCoords(e);
-                const r = this._getDialogBoxRect();
-                if (r) {
-                    const lines = this.activeDialog.visibleOptions;
-                    if (coords.x >= r.boxX && coords.x <= r.boxX + r.boxW &&
-                        coords.y >= r.boxY + r.pad && coords.y <= r.boxY + r.pad + lines.length * r.lineH) {
-                        const idx = Math.floor((coords.y - r.boxY - r.pad) / r.lineH);
-                        if (idx >= 0 && idx < lines.length) {
-                            this.sound.uiClick();
-                            this.selectDialogOption(idx);
-                        }
-                    }
-                }
-                return;
-            }
-            // Classic keeps the deliberate AGI dismissal cadence. Enhanced mode
-            // dismisses the response and processes the same actionable click,
-            // but only when the player has actually finished reading it.
-            if (this.textWindow) {
-                if (!this.canChainAfterDismiss()) { this.dismissTextWindow(); return; }
-                this.dismissTextWindow();
-            }
             const coords = this.getCanvasCoords(e);
-            this.handleClick(coords.x, coords.y);
+            this.handleCanvasActivate(coords.x, coords.y);
         });
 
         this._on(this.canvas, 'mousemove', (e) => {
@@ -907,6 +884,30 @@ class GameEngine {
     }
 
     // ---- Score & Flags ----
+    /** Wrapped lines for fixed overlay text. Overlays redraw every frame while
+     *  their text never changes, so the measurement is memoised. */
+    _wrapLines(text, maxWidth, font) {
+        const key = `${font}|${maxWidth}|${text}`;
+        const cached = this._wrapCache.get(key);
+        if (cached) return cached;
+        const measure = this._measureCtx;
+        measure.font = font;
+        const lines = [];
+        let line = '';
+        for (const word of String(text).split(' ')) {
+            const test = line ? line + ' ' + word : word;
+            if (line && measure.measureText(test).width > maxWidth) {
+                lines.push(line);
+                line = word;
+            } else {
+                line = test;
+            }
+        }
+        if (line) lines.push(line);
+        this._wrapCache.set(key, lines);
+        return lines;
+    }
+
     addScore(pts) {
         this.score = Math.min(this.score + pts, this.maxScore);
         this.lastScoreDelta = pts;
@@ -914,8 +915,9 @@ class GameEngine {
         this.sound.scoreUp();
     }
 
-    setFlag(f, v) { this.flags[f] = (v === undefined) ? true : v; }
-    getFlag(f) { return this.flags[f] ?? false; }
+    setFlag(f, v) { this.flags[f] = (v === undefined) ? true : v; }    getFlag(f) { return this.flags[f] ?? false; }
+    /** Numeric counter state. Avoids the `false + 1` coercion getFlag would force. */
+    getCounter(f) { const v = this.flags[f]; return typeof v === 'number' ? v : 0; }
 
     /** Touch devices have no hover, so object discovery needs an explicit toggle. */
     toggleHotspotReveal() {
@@ -1095,6 +1097,37 @@ class GameEngine {
     }
 
     // ---- Click Handling ----
+
+    /** Activation precedence for a point on the scene, shared by pointer input
+     *  and the VR controller ray so immersive play cannot drift from desktop. */
+    handleCanvasActivate(x, y) {
+        if (this.dead || this.won) return;
+        // AGS-inspired: dialog options click handling
+        if (this.activeDialog && this.activeDialog.phase === 'options') {
+            const r = this._getDialogBoxRect();
+            if (r) {
+                const lines = this.activeDialog.visibleOptions;
+                if (x >= r.boxX && x <= r.boxX + r.boxW &&
+                    y >= r.boxY + r.pad && y <= r.boxY + r.pad + lines.length * r.lineH) {
+                    const idx = Math.floor((y - r.boxY - r.pad) / r.lineH);
+                    if (idx >= 0 && idx < lines.length) {
+                        this.sound.uiClick();
+                        this.selectDialogOption(idx);
+                    }
+                }
+            }
+            return;
+        }
+        // Classic keeps the deliberate AGI dismissal cadence. Enhanced mode
+        // dismisses the response and processes the same actionable click,
+        // but only when the player has actually finished reading it.
+        if (this.textWindow) {
+            if (!this.canChainAfterDismiss()) { this.dismissTextWindow(); return; }
+            this.dismissTextWindow();
+        }
+        this.handleClick(x, y);
+    }
+
     handleClick(x, y) {
         const room = this.rooms[this.currentRoomId];
         if (!room) return;
@@ -1166,6 +1199,10 @@ class GameEngine {
             (action === 'use' && hotspot.isExit ? hotspot.onExit : null);
         if (handler) {
             handler(scope);
+        } else if (hotspot.isExit && action !== 'look') {
+            // Exits only define onExit, so without this they fall through to
+            // generic snark that never tells the player it is a way out.
+            this.showMessage(`${hotspot.name || 'That'} is a way out — you would have to walk there.`, { window: true });
         } else {
             const hsName = hotspot.name || 'that';
             const hash = (hsName + action).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
@@ -2539,6 +2576,9 @@ class GameEngine {
         }
 
         if (this.dead || this.won || this.titleScreen) return;
+        // The save/load modal is a blocking UI: timers and NPCs must not advance
+        // behind it, or the desert exposure clock can kill the player mid-save.
+        if (this.dom.saveModal && this.dom.saveModal.classList.contains('open')) return;
         if (visualTestMode) {
             // Deterministic capture mode: never let the room-transition fade linger,
             // otherwise loaded rooms render as a full-black overlay frame.
@@ -2842,22 +2882,31 @@ class GameEngine {
         // === AGI-INSPIRED: Y-SORTED RENDERING (OBJLIST priority system) ===
         // Collect all drawable entities with Y-positions, sort back-to-front
         this._drawables.length = 0;
+        let poolIndex = 0;
+        // Descriptors are pooled: this runs every frame for every visible entity.
+        const pushDrawable = (y, type, ref) => {
+            let d = this._drawablePool[poolIndex];
+            if (!d) { d = { y: 0, type: '', ref: null }; this._drawablePool[poolIndex] = d; }
+            poolIndex++;
+            d.y = y; d.type = type; d.ref = ref || null;
+            this._drawables.push(d);
+        };
 
         // Player
         if (this.playerVisible && !this.dead) {
-            this._drawables.push({ y: this.playerY, type: 'player' });
+            pushDrawable(this.playerY, 'player');
         }
 
         // NPCs
         for (const npc of this.npcs) {
             if (npc.visible) {
-                this._drawables.push({ y: npc.y, type: 'npc', ref: npc });
+                pushDrawable(npc.y, 'npc', npc);
             }
         }
 
         // Foreground layers registered by rooms
         for (const layer of this.foregroundLayers) {
-            this._drawables.push({ y: layer.y, type: 'layer', ref: layer });
+            pushDrawable(layer.y, 'layer', layer);
         }
 
         // Sort by Y (lower Y = behind, drawn first — AGI's MakeObjList)
@@ -4100,8 +4149,7 @@ class GameEngine {
     }
 
     // ---- Overlays ----
-    drawDeathOverlay(ctx) {
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    drawDeathOverlay(ctx) {        ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
 
         // Sierra-style bordered death box (EGA red/blue)
@@ -4124,19 +4172,11 @@ class GameEngine {
         ctx.font = '13px "Courier New"';
         ctx.fillStyle = '#FFFFFF';
         const deathMsg = this.message.split(' — ')[0].trim();
-        const words = deathMsg.split(' ');
-        let line = '', lineY = by + 80;
-        for (const word of words) {
-            const test = line ? line + ' ' + word : word;
-            if (ctx.measureText(test).width > bw - 40) {
-                ctx.fillText(line, this.WIDTH / 2, lineY);
-                line = word;
-                lineY += 18;
-            } else {
-                line = test;
-            }
+        let lineY = by + 80;
+        for (const wrapped of this._wrapLines(deathMsg, bw - 40, '13px "Courier New"')) {
+            ctx.fillText(wrapped, this.WIDTH / 2, lineY);
+            lineY += 18;
         }
-        if (line) ctx.fillText(line, this.WIDTH / 2, lineY);
 
         // The prompt stays legible; only the accent brackets blink.
         ctx.font = '14px "Courier New"';
@@ -4320,6 +4360,10 @@ class GameEngine {
             this.setAction('walk');
             this.updateInventoryUI();
             this.goToRoom(data.currentRoomId, playerX, playerY);
+            // goToRoom resets orientation, so the saved facing is applied after it.
+            this.playerDir = data.playerDir === -1 ? -1 : 1;
+            this.playerFacing = ['toward', 'away', 'left', 'right'].includes(data.playerFacing)
+                ? data.playerFacing : 'toward';
             this.sound.save();
             this.showMessage(`Game loaded from Slot ${slot + 1}.`);
         } catch (err) {

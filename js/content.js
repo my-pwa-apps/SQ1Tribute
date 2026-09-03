@@ -54,5 +54,71 @@
         { id: 'prisoner_badge', name: 'Prisoner Badge', description: 'A Draknoid-issued prisoner identification tag. Has a magnetic strip that might work on internal ship doors.' },
         { id: 'cargo_manifest', name: 'Cargo Manifest', description: 'A battered data pad showing the manifest of the freighter "Ironclad Star". Most entries are redacted.' },
         { id: 'frequency_chip', name: 'Frequency Chip', description: 'A signal chip pulled from the wrecked freighter. Pre-loaded with emergency distress frequencies.' }
-    ]
+    ],
+    // Shared progression rules. Dialog trees and room hotspots both reach these
+    // transactions, so they must have exactly one implementation.
+    rules: {
+        spendCredits(e, amount) {
+            const remaining = (e.getFlag('credits_amount') || 0) - amount;
+            e.setFlag('credits_amount', remaining);
+            e.items['credits'].name = `Buckazoids (${remaining})`;
+            e.items['credits'].description = `A credit chip with ${remaining} buckazoids remaining.`;
+            if (remaining <= 0) e.removeFromInventory('credits');
+        },
+        buyDrink(e) {
+            e.sound.sell();
+            this.spendCredits(e, 10);
+            e.addToInventory('drink');
+            e.updateInventoryUI();
+        },
+        buyPulsarRay(e) {
+            e.sound.sell();
+            this.spendCredits(e, 30);
+            e.setFlag('bought_ray');
+            e.addToInventory('pulsar_ray');
+            if (!e.getFlag('scored_pulsar_ray')) {
+                e.setFlag('scored_pulsar_ray');
+                e.addScore(10);
+            }
+            e.updateInventoryUI();
+        },
+        sellCrystal(e) {
+            e.sound.sell();
+            e.removeFromInventory('crystal');
+            e.addToInventory('credits');
+            e.setFlag('credits_amount', 50);
+            e.items['credits'].name = 'Buckazoids (50)';
+            e.items['credits'].description = 'A credit chip with 50 buckazoids.';
+            if (!e.getFlag('scored_crystal_sale')) {
+                e.setFlag('scored_crystal_sale');
+                e.addScore(10);
+            }
+            e.updateInventoryUI();
+        },
+        givePilotDrink(e) {
+            e.sound.drink();
+            e.removeFromInventory('drink');
+            e.setFlag('pilot_has_drink');
+            e.updateInventoryUI();
+        },
+        grantNavChip(e) {
+            if (e.getFlag('pilot_left')) return;
+            e.addToInventory('nav_chip');
+            e.setFlag('pilot_left');
+            e.addScore(20);
+            e.updateInventoryUI();
+        },
+        healKorvak(e) {
+            if (e.getFlag('korvak_freed')) return;
+            e.removeFromInventory('medkit');
+            e.setFlag('korvak_freed');
+            e.setFlag('korvak_left');
+            e.addScore(20);
+            if (!e.getFlag('korvak_gave_cutter')) {
+                e.addToInventory('plasma_cutter');
+                e.setFlag('korvak_gave_cutter');
+            }
+            e.updateInventoryUI();
+        }
+    }
 })));

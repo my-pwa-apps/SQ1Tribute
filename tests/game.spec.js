@@ -456,9 +456,84 @@ test('WebXR mode makes Wilkins first-person and maps locomotion into the game wo
     expect(result.floorFront.z).toBeCloseTo(3, 5);
 });
 
-test('save modal traps and restores keyboard focus', async ({ page }) => {
+test('VR interaction reaches dialogs and text windows exactly like the desktop click path', async ({ page }) => {
+    await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'xr', {
+            configurable: true,
+            value: { isSessionSupported: async () => true }
+        });
+    });
     await clearState(page);
     await finishIntro(page);
+    await page.waitForFunction(() => window.engine?.vr?.supported === true);
+
+    const result = await page.evaluate(() => {
+        const e = window.engine;
+        const vr = e.vr;
+        e.goToRoom('cantina', 320, 320);
+        e.roomTransition = 0;
+        e.addToInventory('drink');
+
+        // A narration window must be dismissable through the controller ray.
+        e.showMessage('Test narration for the immersive dismissal path.', { window: true });
+        e.completeTextReveal();
+        const windowOpen = !!e.textWindow;
+        vr._activate({ x: 320, y: 200 });
+        const windowDismissed = !e.textWindow;
+
+        // Dialog options must be selectable through the same ray.
+        e.startDialog('zorthak');
+        for (let i = 0; i < 10 && e.activeDialog && e.activeDialog.phase !== 'options'; i++) {
+            e._advanceDialog();
+        }
+        const rect = e._getDialogBoxRect();
+        const lines = e.activeDialog.visibleOptions;
+        const index = lines.findIndex((o) => o.text.includes('have this ale'));
+        const y = rect.boxY + rect.pad + index * rect.lineH + 4;
+        vr._activate({ x: rect.boxX + 20, y });
+        const chosen = e.activeDialog && e.activeDialog.phase === 'response';
+        e.activeDialog = null;
+        e.textWindow = null;
+        return { windowOpen, windowDismissed, index, chosen };
+    });
+
+    expect(result.windowOpen).toBe(true);
+    expect(result.windowDismissed).toBe(true);
+    expect(result.index).toBeGreaterThanOrEqual(0);
+    expect(result.chosen).toBe(true);
+});
+
+test('the VR HUD reports carried inventory and death state', async ({ page }) => {
+    await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'xr', {
+            configurable: true,
+            value: { isSessionSupported: async () => true }
+        });
+    });
+    await clearState(page);
+    await finishIntro(page);
+    await page.waitForFunction(() => window.engine?.vr?.supported === true);
+
+    const result = await page.evaluate(() => {
+        const e = window.engine;
+        const vr = e.vr;
+        vr._initScene();
+        e.addToInventory('keycard');
+        vr._updateHud();
+        const withInventory = vr.lastHudSignature.includes('Keycard');
+        e.die('Testing the immersive death prompt.');
+        vr._updateHud();
+        const withDeath = vr.lastHudSignature.includes('dead');
+        e.dead = false;
+        return { withInventory, withDeath };
+    });
+
+    expect(result.withInventory).toBe(true);
+    expect(result.withDeath).toBe(true);
+});
+
+test('save modal traps and restores keyboard focus', async ({ page }) => {
+    await clearState(page);    await finishIntro(page);
     await page.keyboard.press('F5');
     const firstAction = page.locator('.slot-action').first();
     await expect(firstAction).toBeFocused();
@@ -691,6 +766,181 @@ test.describe('regression coverage for documented features', () => {
         await page.keyboard.press('Enter');
         await expect(item).toHaveAttribute('aria-pressed', 'true');
     });
+
+    test('a saved game restores every field it persisted', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page);
+        const before = await page.evaluate(() => {
+            const e = window.engine;
+            e.goToRoom('corridor', 300, 320);
+            e.roomTransition = 0;
+            e.addToInventory('keycard');
+            e.addToInventory('mop_handle');
+            e.setFlag('alarm_active');
+            e.addScore(7);
+            e.playerFacing = 'left';
+            e.playerDir = -1;
+            return {
+                room: e.currentRoomId, score: e.score,
+                inventory: [...e.inventory], facing: e.playerFacing, dir: e.playerDir
+            };
+        });
+        await saveAndReadData(page);
+        await page.keyboard.press('Space');
+        // Disturb every field the save is supposed to restore.
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.goToRoom('broom_closet', 320, 330);
+            e.roomTransition = 0;
+            e.inventory = [];
+            e.score = 0;
+            e.flags = {};
+            e.playerFacing = 'toward';
+            e.playerDir = 1;
+            e.updateInventoryUI();
+        });
+        await page.keyboard.press('F7');
+        await page.locator('.slot-action', { hasText: 'Load' }).first().click();
+        await page.keyboard.press('Space');
+        const after = await page.evaluate(() => {
+            const e = window.engine;
+            return {
+                room: e.currentRoomId, score: e.score,
+                inventory: [...e.inventory], facing: e.playerFacing, dir: e.playerDir,
+                alarm: e.getFlag('alarm_active')
+            };
+        });
+        expect(after.room).toBe(before.room);
+        expect(after.score).toBe(before.score);
+        expect(after.inventory).toEqual(before.inventory);
+        expect(after.facing).toBe(before.facing);
+        expect(after.dir).toBe(before.dir);
+        expect(after.alarm).toBe(true);
+    });
+
+    test('malformed saves are rejected without breaking the world', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page);
+        const cases = [
+            'not json at all',
+            JSON.stringify({ version: 1, currentRoomId: 'corridor' }),
+            JSON.stringify({ version: 99, currentRoomId: 'corridor', playerX: 1, playerY: 1, inventory: [], score: 0, flags: {} }),
+            JSON.stringify({ version: 1, currentRoomId: 'corridor', playerX: 'x', playerY: 1, inventory: [], score: 0, flags: {} }),
+            JSON.stringify({ version: 1, currentRoomId: 'corridor', playerX: 1, playerY: 1, inventory: 'nope', score: 0, flags: {} }),
+            JSON.stringify({ version: 1, currentRoomId: 'corridor', playerX: 1, playerY: 1, inventory: [], score: 0, flags: [] })
+        ];
+        for (const raw of cases) {
+            await page.evaluate((value) => {
+                window.engine.goToRoom('broom_closet', 320, 330);
+                window.engine.roomTransition = 0;
+                localStorage.setItem('starsweeper_save_0', value);
+            }, raw);
+            await page.keyboard.press('F7');
+            await page.locator('.slot-action', { hasText: 'Load' }).first().click();
+            await page.keyboard.press('Escape');
+            expect(await page.evaluate(() => window.engine.currentRoomId)).toBe('broom_closet');
+        }
+    });
+
+    test('the parser accepts synonyms, casing and USE X ON Y', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page, 'c');
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.goToRoom('corridor', 320, 320);
+            e.roomTransition = 0;
+            e.addToInventory('keycard');
+        });
+        for (const command of ['look at shelves', 'EXAMINE SHELVES', '  look   shelves  ']) {
+            await runClassicCommand(page, command);
+            const message = await page.evaluate(() => window.engine.message);
+            expect(message, `parser rejected: ${command}`).not.toMatch(/don't understand|Nothing happens/i);
+        }
+        await runClassicCommand(page, 'USE KEYCARD ON DOOR');
+        expect(await page.evaluate(() => window.engine.message)).toBeTruthy();
+    });
+
+    test('a one-shot dialog option cannot be taken twice', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page, 'c');
+        const result = await page.evaluate(() => {
+            const e = window.engine;
+            e.goToRoom('cantina', 320, 320);
+            e.roomTransition = 0;
+            e.addToInventory('drink');
+            const openOptions = () => {
+                e.startDialog('zorthak');
+                for (let i = 0; i < 10 && e.activeDialog && e.activeDialog.phase !== 'options'; i++) {
+                    e._advanceDialog();
+                }
+                return (e.activeDialog && e.activeDialog.visibleOptions) || [];
+            };
+            const offered = openOptions();
+            const index = offered.findIndex((o) => o.text.includes('have this ale'));
+            e.selectDialogOption(index);
+            // Advance past the response so the option's action runs.
+            for (let i = 0; i < 5 && e.activeDialog && e.activeDialog.phase === 'response'; i++) {
+                e._advanceDialog();
+            }
+            e.activeDialog = null;
+            e.textWindow = null;
+            const stillOffered = openOptions().some((o) => o.text.includes('have this ale'));
+            e.activeDialog = null;
+            e.textWindow = null;
+            return { index, stillOffered, hasDrink: e.hasItem('drink') };
+        });
+        expect(result.index).toBeGreaterThanOrEqual(0);
+        expect(result.hasDrink).toBe(false);
+        expect(result.stillOffered).toBe(false);
+    });
+
+    test('clicking a door walks the player through it', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page);
+        await page.evaluate(() => {
+            const e = window.engine;
+            e.goToRoom('corridor', 320, 320);
+            e.roomTransition = 0;
+            e.setAction('walk');
+        });
+        // Click the real hotspot rectangle rather than calling onExit directly, so
+        // hit-testing, walk-to targeting and the exit trigger are all exercised.
+        const target = await page.evaluate(() => {
+            const e = window.engine;
+            const hs = e.rooms.corridor.hotspots.find((h) => h.name === 'Engine Room');
+            return { x: hs.x + hs.w / 2, y: hs.y + hs.h / 2 };
+        });
+        const canvas = page.locator('#game-canvas');
+        const box = await canvas.boundingBox();
+        await page.mouse.click(box.x + (target.x / 640) * box.width, box.y + (target.y / 400) * box.height);
+        await expect
+            .poll(() => page.evaluate(() => window.engine.currentRoomId), { timeout: 15000 })
+            .toBe('engine_room');
+    });
+
+    test('desert exposure kills an unequipped player and restarts clean', async ({ page }) => {
+        await clearState(page);
+        await finishIntro(page);
+        const dead = await page.evaluate(() => {
+            const e = window.engine;
+            e.goToRoom('desert', 320, 320);
+            e.roomTransition = 0;
+            e.inventory = [];
+            e.setFlag('used_kit', false);
+            e.setFlag('desert_timer', 0);
+            e.rooms.desert.onUpdate(e, 46000);
+            return e.dead;
+        });
+        expect(dead).toBe(true);
+        await page.keyboard.press('r');
+        const state = await page.evaluate(() => ({
+            dead: window.engine.dead,
+            score: window.engine.score,
+            room: window.engine.currentRoomId
+        }));
+        expect(state.dead).toBe(false);
+        expect(state.score).toBe(0);
+    });
 });
 
 test('installed app reloads from cache while offline', async ({ page, context }) => {
@@ -706,9 +956,13 @@ test('installed app falls back to cache when navigation stalls', async ({ page }
     await clearState(page);
     await ensureServiceWorkerControl(page);
     const started = Date.now();
-    const response = await page.goto('/index.html?delay=5000', { waitUntil: 'domcontentloaded', timeout: 7000 });
+    // The worker gives the network 3s before serving the cached shell. A 9s stall
+    // makes the two outcomes unambiguous: without the fallback this could not
+    // resolve before 9s, so a generous 7s ceiling still proves the cache served it
+    // without depending on a few hundred milliseconds of browser overhead.
+    const response = await page.goto('/index.html?delay=9000', { waitUntil: 'domcontentloaded', timeout: 15000 });
     expect(response.status()).toBe(200);
-    expect(Date.now() - started).toBeLessThan(4500);
+    expect(Date.now() - started).toBeLessThan(7000);
     await expect(page.locator('#game-canvas')).toBeVisible();
 });
 

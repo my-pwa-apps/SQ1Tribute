@@ -34,9 +34,9 @@ const headers = read('_headers');
 const content = require('../js/content.js');
 
 const itemIds = new Set(content.items.map((item) => item.id));
-const roomIds = new Set([...game.matchAll(/engine\.registerRoom\(\{\s*id:\s*'([^']+)'/g)].map((m) => m[1]));
-const roomRefs = [...game.matchAll(/goToRoom\('([^']+)'/g)].map((m) => m[1]);
-const itemRefs = [...game.matchAll(/(?:hasItem|addToInventory|removeFromInventory)\('([^']+)'\)|(?:itemId|id)\s*===\s*'([^']+)'/g)]
+const roomIds = new Set([...game.matchAll(/registerRoom\(\{\s*id:\s*['"]([^'"]+)['"]/g)].map((m) => m[1]));
+const roomRefs = [...game.matchAll(/goToRoom\(['"]([^'"]+)['"]/g)].map((m) => m[1]);
+const itemRefs = [...game.matchAll(/(?:hasItem|addToInventory|removeFromInventory)\(['"]([^'"]+)['"]\)|(?:itemId|id)\s*===\s*['"]([^'"]+)['"]/g)]
     .map((m) => m[1] || m[2]);
 
 for (const roomId of roomRefs) {
@@ -95,9 +95,11 @@ for (const asset of assetMatches) {
 // A misspelt flag name is invisible at runtime: getFlag returns false forever and
 // the puzzle silently never opens. Cross-reference every literal flag name.
 const engine = read('js/engine.js');
-const flagSources = game + engine;
+// content.js holds the shared progression rules, so it is a flag and score source too.
+const contentSource = read('js/content.js');
+const flagSources = game + engine + contentSource;
 const collectFlags = (fn) => new Set(
-    [...flagSources.matchAll(new RegExp(`${fn}\\('([^']+)'`, 'g'))].map((m) => m[1])
+    [...flagSources.matchAll(new RegExp(`${fn}\\(['"]([^'"]+)['"]`, 'g'))].map((m) => m[1])
 );
 const written = collectFlags('setFlag');
 const read_ = collectFlags('getFlag');
@@ -110,7 +112,7 @@ for (const flag of written) {
 
 // maxScore is the published contract for the status bar and the rank thresholds.
 // The walkthrough proves it is reachable; this proves the awards still fund it.
-const awarded = [...game.matchAll(/addScore\((\d+)\)/g)]
+const awarded = [...(game + contentSource).matchAll(/addScore\((\d+)\)/g)]
     .reduce((sum, m) => sum + Number(m[1]), 0);
 if (awarded < content.maxScore) {
     fail(`Score awards total ${awarded} but maxScore is ${content.maxScore}; the bar advertises unreachable points.`);

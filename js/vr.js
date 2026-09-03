@@ -152,13 +152,6 @@ class VRSystem {
         ceiling.position.set(0, WALL_TOP, (FLOOR_BACK + FLOOR_FRONT) / 2);
         this.scene.add(ceiling);
 
-        const grid = new THREE.GridHelper(FLOOR_WIDTH, 16, 0x303080, 0x181840);
-        grid.position.y = 0.006;
-        grid.position.z = (FLOOR_BACK + FLOOR_FRONT) / 2;
-        grid.material.transparent = true;
-        grid.material.opacity = 0.22;
-        this.scene.add(grid);
-
         this.markerGroup = new THREE.Group();
         this.scene.add(this.markerGroup);
         this.raycaster = new THREE.Raycaster();
@@ -245,12 +238,31 @@ class VRSystem {
         if (this.session) this.session.end().catch(() => this._onSessionEnd());
         const button = document.getElementById('btn-vr');
         if (button) button.remove();
+        this._disposeScene();
         if (this.renderer) {
             this.renderer.setAnimationLoop(null);
             this.renderer.dispose();
             this.renderer.domElement.remove();
         }
         this.renderer = null;
+    }
+
+    /** Release GPU-side scene resources; renderer.dispose() does not free these. */
+    _disposeScene() {
+        if (!this.scene) return;
+        this.scene.traverse((object) => {
+            if (object.geometry) object.geometry.dispose();
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            for (const material of materials) {
+                if (!material) continue;
+                if (material.map) material.map.dispose();
+                material.dispose();
+            }
+        });
+        this.scene.clear();
+        this.scene = null;
+        this.camera = null;
+        this.hotspotMarkers = [];
     }
 
     _onSessionEnd() {
@@ -320,8 +332,16 @@ class VRSystem {
         this.floorContext.drawImage(this.roomCanvas, 0, FLOOR_TOP_PX, ROOM_WIDTH, FLOOR_HEIGHT_PX,
             0, 0, ROOM_WIDTH, FLOOR_HEIGHT_PX);
         this.ceilingContext.clearRect(0, 0, ROOM_WIDTH, CEILING_HEIGHT_PX);
+        // Mirrored and dimmed: drawn upright it reads as a second copy of the
+        // room hanging overhead instead of an overhead surface.
+        this.ceilingContext.save();
+        this.ceilingContext.translate(0, CEILING_HEIGHT_PX);
+        this.ceilingContext.scale(1, -1);
         this.ceilingContext.drawImage(this.roomCanvas, 0, 0, ROOM_WIDTH, CEILING_HEIGHT_PX,
             0, 0, ROOM_WIDTH, CEILING_HEIGHT_PX);
+        this.ceilingContext.restore();
+        this.ceilingContext.fillStyle = 'rgba(2, 2, 12, 0.55)';
+        this.ceilingContext.fillRect(0, 0, ROOM_WIDTH, CEILING_HEIGHT_PX);
         this.wallTexture.needsUpdate = true;
         this.floorTexture.needsUpdate = true;
         this.ceilingTexture.needsUpdate = true;
@@ -345,7 +365,14 @@ class VRSystem {
 
     _updateHud() {
         const item = this.engine.selectedItem ? this.engine.items[this.engine.selectedItem]?.name : '';
-        const signature = [this.engine.currentAction, this.engine.score, item, this.engine.message].join('|');
+        const inventory = this.engine.inventory
+            .map((id) => this.engine.items[id]?.name || id)
+            .join(', ');
+        const state = this.engine.dead ? 'dead' : (this.engine.won ? 'won' : '');
+        const signature = [
+            this.engine.currentAction, this.engine.score, item,
+            this.engine.message, inventory, state
+        ].join('|');
         if (signature === this.lastHudSignature) return;
         this.lastHudSignature = signature;
         const ctx = this.hudContext;
@@ -363,12 +390,17 @@ class VRSystem {
         ctx.fillText(`SCORE ${this.engine.score}/${this.engine.maxScore}`, 996, 52);
         ctx.textAlign = 'left';
         ctx.font = '34px "Courier New"';
-        ctx.fillStyle = '#ffffff';
-        this._wrapText(ctx, this.engine.message || 'Explore the room.', 28, 102, 968, 38, 3);
-        if (item) {
-            ctx.fillStyle = '#55ff55';
-            ctx.fillText(`USING: ${item}`, 28, 238);
-        }
+        ctx.fillStyle = state === 'dead' ? '#ff8855' : '#ffffff';
+        const prompt = state === 'dead' ? 'You died. Press A to try again.'
+            : (state === 'won' ? 'You won! Press A to play again.' : null);
+        this._wrapText(ctx, prompt || this.engine.message || 'Explore the room.', 28, 102, 968, 38, 2);
+        // Desktop shows a persistent inventory bar; VR players otherwise have no
+        // way to see what they are carrying.
+        ctx.font = '26px "Courier New"';
+        ctx.fillStyle = item ? '#55ff55' : '#aab0d0';
+        const carried = inventory || 'nothing yet';
+        this._wrapText(ctx, item ? `USING ${item}  |  CARRYING ${carried}` : `CARRYING ${carried}`,
+            28, 208, 968, 30, 2);
         this.hudTexture.needsUpdate = true;
     }
 
@@ -465,6 +497,9 @@ class VRSystem {
 
         if (edge(0)) this._activate(canvasPoint);
         if (edge(1)) this._cycleAction();
+        // Thumbstick click is otherwise unused; desktop has a hint button and VR
+        // players would otherwise have no way to reach the hint system.
+        if (edge(3)) this._showHint();
         if (edge(4)) this._confirm();
         if (edge(5)) this._quickLook(canvasPoint);
         this._cycleInventory(index, source);
@@ -514,15 +549,14 @@ class VRSystem {
         this.engine.sound.init();
         if (this._confirm()) return;
         if (!canvasPoint) return;
-        this.engine.handleClick(canvasPoint.x, canvasPoint.y);
+        this.engine.handleCanvasActivate(canvasPoint.x, canvasPoint.y);
         this.engine.playerVisible = false;
     }
 
     _confirm() {
         if (this.engine.titleScreen) {
-            this.engine.titleScreen = false;
-            this.engine.sound.gameStart();
-            this.engine.goToRoom(this.engine.game.startRoom, this.engine.game.startX, this.engine.game.startY);
+            // Must go through startNewGame so the intro/start hook runs in VR too.
+            this.engine.startNewGame();
             this.engine.playerVisible = false;
             return true;
         }
@@ -543,7 +577,7 @@ class VRSystem {
         if (!canvasPoint || this.engine.titleScreen || this.engine.cutscene) return;
         const action = this.engine.currentAction;
         this.engine.currentAction = 'look';
-        this.engine.handleClick(canvasPoint.x, canvasPoint.y);
+        this.engine.handleCanvasActivate(canvasPoint.x, canvasPoint.y);
         this.engine.currentAction = action;
         this.engine.playerVisible = false;
     }
@@ -551,6 +585,13 @@ class VRSystem {
     _cycleAction() {
         this.actionIndex = (this.actionIndex + 1) % this.actions.length;
         this.engine.setAction(this.actions[this.actionIndex]);
+    }
+
+    _showHint() {
+        if (this.engine.titleScreen || this.engine.cutscene ||
+            this.engine.dead || this.engine.won) return;
+        this.engine.showHint();
+        this.engine.playerVisible = false;
     }
 
     _updateHotspotMarkers() {

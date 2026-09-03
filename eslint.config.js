@@ -121,6 +121,9 @@ module.exports = [
         languageOptions: {
             ecmaVersion: 2022,
             sourceType: 'commonjs',
+            // Specs run in Node, but page.evaluate callbacks are lexically part of
+            // the spec file, so browser globals must stay declared or no-undef
+            // fires on every window/document reference inside them.
             globals: { ...globals.node, ...globals.browser, showUpdateBanner: 'readonly' }
         },
         rules: sharedRules

@@ -333,7 +333,16 @@ StarSweeper.defineRooms((engine) => {
                         e.showMessage('The pod is completely wrecked. Nothing else salvageable remains.');
                     }
                 },
-                use: (e) => e.showMessage('The pod is beyond repair. Time to find another way off this rock.')
+                use: (e) => {
+                    // Recovery path: launching without the survival kit must not be
+                    // an unrecoverable run, so the pod carries an emergency ration.
+                    if (!e.hasItem('survival_kit') && !e.getFlag('used_kit')) {
+                        e.setFlag('used_kit');
+                        e.showMessage('You pry open the pod\'s crash locker. Inside: a dented emergency water ration and a foil sunshade. Not comfort, but enough to keep the suns from finishing the job.');
+                        return;
+                    }
+                    e.showMessage('The pod is beyond repair. Time to find another way off this rock.');
+                }
             },
             {
                 name: 'Rock Formation', x: 365, y: 150, w: 110, h: 75, isExit: true, walkToX: 420, walkToY: 282,
@@ -2025,14 +2034,8 @@ StarSweeper.defineRooms((engine) => {
                     if (itemId === 'credits') {
                         const cr = e.getFlag('credits_amount') || 0;
                         if (cr >= 10 && !e.hasItem('drink')) {
-                            engine.sound.sell();
                             e.showMessage('You slap 10 buckazoids on the bar. The bartender pours you a shimmering green Keronian Ale. "Here ya go, smoothskin. Don\'t drink it all at once."');
-                            e.setFlag('credits_amount', cr - 10);
-                            e.items['credits'].name = `Buckazoids (${cr - 10})`;
-                            e.items['credits'].description = `A credit chip with ${cr - 10} buckazoids remaining.`;
-                            if (cr - 10 <= 0) e.removeFromInventory('credits');
-                            e.addToInventory('drink');
-                            e.updateInventoryUI();
+                            StarSweeperContent.rules.buyDrink(e);
                         } else if (e.hasItem('drink')) {
                             e.showMessage('"You\'ve already got a drink, smoothskin."');
                         } else {
@@ -2068,9 +2071,7 @@ StarSweeper.defineRooms((engine) => {
                         return;
                     }
                     if (itemId === 'drink') {
-                        engine.sound.drink();
-                        e.removeFromInventory('drink');
-                        e.setFlag('pilot_has_drink');
+                        StarSweeperContent.rules.givePilotDrink(e);
                         e.showMessage('"For me?! You\'re a saint!" Zorthak grabs the ale and downs half of it in one gulp. His eyes light up. "Alright, alright, I promised info and Zorthak keeps his word..."');
                         // Pilot gives you the nav chip via short cutscene delay
                         const savedPX = engine.playerX, savedPY = engine.playerY;
@@ -2105,9 +2106,7 @@ StarSweeper.defineRooms((engine) => {
                             onEnd: () => {
                                 if (e.getFlag('pilot_left')) return;
                                 e.showMessage('"Those Draknoid thugs... I did a cargo run near their flagship last month. Got the coordinates logged before they chased me off. Take this nav chip — it\'ll get you right to \'em." He slides a chip across the table.');
-                                e.addToInventory('nav_chip');
-                                e.setFlag('pilot_left');
-                                e.addScore(20);
+                                StarSweeperContent.rules.grantNavChip(e);
                             }
                         });
                     } else {
@@ -2616,15 +2615,8 @@ StarSweeper.defineRooms((engine) => {
                 },
                 useItem: (e, itemId) => {
                     if (itemId === 'crystal') {
-                        engine.sound.sell();
                         e.showMessage('"A XENON CRYSTAL! These are incredibly rare! I\'ll give you... 50 buckazoids for it. Deal?" The merchant\'s eyes go even wider than usual. He hands you a credit chip.');
-                        e.removeFromInventory('crystal');
-                        e.addToInventory('credits');
-                        e.setFlag('credits_amount', 50);
-                        e.items['credits'].name = 'Buckazoids (50)';
-                        e.items['credits'].description = 'A credit chip with 50 buckazoids.';
-                        e.addScore(10);
-                        e.updateInventoryUI();
+                        StarSweeperContent.rules.sellCrystal(e);
                     } else if (itemId === 'credits') {
                         e.showMessage('"Looking to buy? Check out my wares! Click on what you want."');
                     } else {
@@ -2654,16 +2646,8 @@ StarSweeper.defineRooms((engine) => {
                     if (e.getFlag('bought_ray')) {
                         e.showMessage('Already purchased.');
                     } else if (cr >= 30) {
-                        engine.sound.sell();
                         e.showMessage('"30 buckazoids — SOLD!" The merchant wraps up the Pulsar Ray. "Fine weapon. Point the glowy end away from yourself." He winks one of his huge eyes.');
-                        e.setFlag('bought_ray');
-                        e.setFlag('credits_amount', cr - 30);
-                        e.addToInventory('pulsar_ray');
-                        e.items['credits'].name = `Buckazoids (${cr - 30})`;
-                        e.items['credits'].description = `A credit chip with ${cr - 30} buckazoids remaining.`;
-                        if (cr - 30 <= 0) e.removeFromInventory('credits');
-                        e.addScore(10);
-                        e.updateInventoryUI();
+                        StarSweeperContent.rules.buyPulsarRay(e);
                     } else if (e.hasItem('credits')) {
                         e.showMessage('"You don\'t have enough buckazoids for that. It\'s 30. Come back when you\'ve got the cash."');
                     } else {
@@ -2676,16 +2660,8 @@ StarSweeper.defineRooms((engine) => {
                         if (e.getFlag('bought_ray')) {
                             e.showMessage('You already bought the Pulsar Ray.');
                         } else if (cr >= 30) {
-                            engine.sound.sell();
                             e.showMessage('"SOLD! One Mark IV Pulsar Ray, coming right up!" Tiny carefully hands you the weapon. "Remember: safety first. Point away from face."');
-                            e.setFlag('bought_ray');
-                            e.setFlag('credits_amount', cr - 30);
-                            e.addToInventory('pulsar_ray');
-                            e.items['credits'].name = `Buckazoids (${cr - 30})`;
-                            e.items['credits'].description = `A credit chip with ${cr - 30} buckazoids remaining.`;
-                            if (cr - 30 <= 0) e.removeFromInventory('credits');
-                            e.addScore(10);
-                            e.updateInventoryUI();
+                            StarSweeperContent.rules.buyPulsarRay(e);
                         } else {
                             e.showMessage('"Not enough buckazoids, friend. It\'s 30."');
                         }
