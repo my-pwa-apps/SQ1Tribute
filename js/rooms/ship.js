@@ -1067,7 +1067,9 @@ StarSweeper.defineRooms((engine) => {
             const chenX = 394, chenGroundY = 344;
             ctx.save();
             ctx.translate(chenX, chenGroundY);
-            eng.drawContactShadow(ctx, -6, 0, 1, { rx: 44, ry: 8, alpha: 0.34, light: null });
+            eng.drawContactShadow(ctx, 1, -10, 1, {
+                rx: 50, ry: 7, alpha: 0.34, rotation: -0.2, light: null
+            });
             // Boots and legs, foreshortened away from the viewer. Kept warm
             // (brown/rose) rather than grey so she reads against the cool
             // blue-grey corridor floor instead of blending into it.

@@ -34,7 +34,6 @@ function lateGameSave(inventory, flags) {
         playerY: 310,
         playerDir: 1,
         playerFacing: 'toward',
-        crtEffects: true,
         inventory,
         score: 300,
         flags: { guard_defeated: true, ...flags },
@@ -634,13 +633,9 @@ test.describe('regression coverage for documented features', () => {
         expect(reply.trim().length).toBeGreaterThan(10);
     });
 
-    test('F9 toggles CRT effects and F2 toggles object highlighting', async ({ page }) => {
+    test('F2 toggles object highlighting', async ({ page }) => {
         await clearState(page);
         await finishIntro(page);
-
-        const crtBefore = await page.evaluate(() => window.engine.crtEffects);
-        await page.keyboard.press('F9');
-        expect(await page.evaluate(() => window.engine.crtEffects)).toBe(!crtBefore);
 
         await page.keyboard.press('F2');
         // The Objects button must mirror the engine state for screen readers.

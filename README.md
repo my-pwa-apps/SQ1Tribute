@@ -33,7 +33,6 @@ Then browse to http://127.0.0.1:8080 (the server binds the loopback address expl
 | `Esc` | Close modal / skip cutscene |
 | `F5` | Save game |
 | `F7` | Load game |
-| `F9` | Toggle CRT / clean pixel display |
 | `M` | Toggle sound |
 | `R` | Restart (after death) |
 | `F10` | Toggle Classic parser / Enhanced point-and-click UI |
@@ -62,7 +61,6 @@ From your broom closet you'll sneak through a burning ship, launch the last esca
 - Parser snark for wrong verbs, odd commands, and the traditional bad ideas players insist on trying
 - Object highlighting (`F2`, or the Objects button) so touch players can find hotspots without hover
 - Recoverable late-game workaround for players who ignored one important shipboard errand
-- Optional CRT display effects, for players who want either nostalgia or clean pixels
 - Touch-friendly D-pad on small screens in Enhanced mode
 - First-person WebXR mode with head tracking, controller ray interaction, locomotion, and a head-relative Sierra HUD
 
@@ -133,7 +131,7 @@ CI runs `check:ci` and the visual suite is a local pre-release step.
 references, flags that are read but never set (or set but never read), a
 `maxScore` larger than the sum of the awards, missing service-worker assets, and
 any content module that is not loaded by the page or cached offline.
-`npm run check` performs JavaScript syntax checks, structured room/item/asset validation, and Playwright tests in desktop Chrome and Pixel 5 emulation. The browser suite covers mode selection, the touch parser, save/load, accessibility mirrors, both final-console puzzle routes, offline reload, update UI, and the absence of full-canvas pixel readbacks. It also compares reviewed visual baselines for the title, representative rooms, CRT output, and mobile framing. Update those baselines deliberately with `npx playwright test tests/visual.spec.js --update-snapshots` only after reviewing the rendered changes.
+`npm run check` performs JavaScript syntax checks, structured room/item/asset validation, and Playwright tests in desktop Chrome and Pixel 5 emulation. The browser suite covers mode selection, the touch parser, save/load, accessibility mirrors, both final-console puzzle routes, offline reload, update UI, and the absence of full-canvas pixel readbacks. It also compares reviewed visual baselines for the title, representative rooms, and mobile framing. Update those baselines deliberately with `npx playwright test tests/visual.spec.js --update-snapshots` only after reviewing the rendered changes.
 
 The WebXR test mocks capability discovery and verifies first-person state, room/floor projection, locomotion mapping, desktop restoration, and a nonblank Three.js render. Browser automation cannot validate stereo comfort or physical controller ergonomics; complete the headset check below before release.
 

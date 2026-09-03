@@ -30,7 +30,7 @@ const EXIT_TRIGGER_X = 15, EXIT_TRIGGER_Y = 10;
 const EXIT_REARM_X = 70, EXIT_REARM_Y = 55;
 
 // The ego wears a worn janitor coverall, not a pressed dress uniform. Pure white
-// blew out against bright exteriors and under CRT bloom, so the greyscale suit
+// blew out against bright exteriors, so the greyscale suit
 // ramp is remapped to a dirty off-white at draw time. Keeping this as a lookup
 // (rather than editing ~40 sprite literals) keeps every view in step.
 const SUIT_REMAP = {
@@ -152,50 +152,6 @@ class GameEngine {
 
         // Reusable drawables array for Y-sorted rendering (avoid per-frame allocation)
         this._drawables = [];
-
-        // CRT scanline overlay (pre-rendered for performance)
-        this.scanlineCanvas = document.createElement('canvas');
-        this.scanlineCanvas.width = this.WIDTH;
-        this.scanlineCanvas.height = this.HEIGHT;
-        this.crtBloomCanvas = document.createElement('canvas');
-        this.crtBloomCanvas.width = this.WIDTH;
-        this.crtBloomCanvas.height = this.HEIGHT;
-        this.crtBloomCtx = this.crtBloomCanvas.getContext('2d');
-        const slCtx = this.scanlineCanvas.getContext('2d');
-        // Horizontal scanlines
-        slCtx.fillStyle = 'rgba(0,0,0,0.16)';
-        for (let y = 0; y < this.HEIGHT; y += 2) {
-            slCtx.fillRect(0, y, this.WIDTH, 1);
-        }
-        // Faint aperture-grille RGB triads — gives the phosphor character that makes
-        // CRT mode visibly distinct from clean mode even in a static frame, while
-        // staying subtle enough to keep puzzle-critical pixels legible.
-        for (let x = 0; x < this.WIDTH; x += 3) {
-            slCtx.fillStyle = 'rgba(255,40,40,0.05)'; slCtx.fillRect(x, 0, 1, this.HEIGHT);
-            slCtx.fillStyle = 'rgba(40,255,40,0.05)'; slCtx.fillRect(x + 1, 0, 1, this.HEIGHT);
-            slCtx.fillStyle = 'rgba(60,60,255,0.05)'; slCtx.fillRect(x + 2, 0, 1, this.HEIGHT);
-        }
-
-        // CRT vignette overlay (pre-rendered for performance)
-        this.vignetteCanvas = document.createElement('canvas');
-        this.vignetteCanvas.width = this.WIDTH;
-        this.vignetteCanvas.height = this.HEIGHT;
-        const vigCtx = this.vignetteCanvas.getContext('2d');
-        const vig = vigCtx.createRadialGradient(
-            this.WIDTH / 2, this.HEIGHT / 2, this.HEIGHT * 0.35,
-            this.WIDTH / 2, this.HEIGHT / 2, this.WIDTH * 0.7
-        );
-        vig.addColorStop(0, 'rgba(0,0,0,0)');
-        vig.addColorStop(1, 'rgba(0,0,0,0.3)');
-        vigCtx.fillStyle = vig;
-        vigCtx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
-        // Soft glass glare in the upper-left — a gentle screen reflection highlight.
-        const glare = vigCtx.createLinearGradient(0, 0, this.WIDTH * 0.55, this.HEIGHT * 0.55);
-        glare.addColorStop(0, 'rgba(180,200,255,0.05)');
-        glare.addColorStop(0.35, 'rgba(180,200,255,0)');
-        vigCtx.fillStyle = glare;
-        vigCtx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
-        this.crtEffects = true;
 
         this.sound = this.game.sound || (this.game.soundFactory ? this.game.soundFactory() : new SoundEngine());
         this.sound.onStateChange = () => this.updateSoundUI();
@@ -412,11 +368,6 @@ class GameEngine {
             if (e.key === 'F10') {
                 e.preventDefault();
                 this.toggleInterfaceMode();
-                return;
-            }
-            if (e.key === 'F9') {
-                e.preventDefault();
-                this.toggleCrtEffects();
                 return;
             }
             if (e.key === 'F2') {
@@ -709,11 +660,6 @@ class GameEngine {
         document.body.classList.toggle('enhanced-mode', !this.classicMode);
         document.body.classList.toggle('title-screen', this.titleScreen);
         this.updateLayoutScale();
-    }
-
-    toggleCrtEffects() {
-        this.crtEffects = !this.crtEffects;
-        this.showMessage(this.crtEffects ? 'CRT display effects enabled.' : 'Clean pixel display enabled. Nostalgia has been temporarily degaussed.');
     }
 
     updateSoundUI() {
@@ -2831,7 +2777,6 @@ class GameEngine {
 
         this.drawPickupSparkle(ctx);
         this.drawSoundCaption(ctx);
-        this.drawCrtEffects(ctx);
     }
 
     /** Render the active cutscene plus its boundary fades and overlays. */
@@ -2927,7 +2872,7 @@ class GameEngine {
     }
 
     /** Resolve room artwork through a hard-edged 320x200 raster. This is not a
-     * blur or CRT filter: it restores the chunky shape language of AGI/EGA art
+     * post-processing filter: it restores the chunky shape language of AGI/EGA art
      * while allowing rooms to use modern Canvas drawing and expanded colour. */
     applyClassicSceneRaster(ctx) {
         const low = this.sceneRasterCtx;
@@ -2993,23 +2938,6 @@ class GameEngine {
         ctx.fillRect(sx, sy + r, 2, 2);
         ctx.fillStyle = `rgba(255,255,255,${alpha})`;
         ctx.fillRect(sx, sy, 2, 2);
-    }
-
-    /** Phosphor bloom, scanlines, aperture grille and vignette. */
-    drawCrtEffects(ctx) {
-        if (!this.crtEffects) return;
-        // Phosphor bloom: re-composite the frame additively and slightly enlarged so
-        // bright pixels glow softly, then lay down scanlines, aperture grille and vignette.
-        const bloom = this.crtBloomCtx;
-        bloom.clearRect(0, 0, this.WIDTH, this.HEIGHT);
-        bloom.drawImage(ctx.canvas, 0, 0);
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = 0.12;
-        ctx.drawImage(this.crtBloomCanvas, -1, -1, this.WIDTH + 2, this.HEIGHT + 2);
-        ctx.restore();
-        ctx.drawImage(this.scanlineCanvas, 0, 0);
-        ctx.drawImage(this.vignetteCanvas, 0, 0);
     }
 
     /** Queue a closed-caption for a sound the player cannot hear. */
@@ -3453,7 +3381,7 @@ class GameEngine {
      * @param {number} cx - centre x (character's feet)
      * @param {number} groundY - y of the floor contact point
      * @param {number} scale - character depth scale (radius follows it)
-     * @param {Object} [opts] - { rx, ry, alpha } multipliers/overrides
+    * @param {Object} [opts] - { rx, ry, alpha, rotation } multipliers/overrides
      */
     drawContactShadow(ctx, cx, groundY, scale, opts) {
         const o = opts || {};
@@ -3476,7 +3404,7 @@ class GameEngine {
             ctx.ellipse(0, 0, rx * (1 + reach * 0.85), ry, 0, 0, Math.PI * 2);
         } else {
             ctx.beginPath();
-            ctx.ellipse(cx, groundY, rx, ry, 0, 0, Math.PI * 2);
+            ctx.ellipse(cx, groundY, rx, ry, o.rotation || 0, 0, Math.PI * 2);
         }
         ctx.fill();
         ctx.restore();
@@ -4268,7 +4196,6 @@ class GameEngine {
             playerY: this.playerY,
             playerDir: this.playerDir,
             playerFacing: this.playerFacing,
-            crtEffects: this.crtEffects,
             inventory: [...this.inventory],
             score: this.score,
             flags: JSON.parse(JSON.stringify(this.flags)),
@@ -4343,7 +4270,6 @@ class GameEngine {
             this.playerDir = data.playerDir === -1 ? -1 : 1;
             this.playerFacing = ['toward', 'away', 'left', 'right'].includes(data.playerFacing)
                 ? data.playerFacing : 'toward';
-            this.crtEffects = data.crtEffects !== false;
             this.screenShake = 0;
             // Restore modified item names/descriptions
             if (data.itemNames) {

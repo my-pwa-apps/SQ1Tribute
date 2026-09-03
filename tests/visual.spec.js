@@ -6,7 +6,7 @@ test.beforeEach(async ({ page }) => {
     });
 });
 
-const stableSave = (room, crtEffects = false) => ({
+const stableSave = (room) => ({
     version: 1,
     timestamp: 1,
     currentRoomId: room,
@@ -14,7 +14,6 @@ const stableSave = (room, crtEffects = false) => ({
     playerY: 330,
     playerDir: 1,
     playerFacing: 'toward',
-    crtEffects,
     inventory: [],
     score: 0,
     flags: {},
@@ -35,10 +34,10 @@ async function startEnhanced(page) {
     }
 }
 
-async function loadRoom(page, room, crtEffects = false) {
+async function loadRoom(page, room) {
     await page.evaluate((save) => {
         localStorage.setItem('starsweeper_save_0', JSON.stringify(save));
-    }, stableSave(room, crtEffects));
+    }, stableSave(room));
     await page.keyboard.press('F7');
     await page.locator('.slot-action', { hasText: 'Load' }).first().click();
     await page.keyboard.press('Space');
@@ -74,7 +73,6 @@ test.describe('visual regression', () => {
         await expectCanvas(page, 'title.png');
 
         await startEnhanced(page);
-    await page.evaluate(() => { window.engine.crtEffects = false; });
         for (const room of [
             'broom_closet', 'corridor', 'science_lab', 'pod_bay', 'engine_room',
             'desert', 'cave', 'outpost', 'cantina', 'shop', 'docking_bay',
@@ -86,11 +84,6 @@ test.describe('visual regression', () => {
             await expectCanvas(page, `${room}.png`);
         }
 
-        await page.evaluate(() => { window.engine.crtEffects = true; });
-        await setRoomState(page, 'corridor', {});
-        await expectCanvas(page, 'corridor-crt.png');
-
-        await page.evaluate(() => { window.engine.crtEffects = false; });
         await setRoomState(page, 'science_lab', {});
         await page.evaluate(() => {
             window.engine.animTimer = 300;
